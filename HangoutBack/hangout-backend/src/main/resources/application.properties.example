@@ -1,0 +1,13 @@
+spring.application.name=hangout-backend
+server.port=8080
+
+# MySQL connection — copy this file to application.properties and fill in your values
+spring.datasource.url=jdbc:mysql://localhost:3306/hangout_db
+spring.datasource.username=YOUR_DB_USERNAME
+spring.datasource.password=YOUR_DB_PASSWORD
+spring.datasource.driver-class-name=com.mysql.cj.jdbc.Driver
+
+# JPA / Hibernate
+spring.jpa.hibernate.ddl-auto=update
+spring.jpa.show-sql=false
+spring.jpa.properties.hibernate.dialect=org.hibernate.dialect.MySQLDialect

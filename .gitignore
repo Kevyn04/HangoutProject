@@ -1,0 +1,32 @@
+# ── Backend secrets (NEVER commit these) ──────────────────
+HangoutBack/hangout-backend/src/main/resources/application.properties
+HangoutBack/hangout-backend/src/main/resources/application-*.properties
+!HangoutBack/hangout-backend/src/main/resources/application.properties.example
+
+# ── Backend build artifacts ────────────────────────────────
+HangoutBack/hangout-backend/target/
+*.class
+*.jar
+
+# ── Frontend secrets ───────────────────────────────────────
+HangoutFront/.env
+HangoutFront/.env.local
+HangoutFront/.env.production
+
+# ── Frontend build artifacts ───────────────────────────────
+HangoutFront/node_modules/
+HangoutFront/.expo/
+HangoutFront/dist/
+
+# ── OS / IDE ───────────────────────────────────────────────
+.DS_Store
+Thumbs.db
+.idea/
+*.iml
+.vscode/
+*.suo
+*.user
+
+# ── Misc ───────────────────────────────────────────────────
+*.log
+HangoutBack/untitled/
