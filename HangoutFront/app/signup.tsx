@@ -1,4 +1,4 @@
-import React, { useState } from "react";
+import React, { useState, useRef } from "react";
 import {
   View,
   Text,
@@ -15,12 +15,17 @@ import { LinearGradient } from "expo-linear-gradient";
 import { useFonts, Cinzel_700Bold } from "@expo-google-fonts/cinzel";
 import { useRouter } from "expo-router";
 import { signUp } from "@/services/api";
+import { AppColors } from "@/constants/theme";
 
 export default function SignUpScreen() {
   const router = useRouter();
   const [username, setUsername] = useState("");
   const [password, setPassword] = useState("");
+  const [showPassword, setShowPassword] = useState(false);
   const [submitting, setSubmitting] = useState(false);
+  const [error, setError] = useState("");
+
+  const passwordRef = useRef<TextInput>(null);
 
   const [fontsLoaded] = useFonts({ Cinzel_700Bold });
   if (!fontsLoaded) {
@@ -32,19 +37,19 @@ export default function SignUpScreen() {
   }
 
   const handleSignUp = async () => {
+    setError("");
     if (!username.trim() || !password.trim()) {
-      Alert.alert("Missing fields", "Please enter both username and password.");
+      setError("Please enter both username and password.");
       return;
     }
-
     setSubmitting(true);
     try {
       await signUp(username.trim(), password);
-      Alert.alert("Success", "Account created! You can now sign in.", [
+      Alert.alert("Account Created", "You can now sign in.", [
         { text: "OK", onPress: () => router.back() },
       ]);
     } catch (e: any) {
-      Alert.alert("Sign Up Failed", e.message);
+      setError(e.message || "Sign up failed. Please try again.");
     } finally {
       setSubmitting(false);
     }
@@ -52,10 +57,7 @@ export default function SignUpScreen() {
 
   return (
     <View style={styles.container}>
-      <LinearGradient
-        colors={["#120303", "#3b0d0d", "#7a1f1f"]}
-        style={StyleSheet.absoluteFill}
-      />
+      <LinearGradient colors={AppColors.gradient} style={StyleSheet.absoluteFill} />
 
       <KeyboardAvoidingView
         style={{ flex: 1 }}
@@ -68,21 +70,42 @@ export default function SignUpScreen() {
           <TextInput
             style={styles.input}
             placeholder="Choose a username"
-            placeholderTextColor="rgba(255,255,255,0.3)"
+            placeholderTextColor={AppColors.textGhost}
             autoCapitalize="none"
+            autoComplete="username-new"
+            textContentType="username"
+            returnKeyType="next"
+            onSubmitEditing={() => passwordRef.current?.focus()}
             value={username}
-            onChangeText={setUsername}
+            onChangeText={(v) => { setUsername(v); setError(""); }}
           />
 
           <Text style={styles.label}>Password</Text>
-          <TextInput
-            style={styles.input}
-            placeholder="Choose a password"
-            placeholderTextColor="rgba(255,255,255,0.3)"
-            secureTextEntry
-            value={password}
-            onChangeText={setPassword}
-          />
+          <View style={styles.passwordRow}>
+            <TextInput
+              ref={passwordRef}
+              style={[styles.input, styles.passwordInput]}
+              placeholder="Choose a password"
+              placeholderTextColor={AppColors.textGhost}
+              secureTextEntry={!showPassword}
+              autoComplete="new-password"
+              textContentType="newPassword"
+              returnKeyType="done"
+              onSubmitEditing={handleSignUp}
+              value={password}
+              onChangeText={(v) => { setPassword(v); setError(""); }}
+            />
+            <Pressable
+              style={styles.eyeBtn}
+              onPress={() => setShowPassword((v) => !v)}
+              accessibilityLabel={showPassword ? "Hide password" : "Show password"}
+              accessibilityRole="button"
+            >
+              <Text style={styles.eyeBtnText}>{showPassword ? "Hide" : "Show"}</Text>
+            </Pressable>
+          </View>
+
+          {!!error && <Text style={styles.errorText}>{error}</Text>}
 
           <Pressable
             style={({ pressed }) => [
@@ -92,9 +115,11 @@ export default function SignUpScreen() {
             ]}
             onPress={handleSignUp}
             disabled={submitting}
+            accessibilityLabel="Create your account"
+            accessibilityRole="button"
           >
             {submitting ? (
-              <ActivityIndicator color="#0b0b0f" />
+              <ActivityIndicator color={AppColors.btnLightText} />
             ) : (
               <Text style={styles.submitBtnText}>Sign Up</Text>
             )}
@@ -109,7 +134,7 @@ const styles = StyleSheet.create({
   container: { flex: 1 },
   loadingContainer: {
     flex: 1,
-    backgroundColor: "#0b0b0f",
+    backgroundColor: AppColors.bgDeep,
     alignItems: "center",
     justifyContent: "center",
   },
@@ -117,40 +142,63 @@ const styles = StyleSheet.create({
   heading: {
     fontSize: 28,
     fontFamily: "Cinzel_700Bold",
-    color: "#fff",
+    color: AppColors.text,
     letterSpacing: 1,
     marginBottom: 30,
   },
   label: {
-    fontSize: 13,
+    fontSize: 14,
     fontFamily: "Cinzel_700Bold",
     letterSpacing: 1,
-    color: "rgba(255,255,255,0.5)",
+    color: AppColors.textSub,
     marginBottom: 8,
   },
   input: {
     height: 48,
     borderRadius: 14,
     borderWidth: 1,
-    borderColor: "rgba(255,255,255,0.2)",
-    backgroundColor: "rgba(255,255,255,0.07)",
+    borderColor: AppColors.border,
+    backgroundColor: AppColors.card,
     paddingHorizontal: 16,
     fontSize: 16,
-    color: "#fff",
+    color: AppColors.text,
     marginBottom: 20,
+  },
+  passwordRow: { position: "relative", marginBottom: 20 },
+  passwordInput: { marginBottom: 0, paddingRight: 72 },
+  eyeBtn: {
+    position: "absolute",
+    right: 0,
+    top: 0,
+    height: 48,
+    paddingHorizontal: 16,
+    alignItems: "center",
+    justifyContent: "center",
+  },
+  eyeBtnText: {
+    fontSize: 12,
+    fontFamily: "Cinzel_700Bold",
+    letterSpacing: 0.5,
+    color: AppColors.textMuted,
+  },
+  errorText: {
+    color: AppColors.red,
+    fontSize: 13,
+    marginBottom: 16,
+    lineHeight: 18,
   },
   submitBtn: {
     height: 48,
     borderRadius: 14,
     alignItems: "center",
     justifyContent: "center",
-    backgroundColor: "rgba(255,255,255,0.92)",
+    backgroundColor: AppColors.btnLight,
     marginTop: 10,
   },
   submitBtnText: {
     fontSize: 14,
     letterSpacing: 1.5,
-    color: "#0b0b0f",
+    color: AppColors.btnLightText,
     fontFamily: "Cinzel_700Bold",
   },
   pressed: { transform: [{ scale: 0.98 }], opacity: 0.9 },

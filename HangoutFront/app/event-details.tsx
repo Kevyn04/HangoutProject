@@ -76,6 +76,8 @@ export default function EventDetailsScreen() {
                 params: { id, title, location, time, createdBy },
               })
             }
+            accessibilityLabel="Edit this hangout"
+            accessibilityRole="button"
           >
             <Text style={styles.editBtnText}>Edit</Text>
           </Pressable>
@@ -83,6 +85,8 @@ export default function EventDetailsScreen() {
           <Pressable
             style={({ pressed }) => [styles.deleteBtn, pressed && styles.pressed]}
             onPress={handleDelete}
+            accessibilityLabel="Delete this hangout"
+            accessibilityRole="button"
           >
             <Text style={styles.deleteBtnText}>Delete</Text>
           </Pressable>

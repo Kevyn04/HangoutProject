@@ -1,11 +1,10 @@
-import React, { useState } from "react";
+import React, { useState, useRef } from "react";
 import {
   View,
   Text,
   TextInput,
   StyleSheet,
   Pressable,
-  Alert,
   ActivityIndicator,
   KeyboardAvoidingView,
   Platform,
@@ -15,6 +14,7 @@ import { LinearGradient } from "expo-linear-gradient";
 import { useFonts, Cinzel_700Bold } from "@expo-google-fonts/cinzel";
 import { useLocalSearchParams, useRouter } from "expo-router";
 import { updateEvent } from "@/services/api";
+import { AppColors } from "@/constants/theme";
 
 export default function EditEventScreen() {
   const router = useRouter();
@@ -26,14 +26,18 @@ export default function EditEventScreen() {
     createdBy: string;
   }>();
 
-  const [title, setTitle] = useState(params.title ?? "");
+  const [title, setTitle]       = useState(params.title ?? "");
   const [location, setLocation] = useState(params.location ?? "");
-  const [time, setTime] = useState(params.time ?? "");
+  const [time, setTime]         = useState(params.time ?? "");
   const [createdBy, setCreatedBy] = useState(params.createdBy ?? "");
   const [submitting, setSubmitting] = useState(false);
+  const [error, setError] = useState("");
+
+  const locationRef  = useRef<TextInput>(null);
+  const timeRef      = useRef<TextInput>(null);
+  const createdByRef = useRef<TextInput>(null);
 
   const [fontsLoaded] = useFonts({ Cinzel_700Bold });
-
   if (!fontsLoaded) {
     return (
       <View style={styles.loadingContainer}>
@@ -43,11 +47,11 @@ export default function EditEventScreen() {
   }
 
   const handleSubmit = async () => {
+    setError("");
     if (!title.trim() || !location.trim() || !time.trim() || !createdBy.trim()) {
-      Alert.alert("Missing fields", "Please fill in all fields.");
+      setError("Please fill in all fields.");
       return;
     }
-
     setSubmitting(true);
     try {
       await updateEvent(Number(params.id), {
@@ -58,7 +62,7 @@ export default function EditEventScreen() {
       });
       router.dismissAll();
     } catch {
-      Alert.alert("Error", "Failed to update hangout.");
+      setError("Failed to update hangout. Please try again.");
     } finally {
       setSubmitting(false);
     }
@@ -66,10 +70,7 @@ export default function EditEventScreen() {
 
   return (
     <View style={styles.container}>
-      <LinearGradient
-        colors={["#120303", "#3b0d0d", "#7a1f1f"]}
-        style={StyleSheet.absoluteFill}
-      />
+      <LinearGradient colors={AppColors.gradient} style={StyleSheet.absoluteFill} />
 
       <KeyboardAvoidingView
         style={{ flex: 1 }}
@@ -81,34 +82,47 @@ export default function EditEventScreen() {
           <Text style={styles.label}>Title</Text>
           <TextInput
             style={styles.input}
-            placeholderTextColor="rgba(255,255,255,0.3)"
+            placeholderTextColor={AppColors.textGhost}
+            returnKeyType="next"
+            onSubmitEditing={() => locationRef.current?.focus()}
             value={title}
-            onChangeText={setTitle}
+            onChangeText={(v) => { setTitle(v); setError(""); }}
           />
 
           <Text style={styles.label}>Location</Text>
           <TextInput
+            ref={locationRef}
             style={styles.input}
-            placeholderTextColor="rgba(255,255,255,0.3)"
+            placeholderTextColor={AppColors.textGhost}
+            returnKeyType="next"
+            onSubmitEditing={() => timeRef.current?.focus()}
             value={location}
-            onChangeText={setLocation}
+            onChangeText={(v) => { setLocation(v); setError(""); }}
           />
 
           <Text style={styles.label}>Time</Text>
           <TextInput
+            ref={timeRef}
             style={styles.input}
-            placeholderTextColor="rgba(255,255,255,0.3)"
+            placeholderTextColor={AppColors.textGhost}
+            returnKeyType="next"
+            onSubmitEditing={() => createdByRef.current?.focus()}
             value={time}
-            onChangeText={setTime}
+            onChangeText={(v) => { setTime(v); setError(""); }}
           />
 
           <Text style={styles.label}>Your Name</Text>
           <TextInput
+            ref={createdByRef}
             style={styles.input}
-            placeholderTextColor="rgba(255,255,255,0.3)"
+            placeholderTextColor={AppColors.textGhost}
+            returnKeyType="done"
+            onSubmitEditing={handleSubmit}
             value={createdBy}
-            onChangeText={setCreatedBy}
+            onChangeText={(v) => { setCreatedBy(v); setError(""); }}
           />
+
+          {!!error && <Text style={styles.errorText}>{error}</Text>}
 
           <Pressable
             style={({ pressed }) => [
@@ -118,9 +132,11 @@ export default function EditEventScreen() {
             ]}
             onPress={handleSubmit}
             disabled={submitting}
+            accessibilityLabel="Save changes to this hangout"
+            accessibilityRole="button"
           >
             {submitting ? (
-              <ActivityIndicator color="#0b0b0f" />
+              <ActivityIndicator color={AppColors.btnLightText} />
             ) : (
               <Text style={styles.submitBtnText}>Save</Text>
             )}
@@ -132,64 +148,59 @@ export default function EditEventScreen() {
 }
 
 const styles = StyleSheet.create({
-  container: {
-    flex: 1,
-  },
+  container: { flex: 1 },
   loadingContainer: {
     flex: 1,
-    backgroundColor: "#0b0b0f",
+    backgroundColor: AppColors.bgDeep,
     alignItems: "center",
     justifyContent: "center",
   },
-  scroll: {
-    padding: 24,
-    paddingTop: 20,
-    paddingBottom: 40,
-  },
+  scroll: { padding: 24, paddingTop: 20, paddingBottom: 40 },
   heading: {
     fontSize: 28,
     fontFamily: "Cinzel_700Bold",
-    color: "#fff",
+    color: AppColors.text,
     letterSpacing: 1,
     marginBottom: 30,
   },
   label: {
-    fontSize: 13,
+    fontSize: 14,
     fontFamily: "Cinzel_700Bold",
     letterSpacing: 1,
-    color: "rgba(255,255,255,0.5)",
+    color: AppColors.textSub,
     marginBottom: 8,
   },
   input: {
     height: 48,
     borderRadius: 14,
     borderWidth: 1,
-    borderColor: "rgba(255,255,255,0.2)",
-    backgroundColor: "rgba(255,255,255,0.07)",
+    borderColor: AppColors.border,
+    backgroundColor: AppColors.card,
     paddingHorizontal: 16,
     fontSize: 16,
-    color: "#fff",
+    color: AppColors.text,
     marginBottom: 20,
+  },
+  errorText: {
+    color: AppColors.red,
+    fontSize: 13,
+    marginBottom: 16,
+    lineHeight: 18,
   },
   submitBtn: {
     height: 48,
     borderRadius: 14,
     alignItems: "center",
     justifyContent: "center",
-    backgroundColor: "rgba(255,255,255,0.92)",
+    backgroundColor: AppColors.btnLight,
     marginTop: 10,
   },
   submitBtnText: {
     fontSize: 14,
     letterSpacing: 1.5,
-    color: "#0b0b0f",
+    color: AppColors.btnLightText,
     fontFamily: "Cinzel_700Bold",
   },
-  pressed: {
-    transform: [{ scale: 0.98 }],
-    opacity: 0.9,
-  },
-  disabled: {
-    opacity: 0.6,
-  },
+  pressed: { transform: [{ scale: 0.98 }], opacity: 0.9 },
+  disabled: { opacity: 0.6 },
 });

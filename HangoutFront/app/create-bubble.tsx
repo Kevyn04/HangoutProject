@@ -127,7 +127,7 @@ function MapPickerModal({
       <View style={mp.container}>
         {/* Header */}
         <View style={mp.header}>
-          <Pressable onPress={onClose} style={mp.headerBtn}>
+          <Pressable onPress={onClose} style={mp.headerBtn} accessibilityLabel="Cancel location picker" accessibilityRole="button">
             <Text style={mp.headerBtnText}>Cancel</Text>
           </Pressable>
           <Text style={mp.headerTitle}>Pick Location</Text>
@@ -157,6 +157,8 @@ function MapPickerModal({
             style={[mp.confirmBtn, !pin && mp.confirmBtnDisabled]}
             onPress={() => { if (pin) { onConfirm(pin); onClose(); } }}
             disabled={!pin}
+            accessibilityLabel="Confirm selected location"
+            accessibilityRole="button"
           >
             <Text style={mp.confirmBtnText}>Confirm Location</Text>
           </Pressable>
@@ -353,6 +355,8 @@ export default function CreateBubbleScreen() {
             style={[s.locModeBtn, locationMode === "gps" && s.locModeBtnActive]}
             onPress={handleGPS}
             disabled={gpsLoading}
+            accessibilityLabel="Use GPS to get current location"
+            accessibilityRole="button"
           >
             {gpsLoading
               ? <ActivityIndicator color="#fff" size="small" />
@@ -364,6 +368,8 @@ export default function CreateBubbleScreen() {
           <Pressable
             style={[s.locModeBtn, locationMode === "address" && s.locModeBtnActive]}
             onPress={() => setLocationMode("address")}
+            accessibilityLabel="Search location by address"
+            accessibilityRole="button"
           >
             <Text style={[s.locModeBtnText, locationMode === "address" && s.locModeBtnTextActive]}>🔍 Address</Text>
           </Pressable>
@@ -372,6 +378,8 @@ export default function CreateBubbleScreen() {
           <Pressable
             style={[s.locModeBtn, locationMode === "map" && s.locModeBtnActive]}
             onPress={() => setMapPickerVisible(true)}
+            accessibilityLabel="Place a pin on the map"
+            accessibilityRole="button"
           >
             <Text style={[s.locModeBtnText, locationMode === "map" && s.locModeBtnTextActive]}>🗺 Pin</Text>
           </Pressable>
@@ -493,6 +501,8 @@ export default function CreateBubbleScreen() {
           style={({ pressed }) => [s.createBtn, pressed && { opacity: 0.8 }]}
           onPress={handleCreate}
           disabled={saving}
+          accessibilityLabel="Create bubble"
+          accessibilityRole="button"
         >
           {saving
             ? <ActivityIndicator color="#fff" size="small" />
