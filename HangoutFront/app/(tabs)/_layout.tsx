@@ -1,5 +1,7 @@
 import { Tabs } from 'expo-router';
 import React from 'react';
+import { StyleSheet } from 'react-native';
+import { LinearGradient } from 'expo-linear-gradient';
 
 import { HapticTab } from '@/components/haptic-tab';
 import { IconSymbol } from '@/components/ui/icon-symbol';
@@ -13,9 +15,19 @@ export default function TabLayout() {
         tabBarInactiveTintColor: AppColors.tabInactive,
         headerShown: false,
         tabBarButton: HapticTab,
+        tabBarBackground: () => (
+          <LinearGradient
+            colors={["rgba(10,2,4,0.96)", "#120303"]}
+            start={{ x: 0, y: 0 }}
+            end={{ x: 0, y: 1 }}
+            style={StyleSheet.absoluteFill}
+          />
+        ),
         tabBarStyle: {
-          backgroundColor: AppColors.bgBase,
-          borderTopColor: AppColors.borderFaint,
+          backgroundColor: 'transparent',
+          borderTopWidth: StyleSheet.hairlineWidth,
+          borderTopColor: 'rgba(255,255,255,0.1)',
+          elevation: 0,
         },
       }}>
       <Tabs.Screen

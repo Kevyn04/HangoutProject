@@ -1,6 +1,7 @@
 import React, { useState, useEffect } from "react";
 import { View, Text, StyleSheet, Pressable, Alert, ActivityIndicator } from "react-native";
 import { LinearGradient } from "expo-linear-gradient";
+import * as Haptics from "expo-haptics";
 import { useFonts, Cinzel_700Bold } from "@expo-google-fonts/cinzel";
 import { useLocalSearchParams, useRouter } from "expo-router";
 import { useAuth } from "@/services/auth-context";
@@ -66,7 +67,7 @@ export default function EventDetailsScreen() {
 
   return (
     <View style={styles.container}>
-      <LinearGradient colors={["#120303", "#3b0d0d", "#7a1f1f"]} style={StyleSheet.absoluteFill} />
+      <LinearGradient colors={["#0f0305", "#1a0505", "#2d0808"]} locations={[0, 0.5, 1]} style={StyleSheet.absoluteFill} />
 
       <View style={styles.content}>
         <Text style={styles.title}>{title}</Text>
@@ -104,7 +105,7 @@ export default function EventDetailsScreen() {
               isAttending && styles.attendBtnLeave,
               pressed && styles.pressed,
             ]}
-            onPress={handleAttend}
+            onPress={() => { Haptics.impactAsync(Haptics.ImpactFeedbackStyle.Light); handleAttend(); }}
             disabled={attendLoading || dataLoading}
           >
             {attendLoading
@@ -144,9 +145,9 @@ const styles = StyleSheet.create({
   title: { fontSize: 28, fontWeight: "700", color: "#fff", marginBottom: 24 },
 
   card: {
-    borderRadius: 14, borderWidth: 1,
-    borderColor: "rgba(255,255,255,0.12)",
-    backgroundColor: "rgba(255,255,255,0.07)", padding: 20,
+    borderRadius: 16, borderWidth: StyleSheet.hairlineWidth,
+    borderColor: "rgba(255,255,255,0.12)", borderTopColor: "rgba(255,255,255,0.2)",
+    backgroundColor: "rgba(255,255,255,0.06)", padding: 20,
   },
   row: { flexDirection: "row", justifyContent: "space-between", alignItems: "center", paddingVertical: 14 },
   label: { fontSize: 13, fontFamily: "Cinzel_700Bold", letterSpacing: 1, color: "rgba(255,255,255,0.5)" },

@@ -16,6 +16,9 @@ import { SkeletonBox } from "@/components/SkeletonBox";
 import { ErrorScreen } from "@/components/ErrorScreen";
 import { useAuth } from "@/services/auth-context";
 import { useToast } from "@/context/ToastContext";
+import { Ionicons } from "@expo/vector-icons";
+import * as Haptics from "expo-haptics";
+import { ScreenBackground } from "@/components/ScreenBackground";
 
 // ── Emoji helpers ─────────────────────────────────────────────────────
 const FACE_EMOJIS = [
@@ -484,7 +487,7 @@ export default function BubbleDetailScreen() {
 
   if (loading || !bubble) {
     return (
-      <View style={{ flex: 1, backgroundColor: "#120303" }}>
+      <ScreenBackground style={{ flex: 1 }}>
         {/* Skeleton header */}
         <View style={{ paddingTop: 56, paddingHorizontal: 20, paddingBottom: 16, gap: 6 }}>
           <SkeletonBox width={180} height={22} borderRadius={8} />
@@ -510,14 +513,15 @@ export default function BubbleDetailScreen() {
             <SkeletonBox width={10} height={10} borderRadius={5} />
           </View>
         ))}
-      </View>
+      </ScreenBackground>
     );
   }
 
   // ── Render ───────────────────────────────────────────────────────
   return (
+    <ScreenBackground style={{ flex: 1 }}>
     <KeyboardAvoidingView
-      style={{ flex: 1, backgroundColor: "#120303" }}
+      style={{ flex: 1 }}
       behavior={Platform.OS === "ios" ? "padding" : undefined}
     >
       {/* Header */}
@@ -536,7 +540,12 @@ export default function BubbleDetailScreen() {
         </View>
         <View style={s.headerMeta}>
           {bubble.type && <View style={s.typeBadge}><Text style={s.typeBadgeText}>{bubble.type}</Text></View>}
-          {bubble.meetTime && <Text style={s.headerTime}>🕐 {bubble.meetTime}</Text>}
+          {bubble.meetTime && (
+            <View style={{ flexDirection: "row", alignItems: "center", gap: 5 }}>
+              <Ionicons name="time-outline" size={12} color="rgba(255,255,255,0.5)" />
+              <Text style={s.headerTime}>{bubble.meetTime}</Text>
+            </View>
+          )}
           <Text style={s.memberCount}>{bubble.members.length} members</Text>
         </View>
         {bubble.description ? <Text style={s.headerDesc} numberOfLines={2}>{bubble.description}</Text> : null}
@@ -756,6 +765,7 @@ export default function BubbleDetailScreen() {
         </View>
       </Modal>
     </KeyboardAvoidingView>
+    </ScreenBackground>
   );
 }
 
@@ -833,7 +843,7 @@ const vs = StyleSheet.create({
 
 // ── Main Styles ───────────────────────────────────────────────────────
 const s = StyleSheet.create({
-  center: { flex: 1, alignItems: "center", justifyContent: "center", backgroundColor: "#120303" },
+  center: { flex: 1, alignItems: "center", justifyContent: "center" },
 
   // Header
   header: { paddingHorizontal: 20, paddingTop: 16, paddingBottom: 12, borderBottomWidth: 1, borderColor: "rgba(255,255,255,0.08)" },

@@ -3,6 +3,8 @@ import {
   View, Text, StyleSheet, ScrollView, Pressable,
   TextInput, ActivityIndicator, StatusBar, Alert,
 } from "react-native";
+import { Ionicons } from "@expo/vector-icons";
+import * as Haptics from "expo-haptics";
 import { useFocusEffect, useRouter } from "expo-router";
 import { useAuth } from "@/services/auth-context";
 import { getProfile, updateProfile, getUserBubbles, getUserRatings } from "@/services/api";
@@ -10,6 +12,7 @@ import { ColorWheelPicker } from "@/components/ColorWheelPicker";
 import { SkeletonBox } from "@/components/SkeletonBox";
 import { ErrorScreen } from "@/components/ErrorScreen";
 import { useToast } from "@/context/ToastContext";
+import { ScreenBackground } from "@/components/ScreenBackground";
 
 const PRESET_COLORS = ["#7c3aed", "#dc2626", "#0ea5e9", "#16a34a", "#ea580c", "#db2777"];
 
@@ -21,9 +24,14 @@ const FACE_EMOJIS = [
 
 function Stars({ value }: { value: number }) {
   return (
-    <View style={{ flexDirection: "row", gap: 2 }}>
+    <View style={{ flexDirection: "row", gap: 3 }}>
       {[1, 2, 3, 4, 5].map((i) => (
-        <Text key={i} style={{ fontSize: 14, color: i <= Math.round(value) ? "#fbbf24" : "rgba(255,255,255,0.2)" }}>★</Text>
+        <Ionicons
+          key={i}
+          name={i <= Math.round(value) ? "star" : "star-outline"}
+          size={13}
+          color={i <= Math.round(value) ? "#fbbf24" : "rgba(255,255,255,0.2)"}
+        />
       ))}
     </View>
   );
@@ -126,8 +134,8 @@ export default function ProfileScreen() {
 
   if (loading) {
     return (
-      <View style={s.container}>
-        <StatusBar barStyle="light-content" backgroundColor="#120303" />
+      <ScreenBackground style={s.container}>
+        <StatusBar barStyle="light-content" backgroundColor="transparent" translucent />
         <ScrollView contentContainerStyle={s.scroll} showsVerticalScrollIndicator={false}>
           {/* Avatar + username + stats */}
           <View style={[s.avatarSection, { gap: 14 }]}>
@@ -160,15 +168,15 @@ export default function ProfileScreen() {
             ))}
           </View>
         </ScrollView>
-      </View>
+      </ScreenBackground>
     );
   }
 
   const initial = user.charAt(0).toUpperCase();
 
   return (
-    <View style={s.container}>
-      <StatusBar barStyle="light-content" backgroundColor="#120303" />
+    <ScreenBackground style={s.container}>
+      <StatusBar barStyle="light-content" backgroundColor="transparent" translucent />
       <ScrollView contentContainerStyle={s.scroll} showsVerticalScrollIndicator={false} keyboardShouldPersistTaps="handled">
 
         {/* Avatar */}
@@ -365,13 +373,13 @@ export default function ProfileScreen() {
         </Pressable>
 
       </ScrollView>
-    </View>
+    </ScreenBackground>
   );
 }
 
 const s = StyleSheet.create({
-  container: { flex: 1, backgroundColor: "#120303", paddingTop: 56 },
-  centered: { flex: 1, backgroundColor: "#120303", alignItems: "center", justifyContent: "center", gap: 16 },
+  container: { flex: 1, paddingTop: 56 },
+  centered: { flex: 1, alignItems: "center", justifyContent: "center", gap: 16 },
   scroll: { paddingHorizontal: 20, paddingBottom: 40 },
 
   avatarSection: { alignItems: "center", paddingVertical: 24, gap: 10 },

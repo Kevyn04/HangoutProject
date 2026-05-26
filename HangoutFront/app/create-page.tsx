@@ -122,7 +122,7 @@ export default function CreatePageScreen() {
 }
 
 const s = StyleSheet.create({
-  container: { flex: 1, backgroundColor: "#120303" },
+  container: { flex: 1, backgroundColor: "#0f0305" },
   scroll: { padding: 20, paddingBottom: 48 },
 
   preview: { alignItems: "center", paddingVertical: 24, gap: 8, marginBottom: 8 },

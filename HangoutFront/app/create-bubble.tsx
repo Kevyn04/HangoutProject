@@ -169,8 +169,8 @@ function MapPickerModal({
 }
 
 const mp = StyleSheet.create({
-  container:        { flex: 1, backgroundColor: "#120303" },
-  header:           { flexDirection: "row", alignItems: "center", justifyContent: "space-between", paddingHorizontal: 16, paddingTop: 56, paddingBottom: 12, backgroundColor: "#120303" },
+  container:        { flex: 1, backgroundColor: "#0f0305" },
+  header:           { flexDirection: "row", alignItems: "center", justifyContent: "space-between", paddingHorizontal: 16, paddingTop: 56, paddingBottom: 12, backgroundColor: "#0f0305" },
   headerBtn:        { width: 70 },
   headerBtnText:    { color: "#dc2626", fontSize: 16 },
   headerTitle:      { color: "#fff", fontSize: 16, fontWeight: "700" },
@@ -528,7 +528,7 @@ export default function CreateBubbleScreen() {
 
 // ── Styles ───────────────────────────────────────────────────────────
 const s = StyleSheet.create({
-  container: { flex: 1, backgroundColor: "#120303" },
+  container: { flex: 1, backgroundColor: "#0f0305" },
   content:   { padding: 20, paddingBottom: 48, gap: 8 },
 
   label: {

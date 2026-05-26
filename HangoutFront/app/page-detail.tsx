@@ -10,6 +10,8 @@ import { getPage, getPageContent, toggleFollow } from "@/services/api";
 import { ErrorScreen } from "@/components/ErrorScreen";
 import { SkeletonBox } from "@/components/SkeletonBox";
 import { useToast } from "@/context/ToastContext";
+import * as Haptics from "expo-haptics";
+import { ScreenBackground } from "@/components/ScreenBackground";
 
 const CATEGORY_COLORS: Record<string, string> = {
   Nightlife: "#7c3aed", Community: "#0ea5e9", Art: "#ea580c",
@@ -94,8 +96,8 @@ export default function PageDetailScreen() {
   const catColor = CATEGORY_COLORS[page.category] ?? "#7c3aed";
 
   return (
-    <View style={s.container}>
-      <StatusBar barStyle="light-content" backgroundColor="#120303" />
+    <ScreenBackground style={s.container}>
+      <StatusBar barStyle="light-content" backgroundColor="transparent" translucent />
       <ScrollView contentContainerStyle={s.scroll} showsVerticalScrollIndicator={false}>
 
         {/* Hero */}
@@ -199,13 +201,13 @@ export default function PageDetailScreen() {
         )}
 
       </ScrollView>
-    </View>
+    </ScreenBackground>
   );
 }
 
 const s = StyleSheet.create({
-  container: { flex: 1, backgroundColor: "#120303" },
-  center: { flex: 1, alignItems: "center", justifyContent: "center", backgroundColor: "#120303" },
+  container: { flex: 1 },
+  center: { flex: 1, alignItems: "center", justifyContent: "center" },
   scroll: { paddingBottom: 40 },
 
   hero: { alignItems: "center", padding: 24, gap: 10, borderBottomWidth: 1, borderColor: "rgba(255,255,255,0.08)" },

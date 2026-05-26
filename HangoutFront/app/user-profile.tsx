@@ -13,6 +13,9 @@ import {
 import { SkeletonBox } from "@/components/SkeletonBox";
 import { ErrorScreen } from "@/components/ErrorScreen";
 import { useToast } from "@/context/ToastContext";
+import { Ionicons } from "@expo/vector-icons";
+import * as Haptics from "expo-haptics";
+import { ScreenBackground } from "@/components/ScreenBackground";
 
 const RATING_REASONS = [
   "Great vibes ✨", "Fun host 🎤", "Very welcoming 🤝",
@@ -20,11 +23,16 @@ const RATING_REASONS = [
   "Made it memorable 🎉", "Chill person 😎",
 ];
 
-function Stars({ value, size = 16 }: { value: number; size?: number }) {
+function Stars({ value, size = 14 }: { value: number; size?: number }) {
   return (
-    <View style={{ flexDirection: "row", gap: 2 }}>
+    <View style={{ flexDirection: "row", gap: 3 }}>
       {[1, 2, 3, 4, 5].map((i) => (
-        <Text key={i} style={{ fontSize: size, color: i <= Math.round(value) ? "#fbbf24" : "rgba(255,255,255,0.2)" }}>★</Text>
+        <Ionicons
+          key={i}
+          name={i <= Math.round(value) ? "star" : "star-outline"}
+          size={size}
+          color={i <= Math.round(value) ? "#fbbf24" : "rgba(255,255,255,0.2)"}
+        />
       ))}
     </View>
   );
@@ -34,8 +42,12 @@ function StarPicker({ value, onChange }: { value: number; onChange: (v: number) 
   return (
     <View style={{ flexDirection: "row", gap: 8, justifyContent: "center" }}>
       {[1, 2, 3, 4, 5].map((i) => (
-        <Pressable key={i} onPress={() => onChange(i)}>
-          <Text style={{ fontSize: 36, color: i <= value ? "#fbbf24" : "rgba(255,255,255,0.2)" }}>★</Text>
+        <Pressable key={i} onPress={() => { Haptics.impactAsync(Haptics.ImpactFeedbackStyle.Light); onChange(i); }}>
+          <Ionicons
+            name={i <= value ? "star" : "star-outline"}
+            size={40}
+            color={i <= value ? "#fbbf24" : "rgba(255,255,255,0.2)"}
+          />
         </Pressable>
       ))}
     </View>
@@ -135,7 +147,7 @@ export default function UserProfileScreen() {
 
   if (loading || !profile) {
     return (
-      <View style={s.container}>
+      <ScreenBackground style={s.container}>
         <ScrollView contentContainerStyle={s.scroll} showsVerticalScrollIndicator={false}>
           {/* Hero */}
           <View style={[s.hero, { gap: 14 }]}>
@@ -164,14 +176,14 @@ export default function UserProfileScreen() {
             </View>
           ))}
         </ScrollView>
-      </View>
+      </ScreenBackground>
     );
   }
 
   const isOwnProfile = user === username;
 
   return (
-    <View style={s.container}>
+    <ScreenBackground style={s.container}>
       <ScrollView contentContainerStyle={s.scroll} showsVerticalScrollIndicator={false}>
 
         {/* Hero */}
@@ -196,7 +208,7 @@ export default function UserProfileScreen() {
             <View style={s.statItem}>
               <View style={{ flexDirection: "row", alignItems: "center", gap: 3 }}>
                 <Text style={s.statVal}>{profile.ratingCount ? profile.avgRating.toFixed(1) : "—"}</Text>
-                {profile.ratingCount > 0 && <Text style={{ color: "#fbbf24", fontSize: 14 }}>★</Text>}
+                {profile.ratingCount > 0 && <Ionicons name="star" size={13} color="#fbbf24" />}
               </View>
               <Text style={s.statLbl}>{profile.ratingCount ? `${profile.ratingCount} ratings` : "No ratings"}</Text>
             </View>
@@ -217,8 +229,11 @@ export default function UserProfileScreen() {
               </Pressable>
 
               {canRate && (
-                <Pressable style={s.rateBtn} onPress={() => setRateModal(true)}>
-                  <Text style={s.rateBtnText}>⭐ Rate</Text>
+                <Pressable style={s.rateBtn} onPress={() => { Haptics.impactAsync(Haptics.ImpactFeedbackStyle.Light); setRateModal(true); }}>
+                  <View style={{ flexDirection: "row", alignItems: "center", gap: 6 }}>
+                    <Ionicons name="star" size={15} color="#fbbf24" />
+                    <Text style={s.rateBtnText}>Rate</Text>
+                  </View>
                 </Pressable>
               )}
             </View>
@@ -298,13 +313,13 @@ export default function UserProfileScreen() {
           </Pressable>
         </View>
       </Modal>
-    </View>
+    </ScreenBackground>
   );
 }
 
 const s = StyleSheet.create({
-  container: { flex: 1, backgroundColor: "#120303" },
-  center: { flex: 1, alignItems: "center", justifyContent: "center", backgroundColor: "#120303" },
+  container: { flex: 1 },
+  center: { flex: 1, alignItems: "center", justifyContent: "center" },
   scroll: { paddingBottom: 40 },
 
   hero: { alignItems: "center", padding: 24, gap: 12, borderBottomWidth: 1, borderColor: "rgba(255,255,255,0.08)" },

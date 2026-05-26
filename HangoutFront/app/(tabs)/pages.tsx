@@ -4,10 +4,12 @@ import {
   TextInput, StatusBar,
 } from "react-native";
 import { useFocusEffect, useRouter } from "expo-router";
+import * as Haptics from "expo-haptics";
 import { useAuth } from "@/services/auth-context";
 import { getPages, toggleFollow } from "@/services/api";
 import { SkeletonBox } from "@/components/SkeletonBox";
 import { useToast } from "@/context/ToastContext";
+import { ScreenBackground } from "@/components/ScreenBackground";
 
 const CATEGORIES = ["All", "Nightlife", "Community", "Art", "Music", "Sports", "Food", "Culture"];
 
@@ -75,8 +77,8 @@ export default function PagesScreen() {
   });
 
   return (
-    <View style={s.container}>
-      <StatusBar barStyle="light-content" backgroundColor="#120303" />
+    <ScreenBackground style={s.container}>
+      <StatusBar barStyle="light-content" backgroundColor="transparent" translucent />
 
       {/* Header */}
       <View style={s.header}>
@@ -152,8 +154,11 @@ export default function PagesScreen() {
             filtered.map((page) => (
               <Pressable
                 key={page.id}
-                style={({ pressed }) => [s.card, pressed && { opacity: 0.75 }]}
-                onPress={() => router.push({ pathname: "/page-detail", params: { id: page.id } })}
+                style={({ pressed }) => [s.card, pressed && { opacity: 0.7, transform: [{ scale: 0.98 }] }]}
+                onPress={() => {
+                  Haptics.impactAsync(Haptics.ImpactFeedbackStyle.Light);
+                  router.push({ pathname: "/page-detail", params: { id: page.id } });
+                }}
               >
                 {/* Avatar + info */}
                 <View style={s.cardTop}>
@@ -195,13 +200,13 @@ export default function PagesScreen() {
           )}
         </ScrollView>
       )}
-    </View>
+    </ScreenBackground>
   );
 
 }
 
 const s = StyleSheet.create({
-  container: { flex: 1, backgroundColor: "#120303", paddingTop: 56 },
+  container: { flex: 1, paddingTop: 56 },
   header: { flexDirection: "row", alignItems: "center", justifyContent: "space-between", paddingHorizontal: 20, marginBottom: 4 },
   headerTitle: { fontSize: 28, fontWeight: "700", color: "#fff", letterSpacing: 0.5 },
   createBtn: { backgroundColor: "#dc2626", paddingHorizontal: 16, paddingVertical: 8, borderRadius: 20 },
@@ -234,8 +239,10 @@ const s = StyleSheet.create({
   emptySub: { color: "rgba(255,255,255,0.3)", fontSize: 13 },
 
   card: {
-    backgroundColor: "rgba(255,255,255,0.05)", borderRadius: 14,
-    padding: 16, borderWidth: 1, borderColor: "rgba(255,255,255,0.08)", gap: 10,
+    backgroundColor: "rgba(255,255,255,0.05)", borderRadius: 16,
+    padding: 16, borderWidth: StyleSheet.hairlineWidth,
+    borderColor: "rgba(255,255,255,0.12)", borderTopColor: "rgba(255,255,255,0.2)",
+    gap: 10,
   },
   cardTop: { flexDirection: "row", alignItems: "center", gap: 12 },
   avatar: { width: 50, height: 50, borderRadius: 25, alignItems: "center", justifyContent: "center" },

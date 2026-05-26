@@ -9,10 +9,13 @@ import {
 } from "react-native";
 import { useFocusEffect } from "@react-navigation/native";
 import { useRouter } from "expo-router";
+import { Ionicons } from "@expo/vector-icons";
+import * as Haptics from "expo-haptics";
 import { getBubbles } from "@/services/api";
 import { SkeletonBox } from "@/components/SkeletonBox";
 import { ErrorScreen } from "@/components/ErrorScreen";
 import { useToast } from "@/context/ToastContext";
+import { ScreenBackground } from "@/components/ScreenBackground";
 
 type Bubble = {
   id: number;
@@ -58,8 +61,8 @@ export default function BubblesScreen() {
   }
 
   return (
-    <View style={styles.container}>
-      <StatusBar barStyle="light-content" backgroundColor="#120303" />
+    <ScreenBackground style={styles.container}>
+      <StatusBar barStyle="light-content" backgroundColor="transparent" translucent />
 
       <View style={styles.header}>
         <Text style={styles.headerTitle}>Bubbles</Text>
@@ -94,7 +97,10 @@ export default function BubblesScreen() {
             <Pressable
               key={bubble.id}
               style={({ pressed }) => [styles.card, pressed && styles.cardPressed]}
-              onPress={() => router.push({ pathname: "/bubble-detail", params: { id: bubble.id } })}
+              onPress={() => {
+                Haptics.impactAsync(Haptics.ImpactFeedbackStyle.Light);
+                router.push({ pathname: "/bubble-detail", params: { id: bubble.id } });
+              }}
             >
               <View style={styles.cardTop}>
                 <View style={styles.bubbleIcon}>
@@ -115,7 +121,10 @@ export default function BubblesScreen() {
                 </View>
               </View>
               {bubble.meetTime ? (
-                <Text style={styles.meetTime}>🕐 {bubble.meetTime}</Text>
+                <View style={{ flexDirection: "row", alignItems: "center", gap: 5 }}>
+                  <Ionicons name="time-outline" size={13} color="rgba(255,255,255,0.5)" />
+                  <Text style={styles.meetTime}>{bubble.meetTime}</Text>
+                </View>
               ) : null}
               {bubble.description ? (
                 <Text style={styles.cardDescription}>{bubble.description}</Text>
@@ -124,14 +133,13 @@ export default function BubblesScreen() {
           ))
         )}
       </ScrollView>
-    </View>
+    </ScreenBackground>
   );
 }
 
 const styles = StyleSheet.create({
   container: {
     flex: 1,
-    backgroundColor: "#120303",
     paddingTop: 56,
   },
   header: {
@@ -184,15 +192,17 @@ const styles = StyleSheet.create({
     fontSize: 13,
   },
   card: {
-    backgroundColor: "rgba(255,255,255,0.06)",
-    borderRadius: 14,
+    backgroundColor: "rgba(255,255,255,0.05)",
+    borderRadius: 16,
     padding: 16,
-    borderWidth: 1,
-    borderColor: "rgba(124,58,237,0.3)",
+    borderWidth: StyleSheet.hairlineWidth,
+    borderColor: "rgba(255,255,255,0.13)",
+    borderTopColor: "rgba(255,255,255,0.2)",
     gap: 10,
   },
   cardPressed: {
-    opacity: 0.75,
+    opacity: 0.7,
+    transform: [{ scale: 0.98 }],
   },
   cardTop: {
     flexDirection: "row",
