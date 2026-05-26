@@ -202,7 +202,12 @@ export default function MapScreen() {
       >
         <View style={styles.handleArea} {...panResponder.panHandlers}>
           <View style={styles.handle} />
-          <Text style={styles.sheetTitle}>Events Nearby</Text>
+          <View style={styles.sheetHeader}>
+            <Text style={styles.sheetTitle}>Events Nearby</Text>
+            <Pressable style={styles.newEventBtn} onPress={() => router.push("/create")}>
+              <Text style={styles.newEventBtnText}>+ New</Text>
+            </Pressable>
+          </View>
         </View>
 
         <ScrollView
@@ -393,11 +398,28 @@ const styles = StyleSheet.create({
     backgroundColor: "rgba(255,255,255,0.3)",
     marginBottom: 10,
   },
+  sheetHeader: {
+    flexDirection: "row",
+    alignItems: "center",
+    justifyContent: "space-between",
+    width: "100%",
+  },
   sheetTitle: {
     fontSize: 15,
     fontWeight: "700",
     letterSpacing: 1.5,
     color: "rgba(255,255,255,0.85)",
+  },
+  newEventBtn: {
+    backgroundColor: "#dc2626",
+    paddingHorizontal: 14,
+    paddingVertical: 6,
+    borderRadius: 20,
+  },
+  newEventBtnText: {
+    color: "#fff",
+    fontWeight: "700",
+    fontSize: 13,
   },
   sheetScroll: {
     flex: 1,
