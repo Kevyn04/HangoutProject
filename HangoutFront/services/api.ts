@@ -79,6 +79,16 @@ export async function registerPushToken(username: string, token: string): Promis
   await supabase.from('profiles').update({ push_token: token }).eq('username', username);
 }
 
+export async function getMyEvents(username: string): Promise<any[]> {
+  const { data, error } = await supabase
+    .from('event_attendees')
+    .select(`event_id, events(*)`)
+    .eq('username', username);
+
+  if (error) throw new Error(error.message);
+  return (data ?? []).map((r: any) => mapEvent(r.events)).filter(Boolean);
+}
+
 // ── Events ────────────────────────────────────────────────────────────────────
 
 export async function getEvents(): Promise<any[]> {
