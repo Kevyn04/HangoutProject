@@ -120,15 +120,14 @@ export default function MapScreen() {
 
   const handleJoin = async () => {
     if (!selectedBubble) return;
-    const username = user ?? "Guest";
+    if (!user) { router.push("/signin"); return; }
     setJoining(true);
     try {
-      const updated = await joinBubble(selectedBubble.id, username);
-      setBubbles((prev) =>
-        prev.map((b) => (b.id === updated.id ? updated : b))
-      );
+      await joinBubble(selectedBubble.id, user);
+      const updatedBubble = { ...selectedBubble, members: [...selectedBubble.members, user] };
+      setBubbles((prev) => prev.map((b) => (b.id === selectedBubble.id ? updatedBubble : b)));
       setJoinedIds((prev) => new Set(prev).add(selectedBubble.id));
-      setSelectedBubble(updated);
+      setSelectedBubble(updatedBubble);
     } catch {
       showToast("Couldn't join bubble. Try again.");
     } finally {

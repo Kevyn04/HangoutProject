@@ -24,16 +24,15 @@ export default function CreateScreen() {
   const [title, setTitle] = useState("");
   const [location, setLocation] = useState("");
   const [time, setTime] = useState("");
-  const [createdBy, setCreatedBy] = useState(user ?? "");
   const [submitting, setSubmitting] = useState(false);
   const [error, setError] = useState("");
   const coordsRef = useRef<{ latitude: number; longitude: number } | null>(null);
 
-  const locationRef  = useRef<TextInput>(null);
-  const timeRef      = useRef<TextInput>(null);
-  const createdByRef = useRef<TextInput>(null);
+  const locationRef = useRef<TextInput>(null);
+  const timeRef     = useRef<TextInput>(null);
 
   useEffect(() => {
+    if (!user) { router.replace("/signin"); return; }
     (async () => {
       const { status } = await Location.requestForegroundPermissionsAsync();
       if (status === "granted") {
@@ -41,7 +40,7 @@ export default function CreateScreen() {
         coordsRef.current = { latitude: loc.coords.latitude, longitude: loc.coords.longitude };
       }
     })();
-  }, []);
+  }, [user]);
 
   const [fontsLoaded] = useFonts({ Cinzel_700Bold });
   if (!fontsLoaded) {
@@ -54,7 +53,7 @@ export default function CreateScreen() {
 
   const handleSubmit = async () => {
     setError("");
-    if (!title.trim() || !location.trim() || !time.trim() || !createdBy.trim()) {
+    if (!title.trim() || !location.trim() || !time.trim()) {
       setError("Please fill in all fields.");
       return;
     }
@@ -64,15 +63,15 @@ export default function CreateScreen() {
         title: title.trim(),
         location: location.trim(),
         time: time.trim(),
-        createdBy: createdBy.trim(),
+        createdBy: user!,
         ...(coordsRef.current && {
           latitude: coordsRef.current.latitude,
           longitude: coordsRef.current.longitude,
         }),
       });
       router.back();
-    } catch {
-      setError("Failed to create hangout. Is the backend running?");
+    } catch (e: any) {
+      setError(e?.message ?? "Failed to create event.");
     } finally {
       setSubmitting(false);
     }
@@ -118,22 +117,10 @@ export default function CreateScreen() {
             style={styles.input}
             placeholder="e.g. 7:00 PM"
             placeholderTextColor={AppColors.textGhost}
-            returnKeyType="next"
-            onSubmitEditing={() => createdByRef.current?.focus()}
-            value={time}
-            onChangeText={(v) => { setTime(v); setError(""); }}
-          />
-
-          <Text style={styles.label}>Your Name</Text>
-          <TextInput
-            ref={createdByRef}
-            style={styles.input}
-            placeholder="e.g. Kevyn"
-            placeholderTextColor={AppColors.textGhost}
             returnKeyType="done"
             onSubmitEditing={handleSubmit}
-            value={createdBy}
-            onChangeText={(v) => { setCreatedBy(v); setError(""); }}
+            value={time}
+            onChangeText={(v) => { setTime(v); setError(""); }}
           />
 
           {!!error && <Text style={styles.errorText}>{error}</Text>}
