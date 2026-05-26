@@ -10,6 +10,7 @@
     "newArchEnabled": true,
     "ios": {
       "supportsTablet": true,
+      "bundleIdentifier": "com.hangout.thehangout",
       "infoPlist": {
         "NSLocationWhenInUseUsageDescription": "The Hangout uses your location to show nearby events."
       }
@@ -41,6 +42,7 @@
         }
       ],
       "expo-notifications",
+      "expo-apple-authentication",
       "expo-router",
       [
         "expo-splash-screen",

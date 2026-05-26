@@ -21,6 +21,45 @@ export async function signUp(username: string, password: string): Promise<any> {
   return data;
 }
 
+export async function signInWithApple(identityToken: string): Promise<void> {
+  const { error } = await supabase.auth.signInWithIdToken({
+    provider: 'apple',
+    token: identityToken,
+  });
+  if (error) throw new Error(error.message);
+}
+
+export async function signInWithGoogle(): Promise<'success' | 'cancelled'> {
+  const redirectTo = 'thehangout://oauth';
+
+  const { data, error } = await supabase.auth.signInWithOAuth({
+    provider: 'google',
+    options: { redirectTo, skipBrowserRedirect: true },
+  });
+
+  if (error || !data.url) throw new Error(error?.message ?? 'OAuth failed');
+
+  const { openAuthSessionAsync } = await import('expo-web-browser');
+  const result = await openAuthSessionAsync(data.url, redirectTo);
+
+  if (result.type !== 'success') return 'cancelled';
+
+  const url = new URL(result.url);
+  const hashParams = new URLSearchParams(url.hash.slice(1));
+  const accessToken = hashParams.get('access_token');
+  const refreshToken = hashParams.get('refresh_token');
+
+  if (!accessToken || !refreshToken) throw new Error('No tokens in redirect');
+
+  const { error: sessionError } = await supabase.auth.setSession({
+    access_token: accessToken,
+    refresh_token: refreshToken,
+  });
+
+  if (sessionError) throw new Error(sessionError.message);
+  return 'success';
+}
+
 export async function signIn(username: string, password: string): Promise<any> {
   const { error } = await supabase.auth.signInWithPassword({
     email: `${username}@hangout.local`,
