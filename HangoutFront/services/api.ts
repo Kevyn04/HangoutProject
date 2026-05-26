@@ -616,6 +616,73 @@ export async function getUserRatings(username: string): Promise<any> {
   };
 }
 
+// ── Feed ──────────────────────────────────────────────────────────────────────
+
+export async function getSuggestedUsers(
+  username: string
+): Promise<Array<{ username: string; mutualBubbles: number }>> {
+  const { data: myMemberships } = await supabase
+    .from('bubble_member_detail')
+    .select('bubble_id')
+    .eq('username', username);
+
+  if (!myMemberships?.length) return [];
+
+  const bubbleIds = myMemberships.map((m: any) => m.bubble_id);
+
+  const [{ data: coMembers }, { data: following }] = await Promise.all([
+    supabase.from('bubble_member_detail').select('username').in('bubble_id', bubbleIds).neq('username', username),
+    supabase.from('user_follows').select('followee').eq('follower', username),
+  ]);
+
+  const followedSet = new Set((following ?? []).map((f: any) => f.followee));
+  const counts: Record<string, number> = {};
+  for (const { username: u } of coMembers ?? []) {
+    if (!followedSet.has(u)) counts[u] = (counts[u] ?? 0) + 1;
+  }
+
+  return Object.entries(counts)
+    .sort((a, b) => b[1] - a[1])
+    .slice(0, 12)
+    .map(([u, n]) => ({ username: u, mutualBubbles: n }));
+}
+
+export async function getTrendingBubbles(): Promise<any[]> {
+  const { data, error } = await supabase
+    .from('bubbles')
+    .select('*, bubble_member_detail(username)')
+    .order('created_at', { ascending: false })
+    .limit(30);
+
+  if (error) throw new Error(error.message);
+  return (data ?? [])
+    .map(mapBubble)
+    .sort((a: any, b: any) => b.members.length - a.members.length)
+    .slice(0, 6);
+}
+
+export async function getPopularEvents(): Promise<any[]> {
+  const { data: events, error } = await supabase
+    .from('events')
+    .select('*')
+    .order('created_at', { ascending: false })
+    .limit(30);
+
+  if (error) throw new Error(error.message);
+  if (!events?.length) return [];
+
+  const { data: attendees } = await supabase.from('event_attendees').select('event_id');
+  const countMap: Record<number, number> = {};
+  for (const { event_id } of attendees ?? []) {
+    countMap[event_id] = (countMap[event_id] ?? 0) + 1;
+  }
+
+  return events
+    .map((e: any) => ({ ...mapEvent(e), attendeeCount: countMap[e.id] ?? 0 }))
+    .sort((a: any, b: any) => b.attendeeCount - a.attendeeCount)
+    .slice(0, 6);
+}
+
 // ── Mappers ───────────────────────────────────────────────────────────────────
 
 function mapEvent(r: any) {
