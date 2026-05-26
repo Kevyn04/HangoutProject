@@ -7,6 +7,7 @@ import { useFocusEffect, useRouter } from "expo-router";
 import { useAuth } from "@/services/auth-context";
 import { getProfile, updateProfile, getUserBubbles, getUserRatings } from "@/services/api";
 import { ColorWheelPicker } from "@/components/ColorWheelPicker";
+import { SkeletonBox } from "@/components/SkeletonBox";
 
 const PRESET_COLORS = ["#7c3aed", "#dc2626", "#0ea5e9", "#16a34a", "#ea580c", "#db2777"];
 
@@ -113,7 +114,43 @@ export default function ProfileScreen() {
   }
 
   if (loading) {
-    return <View style={s.centered}><ActivityIndicator size="large" color="#fff" /></View>;
+    return (
+      <View style={s.container}>
+        <StatusBar barStyle="light-content" backgroundColor="#120303" />
+        <ScrollView contentContainerStyle={s.scroll} showsVerticalScrollIndicator={false}>
+          {/* Avatar + username + stats */}
+          <View style={[s.avatarSection, { gap: 14 }]}>
+            <SkeletonBox width={88} height={88} borderRadius={44} />
+            <SkeletonBox width={140} height={18} borderRadius={8} />
+            <SkeletonBox width="100%" height={72} borderRadius={14} />
+            <View style={{ flexDirection: "row", gap: 10 }}>
+              {[0,1,2,3,4,5,6].map((i) => (
+                <SkeletonBox key={i} width={36} height={36} borderRadius={18} />
+              ))}
+            </View>
+          </View>
+          {/* Bio */}
+          <View style={[s.section, { gap: 10 }]}>
+            <SkeletonBox width={50} height={15} borderRadius={6} />
+            <SkeletonBox width="100%" height={13} borderRadius={6} />
+            <SkeletonBox width="70%" height={13} borderRadius={6} />
+          </View>
+          {/* Bubble list */}
+          <View style={s.section}>
+            <SkeletonBox width={120} height={15} borderRadius={6} />
+            {[0,1,2].map((i) => (
+              <View key={i} style={{ flexDirection: "row", gap: 12, paddingVertical: 8, alignItems: "center" }}>
+                <SkeletonBox width={36} height={36} borderRadius={18} />
+                <View style={{ flex: 1, gap: 7 }}>
+                  <SkeletonBox width="55%" height={13} borderRadius={6} />
+                  <SkeletonBox width="38%" height={11} borderRadius={6} />
+                </View>
+              </View>
+            ))}
+          </View>
+        </ScrollView>
+      </View>
+    );
   }
 
   const initial = user.charAt(0).toUpperCase();

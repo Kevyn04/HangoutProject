@@ -12,6 +12,7 @@ import {
   getBubbleChannels, switchChannel, getMessages, sendMessage,
   deleteBubble, leaveBubble, notifyTyping, getTypingUsers,
 } from "@/services/api";
+import { SkeletonBox } from "@/components/SkeletonBox";
 import { useAuth } from "@/services/auth-context";
 
 // ── Emoji helpers ─────────────────────────────────────────────────────
@@ -466,8 +467,32 @@ export default function BubbleDetailScreen() {
 
   if (loading || !bubble) {
     return (
-      <View style={s.center}>
-        <ActivityIndicator color="#dc2626" size="large" />
+      <View style={{ flex: 1, backgroundColor: "#120303" }}>
+        {/* Skeleton header */}
+        <View style={{ paddingTop: 56, paddingHorizontal: 20, paddingBottom: 16, gap: 6 }}>
+          <SkeletonBox width={180} height={22} borderRadius={8} />
+          <SkeletonBox width={100} height={13} borderRadius={6} />
+        </View>
+        {/* Skeleton tabs */}
+        <View style={{ flexDirection: "row", paddingHorizontal: 20, gap: 12, marginBottom: 12 }}>
+          <SkeletonBox width={80} height={32} borderRadius={20} />
+          <SkeletonBox width={60} height={32} borderRadius={20} />
+        </View>
+        {/* Skeleton location toggle */}
+        <View style={{ marginHorizontal: 16, marginBottom: 12 }}>
+          <SkeletonBox width="100%" height={60} borderRadius={14} />
+        </View>
+        {/* Skeleton member cards */}
+        {[0,1,2,3,4].map((i) => (
+          <View key={i} style={{ flexDirection: "row", alignItems: "center", gap: 12, paddingHorizontal: 16, paddingVertical: 10 }}>
+            <SkeletonBox width={44} height={44} borderRadius={22} />
+            <View style={{ flex: 1, gap: 7 }}>
+              <SkeletonBox width="45%" height={14} borderRadius={6} />
+              <SkeletonBox width="32%" height={11} borderRadius={6} />
+            </View>
+            <SkeletonBox width={10} height={10} borderRadius={5} />
+          </View>
+        ))}
       </View>
     );
   }

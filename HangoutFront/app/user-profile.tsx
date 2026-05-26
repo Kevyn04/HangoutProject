@@ -1,7 +1,7 @@
 import React, { useState, useCallback } from "react";
 import {
   View, Text, StyleSheet, ScrollView, Pressable,
-  ActivityIndicator, Modal, Alert,
+  Modal, Alert,
 } from "react-native";
 import { useLocalSearchParams, useRouter } from "expo-router";
 import { useFocusEffect } from "@react-navigation/native";
@@ -10,6 +10,7 @@ import {
   getProfile, getUserBubbles, getUserRatings,
   toggleUserFollow, canRateUser, submitRating,
 } from "@/services/api";
+import { SkeletonBox } from "@/components/SkeletonBox";
 
 const RATING_REASONS = [
   "Great vibes ✨", "Fun host 🎤", "Very welcoming 🤝",
@@ -120,7 +121,38 @@ export default function UserProfileScreen() {
   };
 
   if (loading || !profile) {
-    return <View style={s.center}><ActivityIndicator color="#dc2626" size="large" /></View>;
+    return (
+      <View style={s.container}>
+        <ScrollView contentContainerStyle={s.scroll} showsVerticalScrollIndicator={false}>
+          {/* Hero */}
+          <View style={[s.hero, { gap: 14 }]}>
+            <SkeletonBox width={90} height={90} borderRadius={45} />
+            <SkeletonBox width={160} height={20} borderRadius={8} />
+            <SkeletonBox width="100%" height={72} borderRadius={14} />
+            <SkeletonBox width="80%" height={13} borderRadius={6} />
+            <View style={{ flexDirection: "row", gap: 10 }}>
+              <SkeletonBox width={110} height={40} borderRadius={24} />
+              <SkeletonBox width={80} height={40} borderRadius={24} />
+            </View>
+          </View>
+          {/* Sections */}
+          {[0, 1].map((i) => (
+            <View key={i} style={s.section}>
+              <SkeletonBox width={100} height={15} borderRadius={6} />
+              {[0, 1, 2].map((j) => (
+                <View key={j} style={{ flexDirection: "row", gap: 12, paddingVertical: 8, alignItems: "center" }}>
+                  <SkeletonBox width={36} height={36} borderRadius={18} />
+                  <View style={{ flex: 1, gap: 7 }}>
+                    <SkeletonBox width="52%" height={13} borderRadius={6} />
+                    <SkeletonBox width="36%" height={11} borderRadius={6} />
+                  </View>
+                </View>
+              ))}
+            </View>
+          ))}
+        </ScrollView>
+      </View>
+    );
   }
 
   const isOwnProfile = user === username;

@@ -1,11 +1,12 @@
 import React, { useState, useCallback } from "react";
 import {
   View, Text, StyleSheet, ScrollView, Pressable,
-  TextInput, ActivityIndicator, StatusBar,
+  TextInput, StatusBar,
 } from "react-native";
 import { useFocusEffect, useRouter } from "expo-router";
 import { useAuth } from "@/services/auth-context";
 import { getPages, toggleFollow } from "@/services/api";
+import { SkeletonBox } from "@/components/SkeletonBox";
 
 const CATEGORIES = ["All", "Nightlife", "Community", "Art", "Music", "Sports", "Food", "Culture"];
 
@@ -110,7 +111,21 @@ export default function PagesScreen() {
 
       {/* Pages list */}
       {loading ? (
-        <ActivityIndicator color="#fff" size="large" style={{ marginTop: 40 }} />
+        <ScrollView contentContainerStyle={s.list} showsVerticalScrollIndicator={false}>
+          {[0,1,2,3].map((i) => (
+            <View key={i} style={s.card}>
+              <View style={s.cardTop}>
+                <SkeletonBox width={50} height={50} borderRadius={25} />
+                <View style={{ flex: 1, gap: 9 }}>
+                  <SkeletonBox width="55%" height={15} borderRadius={6} />
+                  <SkeletonBox width="38%" height={11} borderRadius={6} />
+                </View>
+                <SkeletonBox width={72} height={30} borderRadius={20} />
+              </View>
+              <SkeletonBox width="75%" height={11} borderRadius={6} />
+            </View>
+          ))}
+        </ScrollView>
       ) : (
         <ScrollView contentContainerStyle={s.list} showsVerticalScrollIndicator={false}>
           {filtered.length === 0 ? (
