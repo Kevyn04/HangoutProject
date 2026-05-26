@@ -2,23 +2,28 @@ import { supabase } from './supabase';
 
 // ── Auth ──────────────────────────────────────────────────────────────────────
 
-const SUPABASE_FUNCTIONS_URL = 'https://zkdrmmpjhdsoeshpcxqi.supabase.co/functions/v1';
-const SUPABASE_ANON_KEY =
-  'eyJhbGciOiJIUzI1NiIsInR5cCI6IkpXVCJ9.eyJpc3MiOiJzdXBhYmFzZSIsInJlZiI6InprZHJtbXBqaGRzb2VzaHBjeHFpIiwicm9sZSI6ImFub24iLCJpYXQiOjE3Nzk3NTI2NzMsImV4cCI6MjA5NTMyODY3M30.eDOaewrrRxOhxw13yNW8mLcgdd_ZL5pAVYZxQx6ttsM';
-
 export async function signUp(username: string, password: string): Promise<any> {
-  const res = await fetch(`${SUPABASE_FUNCTIONS_URL}/signup`, {
-    method: 'POST',
-    headers: {
-      'Content-Type': 'application/json',
-      'Authorization': `Bearer ${SUPABASE_ANON_KEY}`,
-    },
-    body: JSON.stringify({ username, password }),
+  const { data: existing } = await supabase
+    .from('profiles')
+    .select('username')
+    .eq('username', username)
+    .maybeSingle();
+
+  if (existing) throw new Error('Username already taken');
+
+  const { data, error } = await supabase.auth.signUp({
+    email: `${username}@hangout.local`,
+    password,
+    options: { data: { username } },
   });
 
-  const data = await res.json();
-  if (!res.ok) throw new Error(data.error || 'Sign up failed');
-  return data;
+  if (error) throw new Error(error.message);
+
+  if (data.user?.identities?.length === 0) {
+    throw new Error('Username already taken');
+  }
+
+  return { username };
 }
 
 export async function signInWithApple(identityToken: string): Promise<void> {

@@ -285,6 +285,7 @@ export default function CreateBubbleScreen() {
   };
 
   const handleCreate = async () => {
+    if (!user) { router.push("/signin"); return; }
     if (!name.trim()) { Alert.alert("Name required", "Please give your bubble a name."); return; }
     setSaving(true);
     try {
@@ -305,7 +306,7 @@ export default function CreateBubbleScreen() {
         revealAt,
       });
       router.back();
-    } catch { Alert.alert("Error", "Failed to create bubble. Is the server running?"); }
+    } catch (e: any) { Alert.alert("Error", e?.message ?? "Failed to create bubble."); }
     finally { setSaving(false); }
   };
 
