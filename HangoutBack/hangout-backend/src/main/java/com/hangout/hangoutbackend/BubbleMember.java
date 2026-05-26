@@ -17,6 +17,9 @@ public class BubbleMember {
     private Boolean shareLocation = false;
     private Integer channelId = 1;
 
+    @Transient
+    private String profileEmoji;
+
     public BubbleMember() {}
 
     public Long getId() { return id; }
@@ -39,4 +42,7 @@ public class BubbleMember {
 
     public Integer getChannelId() { return channelId; }
     public void setChannelId(Integer channelId) { this.channelId = channelId; }
+
+    public String getProfileEmoji() { return profileEmoji; }
+    public void setProfileEmoji(String profileEmoji) { this.profileEmoji = profileEmoji; }
 }

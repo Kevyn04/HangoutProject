@@ -44,6 +44,33 @@ export async function deleteEvent(id: number): Promise<void> {
   if (!response.ok) throw new Error('Failed to delete event');
 }
 
+export async function getEventAttendance(id: number, viewer?: string): Promise<{ attendeeCount: number; isAttending: boolean }> {
+  const url = viewer
+    ? `${BASE_URL}/events/${id}/attendance?viewer=${encodeURIComponent(viewer)}`
+    : `${BASE_URL}/events/${id}/attendance`;
+  const response = await fetch(url);
+  if (!response.ok) throw new Error('Failed to fetch attendance');
+  return response.json();
+}
+
+export async function joinEvent(id: number, username: string): Promise<{ attendeeCount: number; isAttending: boolean }> {
+  const response = await fetch(`${BASE_URL}/events/${id}/attend`, {
+    method: 'POST',
+    headers: { 'Content-Type': 'application/json' },
+    body: JSON.stringify({ username }),
+  });
+  if (!response.ok) throw new Error('Failed to join event');
+  return response.json();
+}
+
+export async function leaveEvent(id: number, username: string): Promise<{ attendeeCount: number; isAttending: boolean }> {
+  const response = await fetch(`${BASE_URL}/events/${id}/attend/${encodeURIComponent(username)}`, {
+    method: 'DELETE',
+  });
+  if (!response.ok) throw new Error('Failed to leave event');
+  return response.json();
+}
+
 export async function signUp(username: string, password: string): Promise<any> {
   const response: Response = await fetch(`${BASE_URL}/auth/signup`, {
     method: 'POST',
@@ -59,6 +86,16 @@ export async function getBubbles(): Promise<any> {
   const response: Response = await fetch(`${BASE_URL}/bubbles`);
   if (!response.ok) throw new Error('Failed to fetch bubbles');
   return response.json();
+}
+
+export async function deleteBubble(id: number): Promise<void> {
+  const response: Response = await fetch(`${BASE_URL}/bubbles/${id}`, { method: 'DELETE' });
+  if (!response.ok) throw new Error('Failed to delete bubble');
+}
+
+export async function leaveBubble(id: number, username: string): Promise<void> {
+  const response = await fetch(`${BASE_URL}/bubbles/${id}/members/${encodeURIComponent(username)}`, { method: 'DELETE' });
+  if (!response.ok) throw new Error('Failed to leave bubble');
 }
 
 export async function createBubble(bubble: {
@@ -114,6 +151,22 @@ export async function updateMemberLocation(
   return response.json();
 }
 
+export async function notifyTyping(id: number, username: string): Promise<void> {
+  await fetch(`${BASE_URL}/bubbles/${id}/typing`, {
+    method: 'POST',
+    headers: { 'Content-Type': 'application/json' },
+    body: JSON.stringify({ username }),
+  }).catch(() => {});
+}
+
+export async function getTypingUsers(id: number): Promise<string[]> {
+  try {
+    const response = await fetch(`${BASE_URL}/bubbles/${id}/typing`);
+    if (!response.ok) return [];
+    return response.json();
+  } catch { return []; }
+}
+
 export async function getBubbleChannels(id: number): Promise<number[]> {
   const response: Response = await fetch(`${BASE_URL}/bubbles/${id}/channels`);
   if (!response.ok) throw new Error('Failed to fetch channels');
@@ -157,4 +210,128 @@ export async function signIn(username: string, password: string): Promise<any> {
   const data = await response.json();
   if (!response.ok) throw new Error(data.error || 'Sign in failed');
   return data;
+}
+
+export async function registerPushToken(username: string, token: string): Promise<void> {
+  await fetch(`${BASE_URL}/auth/push-token`, {
+    method: 'POST',
+    headers: { 'Content-Type': 'application/json' },
+    body: JSON.stringify({ username, token }),
+  });
+}
+
+// ── Pages ──────────────────────────────────────────────────────────────────
+
+export async function getPages(username?: string): Promise<any[]> {
+  const url = username ? `${BASE_URL}/pages?username=${encodeURIComponent(username)}` : `${BASE_URL}/pages`;
+  const response = await fetch(url);
+  if (!response.ok) throw new Error('Failed to fetch pages');
+  return response.json();
+}
+
+export async function createPage(data: {
+  name: string; description?: string; category?: string;
+  createdBy: string; avatarColor?: string;
+}): Promise<any> {
+  const response = await fetch(`${BASE_URL}/pages`, {
+    method: 'POST',
+    headers: { 'Content-Type': 'application/json' },
+    body: JSON.stringify(data),
+  });
+  if (!response.ok) throw new Error('Failed to create page');
+  return response.json();
+}
+
+export async function getPage(id: number, username?: string): Promise<any> {
+  const url = username
+    ? `${BASE_URL}/pages/${id}?username=${encodeURIComponent(username)}`
+    : `${BASE_URL}/pages/${id}`;
+  const response = await fetch(url);
+  if (!response.ok) throw new Error('Failed to fetch page');
+  return response.json();
+}
+
+export async function toggleFollow(pageId: number, username: string): Promise<any> {
+  const response = await fetch(`${BASE_URL}/pages/${pageId}/follow`, {
+    method: 'POST',
+    headers: { 'Content-Type': 'application/json' },
+    body: JSON.stringify({ username }),
+  });
+  if (!response.ok) throw new Error('Failed to toggle follow');
+  return response.json();
+}
+
+export async function getPageContent(pageId: number): Promise<any> {
+  const response = await fetch(`${BASE_URL}/pages/${pageId}/content`);
+  if (!response.ok) throw new Error('Failed to fetch page content');
+  return response.json();
+}
+
+export async function getFollowingPages(username: string): Promise<any[]> {
+  const response = await fetch(`${BASE_URL}/pages/following?username=${encodeURIComponent(username)}`);
+  if (!response.ok) throw new Error('Failed to fetch following pages');
+  return response.json();
+}
+
+// ── Profile ────────────────────────────────────────────────────────────────
+
+export async function getProfile(username: string, viewer?: string): Promise<any> {
+  const url = viewer
+    ? `${BASE_URL}/users/${username}?viewer=${encodeURIComponent(viewer)}`
+    : `${BASE_URL}/users/${username}`;
+  const response = await fetch(url);
+  if (!response.ok) throw new Error('Failed to fetch profile');
+  return response.json();
+}
+
+export async function updateProfile(username: string, data: { bio?: string; avatarColor?: string; profileEmoji?: string }): Promise<any> {
+  const response = await fetch(`${BASE_URL}/users/${username}`, {
+    method: 'PUT',
+    headers: { 'Content-Type': 'application/json' },
+    body: JSON.stringify(data),
+  });
+  if (!response.ok) throw new Error('Failed to update profile');
+  return response.json();
+}
+
+export async function getUserBubbles(username: string): Promise<{ created: any[]; joined: any[] }> {
+  const response = await fetch(`${BASE_URL}/users/${username}/bubbles`);
+  if (!response.ok) throw new Error('Failed to fetch user bubbles');
+  return response.json();
+}
+
+export async function toggleUserFollow(username: string, follower: string): Promise<any> {
+  const response = await fetch(`${BASE_URL}/users/${username}/follow`, {
+    method: 'POST',
+    headers: { 'Content-Type': 'application/json' },
+    body: JSON.stringify({ follower }),
+  });
+  if (!response.ok) throw new Error('Failed to toggle follow');
+  return response.json();
+}
+
+export async function canRateUser(username: string, raterUsername: string): Promise<any> {
+  const response = await fetch(
+    `${BASE_URL}/users/${username}/can-rate?raterUsername=${encodeURIComponent(raterUsername)}`
+  );
+  if (!response.ok) throw new Error('Failed to check rating eligibility');
+  return response.json();
+}
+
+export async function submitRating(username: string, data: {
+  raterUsername: string; rating: number; reason: string;
+}): Promise<any> {
+  const response = await fetch(`${BASE_URL}/users/${username}/rate`, {
+    method: 'POST',
+    headers: { 'Content-Type': 'application/json' },
+    body: JSON.stringify(data),
+  });
+  if (!response.ok) throw new Error('Failed to submit rating');
+  return response.json();
+}
+
+export async function getUserRatings(username: string): Promise<any> {
+  const response = await fetch(`${BASE_URL}/users/${username}/ratings`);
+  if (!response.ok) throw new Error('Failed to fetch ratings');
+  return response.json();
 }

@@ -15,6 +15,7 @@
       }
     },
     "android": {
+      "package": "com.hangout.thehangout",
       "adaptiveIcon": {
         "backgroundColor": "#E6F4FE",
         "foregroundImage": "./assets/images/android-icon-foreground.png",
@@ -22,7 +23,11 @@
         "monochromeImage": "./assets/images/android-icon-monochrome.png"
       },
       "edgeToEdgeEnabled": true,
-      "predictiveBackGestureEnabled": false
+      "predictiveBackGestureEnabled": false,
+      "permissions": [
+        "android.permission.ACCESS_COARSE_LOCATION",
+        "android.permission.ACCESS_FINE_LOCATION"
+      ]
     },
     "web": {
       "output": "static",
@@ -35,6 +40,7 @@
           "locationAlwaysAndWhenInUsePermission": "The Hangout uses your location to show nearby events."
         }
       ],
+      "expo-notifications",
       "expo-router",
       [
         "expo-splash-screen",
@@ -52,6 +58,12 @@
     "experiments": {
       "typedRoutes": true,
       "reactCompiler": true
+    },
+    "extra": {
+      "router": {},
+      "eas": {
+        "projectId": "8088ab2d-06b7-4375-b0b6-804faff5c952"
+      }
     }
   }
 }

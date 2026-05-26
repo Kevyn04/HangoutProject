@@ -2,16 +2,150 @@ import React, { useState, useEffect, useRef, useCallback } from "react";
 import {
   View, Text, StyleSheet, FlatList, Pressable, TextInput,
   ActivityIndicator, KeyboardAvoidingView, Platform, Modal,
-  ScrollView,
+  ScrollView, Alert, Animated, Easing,
 } from "react-native";
-import { useLocalSearchParams } from "expo-router";
+import { useLocalSearchParams, useRouter } from "expo-router";
 import { useFocusEffect } from "@react-navigation/native";
 import * as Location from "expo-location";
 import {
   getBubbles, getBubbleMembers, updateMemberLocation,
   getBubbleChannels, switchChannel, getMessages, sendMessage,
+  deleteBubble, leaveBubble, notifyTyping, getTypingUsers,
 } from "@/services/api";
 import { useAuth } from "@/services/auth-context";
+
+// ── Emoji helpers ─────────────────────────────────────────────────────
+const FACE_EMOJIS = [
+  "😀","😄","😁","😆","😅","😂","🙂","😉","😊","😇",
+  "🥰","😍","🤩","😎","🤓","😏","😋","🤗","🤭","😬",
+  "🙄","🥸","🤠","🤑","🥹","😜","😝","🤪","🫡","😸",
+];
+
+function emojiForUser(username: string): string {
+  let h = 0;
+  for (let i = 0; i < username.length; i++) {
+    h = (((h << 5) - h) + username.charCodeAt(i)) | 0;
+  }
+  return FACE_EMOJIS[Math.abs(h) % FACE_EMOJIS.length];
+}
+
+// ── TypingDots ────────────────────────────────────────────────────────
+function TypingDots() {
+  const d1 = useRef(new Animated.Value(0)).current;
+  const d2 = useRef(new Animated.Value(0)).current;
+  const d3 = useRef(new Animated.Value(0)).current;
+
+  useEffect(() => {
+    const anim = (val: Animated.Value, delay: number) =>
+      Animated.loop(
+        Animated.sequence([
+          Animated.delay(delay),
+          Animated.timing(val, { toValue: 1, duration: 260, useNativeDriver: true }),
+          Animated.timing(val, { toValue: 0, duration: 260, useNativeDriver: true }),
+          Animated.delay(Math.max(0, 780 - delay)),
+        ])
+      );
+    const a1 = anim(d1, 0);
+    const a2 = anim(d2, 180);
+    const a3 = anim(d3, 360);
+    a1.start(); a2.start(); a3.start();
+    return () => { a1.stop(); a2.stop(); a3.stop(); };
+  }, [d1, d2, d3]);
+
+  const dotStyle = (v: Animated.Value) => ({
+    width: 5, height: 5, borderRadius: 2.5,
+    backgroundColor: "rgba(255,255,255,0.9)",
+    marginHorizontal: 2,
+    transform: [{ translateY: v.interpolate({ inputRange: [0, 1], outputRange: [0, -5] }) }],
+  });
+
+  return (
+    <View style={{ flexDirection: "row", justifyContent: "center", alignItems: "center", height: 16 }}>
+      <Animated.View style={dotStyle(d1)} />
+      <Animated.View style={dotStyle(d2)} />
+      <Animated.View style={dotStyle(d3)} />
+    </View>
+  );
+}
+
+// ── MemberEmoji ───────────────────────────────────────────────────────
+function MemberEmoji({
+  username, emoji, isNew, isTyping, hasNewMsg, isCurrentUser, isHost,
+}: {
+  username: string;
+  emoji?: string;
+  isNew: boolean;
+  isTyping: boolean;
+  hasNewMsg: boolean;
+  isCurrentUser: boolean;
+  isHost: boolean;
+}) {
+  const scale  = useRef(new Animated.Value(isNew ? 0 : 1)).current;
+  const floatY = useRef(new Animated.Value(0)).current;
+  const floatX = useRef(new Animated.Value(0)).current;
+
+  useEffect(() => {
+    if (isNew) {
+      Animated.spring(scale, { toValue: 1, friction: 4, tension: 160, useNativeDriver: true }).start();
+    }
+  }, []); // eslint-disable-line react-hooks/exhaustive-deps
+
+  // Gentle floating bubble effect for the current user
+  useEffect(() => {
+    if (!isCurrentUser) return;
+    const ay = Animated.loop(
+      Animated.sequence([
+        Animated.timing(floatY, { toValue: -8, duration: 1600, easing: Easing.inOut(Easing.sin), useNativeDriver: true }),
+        Animated.timing(floatY, { toValue: 0,  duration: 1600, easing: Easing.inOut(Easing.sin), useNativeDriver: true }),
+      ])
+    );
+    const ax = Animated.loop(
+      Animated.sequence([
+        Animated.timing(floatX, { toValue: 4,  duration: 2200, easing: Easing.inOut(Easing.sin), useNativeDriver: true }),
+        Animated.timing(floatX, { toValue: -4, duration: 2200, easing: Easing.inOut(Easing.sin), useNativeDriver: true }),
+      ])
+    );
+    ay.start();
+    ax.start();
+    return () => { ay.stop(); ax.stop(); };
+  }, [isCurrentUser]); // eslint-disable-line react-hooks/exhaustive-deps
+
+  const displayEmoji = emoji || emojiForUser(username);
+
+  return (
+    <Animated.View
+      style={[
+        vs.slot,
+        { transform: [{ scale }, { translateY: floatY }, { translateX: floatX }] },
+      ]}
+    >
+      <View style={vs.indicatorRow}>
+        {isTyping ? (
+          <TypingDots />
+        ) : hasNewMsg ? (
+          <Text style={vs.bulb}>💡</Text>
+        ) : (
+          <View style={{ height: 16 }} />
+        )}
+      </View>
+
+      <View style={vs.emojiCircleWrapper}>
+        <View style={[vs.emojiCircle, isCurrentUser && vs.emojiCircleMe]}>
+          <Text style={vs.emoji}>{displayEmoji}</Text>
+        </View>
+        {isHost && (
+          <View style={vs.hostBadge}>
+            <Text style={vs.hostBadgeText}>HOST</Text>
+          </View>
+        )}
+      </View>
+
+      <Text style={[vs.emojiName, isCurrentUser && vs.emojiNameMe]} numberOfLines={1}>
+        {username}
+      </Text>
+    </Animated.View>
+  );
+}
 
 // ── Helpers ──────────────────────────────────────────────────────────
 function haversineKm(lat1: number, lon1: number, lat2: number, lon2: number): number {
@@ -43,6 +177,7 @@ type BubbleMember = {
   id: number; bubbleId: number; username: string;
   latitude?: number; longitude?: number;
   shareLocation?: boolean; channelId?: number;
+  profileEmoji?: string;
 };
 
 type ChatMsg = {
@@ -52,7 +187,7 @@ type ChatMsg = {
 
 type Bubble = {
   id: number; name: string; type?: string; meetTime?: string;
-  description?: string; members: string[];
+  description?: string; members: string[]; createdBy?: string;
   maxMembers?: number; isSecret?: boolean; revealAt?: string;
 };
 
@@ -61,44 +196,64 @@ export default function BubbleDetailScreen() {
   const { id } = useLocalSearchParams<{ id: string }>();
   const bubbleId = parseInt(id, 10);
   const { user } = useAuth();
+  const router = useRouter();
 
-  const [bubble, setBubble]         = useState<Bubble | null>(null);
-  const [members, setMembers]       = useState<BubbleMember[]>([]);
-  const [loading, setLoading]       = useState(true);
+  const [bubble, setBubble]   = useState<Bubble | null>(null);
+  const [members, setMembers] = useState<BubbleMember[]>([]);
+  const [loading, setLoading] = useState(true);
 
   // Location sharing
-  const [sharing, setSharing]           = useState(false);
-  const [myLocation, setMyLocation]     = useState<{ latitude: number; longitude: number } | null>(null);
+  const [sharing, setSharing]       = useState(false);
+  const [myLocation, setMyLocation] = useState<{ latitude: number; longitude: number } | null>(null);
   const watcherRef = useRef<Location.LocationSubscription | null>(null);
 
   // Tab
-  const [tab, setTab]               = useState<"members" | "chat">("members");
+  const [tab, setTab] = useState<"members" | "chat">("members");
 
   // Chat
-  const [channelId, setChannelId]   = useState(1);
-  const [channels, setChannels]     = useState<number[]>([]);
-  const [messages, setMessages]     = useState<ChatMsg[]>([]);
-  const [msgInput, setMsgInput]     = useState("");
-  const [sending, setSending]       = useState(false);
+  const [channelId, setChannelId] = useState(1);
+  const [channels, setChannels]   = useState<number[]>([]);
+  const [messages, setMessages]   = useState<ChatMsg[]>([]);
+  const [msgInput, setMsgInput]   = useState("");
+  const [sending, setSending]     = useState(false);
   const msgListRef = useRef<FlatList>(null);
   const pollRef    = useRef<ReturnType<typeof setInterval> | null>(null);
 
-  // Channel search modal
+  // Channel modal
   const [chanSearch, setChanSearch] = useState(false);
   const [chanInput, setChanInput]   = useState("");
+
+  // Visual container
+  const [typingUsers, setTypingUsers]       = useState<string[]>([]);
+  const [newMsgSenders, setNewMsgSenders]   = useState<Set<string>>(new Set());
+  const lastSeenMsgIdRef   = useRef(-1);
+  const seenVisualRef      = useRef<Set<string>>(new Set());
+  const firstMemberLoadRef = useRef(false);
+  const lastTypingNotifRef = useRef(0);
 
   // ── Data loading ────────────────────────────────────────────────
   const loadBubble = useCallback(async () => {
     try {
       const all = await getBubbles();
       const found = all.find((b: Bubble) => b.id === bubbleId);
-      if (found) setBubble(found);
+      if (found) {
+        setBubble(found);
+      } else {
+        Alert.alert("Hangout Ended", "The host has ended this hangout.", [
+          { text: "OK", onPress: () => router.back() },
+        ]);
+      }
     } catch {}
-  }, [bubbleId]);
+  }, [bubbleId, router]);
 
   const loadMembers = useCallback(async () => {
     try {
       const data = await getBubbleMembers(bubbleId);
+      // Populate seenVisualRef on first load so initial members don't animate
+      if (!firstMemberLoadRef.current) {
+        firstMemberLoadRef.current = true;
+        data.forEach((m: BubbleMember) => seenVisualRef.current.add(m.username));
+      }
       setMembers(data);
       const mine = data.find((m: BubbleMember) => m.username === user);
       if (mine) {
@@ -111,7 +266,6 @@ export default function BubbleDetailScreen() {
   const loadChannels = useCallback(async () => {
     try {
       const data = await getBubbleChannels(bubbleId);
-      // Always include current channel even if empty
       const merged = Array.from(new Set([...data, channelId])).sort((a, b) => a - b);
       setChannels(merged);
     } catch {}
@@ -119,11 +273,36 @@ export default function BubbleDetailScreen() {
 
   const loadMessages = useCallback(async () => {
     try {
-      const data = await getMessages(bubbleId, channelId);
+      const [data, typing]: [ChatMsg[], string[]] = await Promise.all([
+        getMessages(bubbleId, channelId),
+        getTypingUsers(bubbleId),
+      ]);
+      setTypingUsers(typing);
+
+      if (data.length > 0) {
+        const maxId = Math.max(...data.map((m) => m.id));
+        if (lastSeenMsgIdRef.current === -1) {
+          // First load — baseline, no lightbulbs
+          lastSeenMsgIdRef.current = maxId;
+        } else {
+          const newMsgs = data.filter(
+            (m) => m.id > lastSeenMsgIdRef.current && m.username !== user
+          );
+          if (newMsgs.length > 0) {
+            setNewMsgSenders((prev) => {
+              const next = new Set(prev);
+              newMsgs.forEach((m) => next.add(m.username));
+              return next;
+            });
+            lastSeenMsgIdRef.current = maxId;
+          }
+        }
+      }
+
       setMessages(data);
       setTimeout(() => msgListRef.current?.scrollToEnd({ animated: false }), 50);
     } catch {}
-  }, [bubbleId, channelId]);
+  }, [bubbleId, channelId, user]);
 
   const load = useCallback(async () => {
     setLoading(true);
@@ -132,6 +311,26 @@ export default function BubbleDetailScreen() {
   }, [loadBubble, loadMembers]);
 
   useFocusEffect(useCallback(() => { load(); }, [load]));
+
+  // Poll bubble existence
+  useEffect(() => {
+    const p = setInterval(loadBubble, 5000);
+    return () => clearInterval(p);
+  }, [loadBubble]);
+
+  // Poll members so new joiners pop into the visual container
+  useEffect(() => {
+    const p = setInterval(loadMembers, 8000);
+    return () => clearInterval(p);
+  }, [loadMembers]);
+
+  // Poll typing users continuously regardless of active tab
+  useEffect(() => {
+    const p = setInterval(() => {
+      getTypingUsers(bubbleId).then(setTypingUsers).catch(() => {});
+    }, 2500);
+    return () => clearInterval(p);
+  }, [bubbleId]);
 
   // Poll messages while on chat tab
   useEffect(() => {
@@ -142,8 +341,10 @@ export default function BubbleDetailScreen() {
     return () => { if (pollRef.current) clearInterval(pollRef.current); };
   }, [tab, loadMessages, loadChannels]);
 
-  // Reload messages when channel changes
-  useEffect(() => { if (tab === "chat") { loadMessages(); loadChannels(); } }, [channelId]);
+  // Reset msg tracking when channel changes
+  useEffect(() => {
+    lastSeenMsgIdRef.current = -1;
+  }, [channelId]);
 
   // ── Location sharing ────────────────────────────────────────────
   const startSharing = async () => {
@@ -176,11 +377,6 @@ export default function BubbleDetailScreen() {
     await loadMembers();
   };
 
-  const toggleSharing = async () => {
-    if (sharing) await stopSharing();
-    else await startSharing();
-  };
-
   useEffect(() => () => { watcherRef.current?.remove(); }, []);
 
   // ── Chat ────────────────────────────────────────────────────────
@@ -195,6 +391,17 @@ export default function BubbleDetailScreen() {
     } catch {} finally { setSending(false); }
   };
 
+  const handleMsgInputChange = (text: string) => {
+    setMsgInput(text);
+    if (text && user) {
+      const now = Date.now();
+      if (now - lastTypingNotifRef.current > 2000) {
+        lastTypingNotifRef.current = now;
+        notifyTyping(bubbleId, user).catch(() => {});
+      }
+    }
+  };
+
   const handleSwitchChannel = async (newChan: number) => {
     await switchChannel(bubbleId, user ?? "Guest", newChan);
     setChannelId(newChan);
@@ -202,9 +409,60 @@ export default function BubbleDetailScreen() {
     setChanInput("");
   };
 
+  const switchTab = (newTab: "members" | "chat") => {
+    if (newTab === "chat") setNewMsgSenders(new Set());
+    setTab(newTab);
+  };
+
+  // ── End / Leave hangout ─────────────────────────────────────────
+  const handleEndHangout = () => {
+    Alert.alert(
+      "End Hangout",
+      `End "${bubble?.name}"? This will remove the bubble for all members.`,
+      [
+        { text: "Cancel", style: "cancel" },
+        {
+          text: "End Hangout", style: "destructive",
+          onPress: async () => {
+            try {
+              await deleteBubble(bubbleId);
+              router.back();
+            } catch {
+              Alert.alert("Error", "Could not end the hangout. Try again.");
+            }
+          },
+        },
+      ]
+    );
+  };
+
+  const handleLeave = () => {
+    Alert.alert("Leave Hangout", `Leave "${bubble?.name}"?`, [
+      { text: "Cancel", style: "cancel" },
+      {
+        text: "Leave", style: "destructive",
+        onPress: async () => {
+          try {
+            await leaveBubble(bubbleId, user ?? "");
+            router.back();
+          } catch {
+            Alert.alert("Error", "Could not leave the hangout. Try again.");
+          }
+        },
+      },
+    ]);
+  };
+
+  // ── Visual container helpers ────────────────────────────────────
+  const isNewMember = useCallback((username: string): boolean => {
+    if (!firstMemberLoadRef.current || seenVisualRef.current.has(username)) return false;
+    seenVisualRef.current.add(username);
+    return true;
+  }, []);
+
   // ── Derived ─────────────────────────────────────────────────────
   const membersInChannel = members.filter((m) => (m.channelId ?? 1) === channelId);
-  const myMember = members.find((m) => m.username === user);
+  const isHost = bubble?.createdBy === user;
 
   if (loading || !bubble) {
     return (
@@ -222,7 +480,18 @@ export default function BubbleDetailScreen() {
     >
       {/* Header */}
       <View style={s.header}>
-        <Text style={s.headerName}>{bubble.name}</Text>
+        <View style={s.headerTop}>
+          <Text style={s.headerName}>{bubble.name}</Text>
+          {isHost ? (
+            <Pressable style={s.endBtn} onPress={handleEndHangout}>
+              <Text style={s.endBtnText}>End</Text>
+            </Pressable>
+          ) : (
+            <Pressable style={s.leaveBtn} onPress={handleLeave}>
+              <Text style={s.leaveBtnText}>Leave</Text>
+            </Pressable>
+          )}
+        </View>
         <View style={s.headerMeta}>
           {bubble.type && <View style={s.typeBadge}><Text style={s.typeBadgeText}>{bubble.type}</Text></View>}
           {bubble.meetTime && <Text style={s.headerTime}>🕐 {bubble.meetTime}</Text>}
@@ -231,13 +500,40 @@ export default function BubbleDetailScreen() {
         {bubble.description ? <Text style={s.headerDesc} numberOfLines={2}>{bubble.description}</Text> : null}
       </View>
 
+      {/* ── Bubble Visual Container ──────────────────────────────── */}
+      <View style={vs.container}>
+        {members.length === 0 ? (
+          <Text style={vs.emptyText}>Waiting for members…</Text>
+        ) : (
+          <View style={vs.grid}>
+            {members.map((m) => (
+              <MemberEmoji
+                key={m.username}
+                username={m.username}
+                emoji={m.profileEmoji || undefined}
+                isNew={isNewMember(m.username)}
+                isTyping={typingUsers.includes(m.username) && m.username !== user}
+                hasNewMsg={newMsgSenders.has(m.username)}
+                isCurrentUser={m.username === user}
+                isHost={m.username === bubble?.createdBy}
+              />
+            ))}
+          </View>
+        )}
+      </View>
+
       {/* Tabs */}
       <View style={s.tabs}>
-        <Pressable style={[s.tab, tab === "members" && s.tabActive]} onPress={() => setTab("members")}>
+        <Pressable style={[s.tab, tab === "members" && s.tabActive]} onPress={() => switchTab("members")}>
           <Text style={[s.tabText, tab === "members" && s.tabTextActive]}>Members</Text>
         </Pressable>
-        <Pressable style={[s.tab, tab === "chat" && s.tabActive]} onPress={() => setTab("chat")}>
-          <Text style={[s.tabText, tab === "chat" && s.tabTextActive]}>Chat</Text>
+        <Pressable style={[s.tab, tab === "chat" && s.tabActive]} onPress={() => switchTab("chat")}>
+          <Text style={[s.tabText, tab === "chat" && s.tabTextActive]}>
+            {"Chat"}
+            {newMsgSenders.size > 0 && (
+              <Text style={s.tabBadge}>{` (${newMsgSenders.size})`}</Text>
+            )}
+          </Text>
         </Pressable>
       </View>
 
@@ -250,7 +546,7 @@ export default function BubbleDetailScreen() {
           ListHeaderComponent={
             <Pressable
               style={[s.locationToggle, sharing && s.locationToggleOn]}
-              onPress={toggleSharing}
+              onPress={() => { if (sharing) stopSharing(); else startSharing(); }}
             >
               <View>
                 <Text style={s.locationToggleTitle}>
@@ -273,9 +569,12 @@ export default function BubbleDetailScreen() {
               distLine = etaText(km);
             }
             return (
-              <View style={[s.memberCard, isMe && s.memberCardMe]}>
+              <Pressable
+                style={[s.memberCard, isMe && s.memberCardMe]}
+                onPress={() => !isMe && router.push({ pathname: "/user-profile", params: { username: m.username } })}
+              >
                 <View style={s.memberAvatar}>
-                  <Text style={s.memberAvatarText}>{m.username.charAt(0).toUpperCase()}</Text>
+                  <Text style={s.memberAvatarText}>{m.profileEmoji || emojiForUser(m.username)}</Text>
                 </View>
                 <View style={{ flex: 1 }}>
                   <Text style={s.memberName}>{m.username}{isMe ? " (you)" : ""}</Text>
@@ -287,7 +586,7 @@ export default function BubbleDetailScreen() {
                   }
                 </View>
                 <View style={[s.dot, m.shareLocation ? s.dotGreen : s.dotGrey]} />
-              </View>
+              </Pressable>
             );
           }}
         />
@@ -323,7 +622,9 @@ export default function BubbleDetailScreen() {
                 <View style={[s.msgRow, isMe && s.msgRowMe]}>
                   {!isMe && (
                     <View style={s.msgAvatar}>
-                      <Text style={s.msgAvatarText}>{msg.username.charAt(0).toUpperCase()}</Text>
+                      <Text style={s.msgAvatarEmoji}>
+                        {members.find((m) => m.username === msg.username)?.profileEmoji || emojiForUser(msg.username)}
+                      </Text>
                     </View>
                   )}
                   <View style={[s.msgBubble, isMe && s.msgBubbleMe]}>
@@ -343,7 +644,7 @@ export default function BubbleDetailScreen() {
               placeholder="Message..."
               placeholderTextColor="rgba(255,255,255,0.3)"
               value={msgInput}
-              onChangeText={setMsgInput}
+              onChangeText={handleMsgInputChange}
               multiline
               onSubmitEditing={handleSend}
               blurOnSubmit={false}
@@ -402,8 +703,7 @@ export default function BubbleDetailScreen() {
                 onPress={() => handleSwitchChannel(ch)}
               >
                 <Text style={[s.chanItemText, ch === channelId && s.chanItemTextActive]}>
-                  #{ch}
-                  {ch === channelId ? "  ✓ current" : ""}
+                  #{ch}{ch === channelId ? "  ✓ current" : ""}
                 </Text>
                 <Text style={s.chanItemCount}>
                   {members.filter((m) => (m.channelId ?? 1) === ch).length} member{members.filter((m) => (m.channelId ?? 1) === ch).length !== 1 ? "s" : ""}
@@ -417,13 +717,98 @@ export default function BubbleDetailScreen() {
   );
 }
 
-// ── Styles ───────────────────────────────────────────────────────────
+// ── Visual Container Styles ───────────────────────────────────────────
+const vs = StyleSheet.create({
+  container: {
+    marginHorizontal: 16,
+    marginTop: 12,
+    marginBottom: 4,
+    borderRadius: 20,
+    backgroundColor: "rgba(255,255,255,0.04)",
+    borderWidth: 1,
+    borderColor: "rgba(255,255,255,0.1)",
+    padding: 12,
+    minHeight: 96,
+  },
+  grid: {
+    flexDirection: "row",
+    flexWrap: "wrap",
+    justifyContent: "center",
+    gap: 6,
+  },
+  slot: {
+    width: 72,
+    alignItems: "center",
+    paddingTop: 4,
+    paddingBottom: 8,
+  },
+  indicatorRow: {
+    height: 16,
+    justifyContent: "center",
+    alignItems: "center",
+    marginBottom: 4,
+  },
+  emojiCircleWrapper: {
+    alignItems: "center",
+  },
+  emojiCircle: {
+    width: 52, height: 52, borderRadius: 26,
+    backgroundColor: "rgba(255,255,255,0.07)",
+    alignItems: "center", justifyContent: "center",
+    borderWidth: 1, borderColor: "rgba(255,255,255,0.12)",
+  },
+  emojiCircleMe: {
+    borderWidth: 2,
+    borderColor: "rgba(220,38,38,0.8)",
+    backgroundColor: "rgba(220,38,38,0.08)",
+  },
+  emoji: { fontSize: 28 },
+  emojiName: {
+    color: "rgba(255,255,255,0.55)",
+    fontSize: 10, marginTop: 8,
+    textAlign: "center", width: 68,
+  },
+  emojiNameMe: { color: "rgba(255,255,255,0.85)", fontWeight: "700" },
+  bulb: { fontSize: 13, lineHeight: 16 },
+  emptyText: {
+    color: "rgba(255,255,255,0.25)",
+    fontSize: 13, textAlign: "center", padding: 24,
+  },
+  hostBadge: {
+    marginTop: 3,
+    backgroundColor: "#dc2626",
+    borderRadius: 5,
+    paddingHorizontal: 6,
+    paddingVertical: 2,
+  },
+  hostBadgeText: {
+    color: "#fff",
+    fontSize: 8,
+    fontWeight: "800",
+    letterSpacing: 0.8,
+  },
+});
+
+// ── Main Styles ───────────────────────────────────────────────────────
 const s = StyleSheet.create({
   center: { flex: 1, alignItems: "center", justifyContent: "center", backgroundColor: "#120303" },
 
   // Header
   header: { paddingHorizontal: 20, paddingTop: 16, paddingBottom: 12, borderBottomWidth: 1, borderColor: "rgba(255,255,255,0.08)" },
-  headerName: { color: "#fff", fontSize: 22, fontWeight: "800", marginBottom: 6 },
+  headerTop: { flexDirection: "row", alignItems: "center", justifyContent: "space-between", marginBottom: 6 },
+  headerName: { color: "#fff", fontSize: 22, fontWeight: "800", flex: 1 },
+  endBtn: {
+    backgroundColor: "rgba(220,38,38,0.15)", borderWidth: 1,
+    borderColor: "rgba(220,38,38,0.5)", borderRadius: 8,
+    paddingHorizontal: 12, paddingVertical: 5,
+  },
+  endBtnText: { color: "#dc2626", fontSize: 13, fontWeight: "700" },
+  leaveBtn: {
+    backgroundColor: "rgba(255,255,255,0.06)", borderWidth: 1,
+    borderColor: "rgba(255,255,255,0.2)", borderRadius: 8,
+    paddingHorizontal: 12, paddingVertical: 5,
+  },
+  leaveBtnText: { color: "rgba(255,255,255,0.6)", fontSize: 13, fontWeight: "700" },
   headerMeta: { flexDirection: "row", alignItems: "center", gap: 8, flexWrap: "wrap" },
   typeBadge: { backgroundColor: "rgba(124,58,237,0.3)", borderRadius: 6, paddingHorizontal: 8, paddingVertical: 2 },
   typeBadgeText: { color: "#c4b5fd", fontSize: 11, fontWeight: "700" },
@@ -437,6 +822,7 @@ const s = StyleSheet.create({
   tabActive: { borderBottomWidth: 2, borderColor: "#dc2626" },
   tabText: { color: "rgba(255,255,255,0.4)", fontSize: 14, fontWeight: "600" },
   tabTextActive: { color: "#fff" },
+  tabBadge: { color: "#dc2626", fontWeight: "700" },
 
   // Members
   listContent: { padding: 16, gap: 10 },
@@ -461,9 +847,10 @@ const s = StyleSheet.create({
   memberCardMe: { borderColor: "rgba(220,38,38,0.3)", backgroundColor: "rgba(220,38,38,0.06)" },
   memberAvatar: {
     width: 40, height: 40, borderRadius: 20,
-    backgroundColor: "#7c3aed", alignItems: "center", justifyContent: "center",
+    backgroundColor: "rgba(255,255,255,0.07)", alignItems: "center", justifyContent: "center",
+    borderWidth: 1, borderColor: "rgba(255,255,255,0.12)",
   },
-  memberAvatarText: { color: "#fff", fontSize: 16, fontWeight: "700" },
+  memberAvatarText: { fontSize: 20 },
   memberName: { color: "#fff", fontSize: 14, fontWeight: "700" },
   memberEta: { color: "rgba(255,255,255,0.45)", fontSize: 11, marginTop: 2 },
   memberSharing: { color: "#22c55e", fontSize: 11, marginTop: 2 },
@@ -492,8 +879,12 @@ const s = StyleSheet.create({
   emptyChat: { color: "rgba(255,255,255,0.3)", textAlign: "center", marginTop: 40, fontSize: 14 },
   msgRow: { flexDirection: "row", alignItems: "flex-end", gap: 8 },
   msgRowMe: { flexDirection: "row-reverse" },
-  msgAvatar: { width: 28, height: 28, borderRadius: 14, backgroundColor: "#7c3aed", alignItems: "center", justifyContent: "center", marginBottom: 2 },
-  msgAvatarText: { color: "#fff", fontSize: 11, fontWeight: "700" },
+  msgAvatar: {
+    width: 28, height: 28, borderRadius: 14,
+    backgroundColor: "rgba(255,255,255,0.07)", alignItems: "center", justifyContent: "center",
+    marginBottom: 2, borderWidth: 1, borderColor: "rgba(255,255,255,0.1)",
+  },
+  msgAvatarEmoji: { fontSize: 16 },
   msgBubble: {
     maxWidth: "75%", backgroundColor: "rgba(255,255,255,0.1)",
     borderRadius: 14, borderBottomLeftRadius: 4, padding: 10, gap: 2,

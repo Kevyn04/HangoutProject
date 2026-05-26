@@ -8,4 +8,5 @@ public interface BubbleMemberRepository extends JpaRepository<BubbleMember, Long
     List<BubbleMember> findByBubbleId(Long bubbleId);
     Optional<BubbleMember> findByBubbleIdAndUsername(Long bubbleId, String username);
     long countByBubbleId(Long bubbleId);
+    List<BubbleMember> findByUsername(String username);
 }

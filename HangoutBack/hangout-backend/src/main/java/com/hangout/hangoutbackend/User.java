@@ -21,6 +21,18 @@ public class User {
     @Column(nullable = false)
     private String password;
 
+    @Column(name = "push_token")
+    private String pushToken;
+
+    @Column(length = 300)
+    private String bio;
+
+    @Column(name = "avatar_color", length = 20)
+    private String avatarColor;
+
+    @Column(name = "profile_emoji", length = 10)
+    private String profileEmoji;
+
     public User() {}
 
     public User(String username, String password) {
@@ -36,4 +48,16 @@ public class User {
 
     public String getPassword() { return password; }
     public void setPassword(String password) { this.password = password; }
+
+    public String getPushToken() { return pushToken; }
+    public void setPushToken(String pushToken) { this.pushToken = pushToken; }
+
+    public String getBio() { return bio; }
+    public void setBio(String bio) { this.bio = bio; }
+
+    public String getAvatarColor() { return avatarColor; }
+    public void setAvatarColor(String avatarColor) { this.avatarColor = avatarColor; }
+
+    public String getProfileEmoji() { return profileEmoji; }
+    public void setProfileEmoji(String profileEmoji) { this.profileEmoji = profileEmoji; }
 }

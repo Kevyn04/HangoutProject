@@ -25,7 +25,13 @@ const PULSE_D = 560;
 
 export default function HomeScreen() {
   const router = useRouter();
-  const { user, logout } = useAuth();
+  const { user, loading, logout } = useAuth();
+
+  useEffect(() => {
+    if (!loading && user) {
+      router.replace("/(tabs)/map");
+    }
+  }, [loading, user]);
 
   const pulse1 = useRef(new Animated.Value(0)).current;
   const pulse2 = useRef(new Animated.Value(0)).current;
@@ -65,7 +71,7 @@ export default function HomeScreen() {
     return () => animations.forEach((a) => a.stop());
   }, [pulse1, pulse2, pulse3]);
 
-  if (!fontsLoaded) {
+  if (!fontsLoaded || loading) {
     return (
       <View style={styles.loadingContainer}>
         <ActivityIndicator size="large" color="white" />
