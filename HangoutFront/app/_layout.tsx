@@ -4,6 +4,7 @@ import { StatusBar } from 'expo-status-bar';
 import 'react-native-reanimated';
 import { AuthProvider, useAuth } from '@/services/auth-context';
 import { usePushNotifications } from '@/hooks/use-push-notifications';
+import { ToastProvider } from '@/context/ToastContext';
 
 export const unstable_settings = {
   anchor: '(tabs)',
@@ -18,6 +19,7 @@ function NotificationRegistrar() {
 export default function RootLayout() {
   return (
     <AuthProvider>
+      <ToastProvider>
       <NotificationRegistrar />
       <ThemeProvider value={DarkTheme}>
         <Stack>
@@ -37,6 +39,7 @@ export default function RootLayout() {
         </Stack>
         <StatusBar style="light" />
       </ThemeProvider>
+      </ToastProvider>
     </AuthProvider>
   );
 }

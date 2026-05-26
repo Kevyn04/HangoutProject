@@ -5,12 +5,14 @@ import {
   StyleSheet,
   ScrollView,
   Pressable,
-  ActivityIndicator,
   StatusBar,
 } from "react-native";
 import { useFocusEffect } from "@react-navigation/native";
 import { useRouter } from "expo-router";
 import { getBubbles } from "@/services/api";
+import { SkeletonBox } from "@/components/SkeletonBox";
+import { ErrorScreen } from "@/components/ErrorScreen";
+import { useToast } from "@/context/ToastContext";
 
 type Bubble = {
   id: number;
@@ -27,16 +29,19 @@ type Bubble = {
 
 export default function BubblesScreen() {
   const router = useRouter();
+  const { showToast } = useToast();
   const [bubbles, setBubbles] = useState<Bubble[]>([]);
   const [loading, setLoading] = useState(true);
+  const [loadError, setLoadError] = useState(false);
 
   const loadBubbles = useCallback(async () => {
     setLoading(true);
+    setLoadError(false);
     try {
       const data = await getBubbles();
       setBubbles(data);
-    } catch (e) {
-      console.error("Failed to load bubbles:", e);
+    } catch {
+      setLoadError(true);
     } finally {
       setLoading(false);
     }
@@ -47,6 +52,10 @@ export default function BubblesScreen() {
       loadBubbles();
     }, [loadBubbles])
   );
+
+  if (loadError) {
+    return <ErrorScreen message="Couldn't load bubbles." onRetry={loadBubbles} />;
+  }
 
   return (
     <View style={styles.container}>
@@ -63,7 +72,18 @@ export default function BubblesScreen() {
 
       <ScrollView contentContainerStyle={styles.list} showsVerticalScrollIndicator={false}>
         {loading ? (
-          <ActivityIndicator size="large" color="white" style={{ marginTop: 40 }} />
+          [0,1,2,3].map((i) => (
+            <View key={i} style={[styles.card, { gap: 12 }]}>
+              <View style={{ flexDirection: "row", alignItems: "center", gap: 12 }}>
+                <SkeletonBox width={44} height={44} borderRadius={22} />
+                <View style={{ flex: 1, gap: 8 }}>
+                  <SkeletonBox width="50%" height={15} borderRadius={6} />
+                  <SkeletonBox width="30%" height={11} borderRadius={6} />
+                </View>
+              </View>
+              <SkeletonBox width="70%" height={11} borderRadius={6} />
+            </View>
+          ))
         ) : bubbles.length === 0 ? (
           <View style={styles.emptyContainer}>
             <Text style={styles.emptyText}>No bubbles yet.</Text>

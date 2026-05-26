@@ -17,6 +17,7 @@ import { useRouter } from "expo-router";
 import { useFocusEffect } from "@react-navigation/native";
 import { getEvents, getBubbles, joinBubble } from "@/services/api";
 import { useAuth } from "@/services/auth-context";
+import { useToast } from "@/context/ToastContext";
 
 const { height: SCREEN_H } = Dimensions.get("window");
 const SHEET_MAX_H = SCREEN_H * 0.6;
@@ -57,6 +58,8 @@ type Bubble = {
 export default function MapScreen() {
   const router = useRouter();
   const { user } = useAuth();
+
+  const { showToast } = useToast();
 
   const [events, setEvents] = useState<Event[]>([]);
   const [bubbles, setBubbles] = useState<Bubble[]>([]);
@@ -102,8 +105,8 @@ export default function MapScreen() {
       const [eventsData, bubblesData] = await Promise.all([getEvents(), getBubbles()]);
       setEvents(eventsData);
       setBubbles(bubblesData);
-    } catch (e) {
-      console.error("Failed to load map data:", e);
+    } catch {
+      showToast("Couldn't load map data. Try again.");
     } finally {
       setLoading(false);
     }
@@ -126,8 +129,8 @@ export default function MapScreen() {
       );
       setJoinedIds((prev) => new Set(prev).add(selectedBubble.id));
       setSelectedBubble(updated);
-    } catch (e) {
-      console.error("Failed to join bubble:", e);
+    } catch {
+      showToast("Couldn't join bubble. Try again.");
     } finally {
       setJoining(false);
     }

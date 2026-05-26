@@ -8,6 +8,8 @@ import { useAuth } from "@/services/auth-context";
 import { getProfile, updateProfile, getUserBubbles, getUserRatings } from "@/services/api";
 import { ColorWheelPicker } from "@/components/ColorWheelPicker";
 import { SkeletonBox } from "@/components/SkeletonBox";
+import { ErrorScreen } from "@/components/ErrorScreen";
+import { useToast } from "@/context/ToastContext";
 
 const PRESET_COLORS = ["#7c3aed", "#dc2626", "#0ea5e9", "#16a34a", "#ea580c", "#db2777"];
 
@@ -38,8 +40,10 @@ type ReasonItem = { reason: string; count: number };
 export default function ProfileScreen() {
   const { user, logout } = useAuth();
   const router = useRouter();
+  const { showToast } = useToast();
 
   const [profile, setProfile] = useState<Profile | null>(null);
+  const [loadError, setLoadError] = useState(false);
   const [avatarColor, setAvatarColor] = useState<string>("#7c3aed");
   const [profileEmoji, setProfileEmoji] = useState<string>("");
   const [createdBubbles, setCreatedBubbles] = useState<BubbleItem[]>([]);
@@ -54,6 +58,7 @@ export default function ProfileScreen() {
   const load = useCallback(async () => {
     if (!user) { setLoading(false); return; }
     setLoading(true);
+    setLoadError(false);
     try {
       const [p, b, r] = await Promise.all([
         getProfile(user, user),
@@ -67,7 +72,9 @@ export default function ProfileScreen() {
       setCreatedBubbles(b.created || []);
       setJoinedBubbles(b.joined || []);
       setReasons(r.reasons || []);
-    } catch {}
+    } catch {
+      setLoadError(true);
+    }
     finally { setLoading(false); }
   }, [user]);
 
@@ -89,7 +96,7 @@ export default function ProfileScreen() {
     if (!user) return;
     setProfileEmoji(emoji);
     updateProfile(user, { profileEmoji: emoji }).catch(() => {
-      Alert.alert("Error", "Could not save emoji.");
+      showToast("Could not save emoji.");
     });
   };
 
@@ -98,7 +105,7 @@ export default function ProfileScreen() {
     setAvatarColor(color);
     setProfile((prev) => prev ? { ...prev, avatarColor: color } : prev);
     updateProfile(user, { avatarColor: color }).catch(() => {
-      Alert.alert("Error", "Could not save color.");
+      showToast("Could not save color.");
     });
   };
 
@@ -111,6 +118,10 @@ export default function ProfileScreen() {
         </Pressable>
       </View>
     );
+  }
+
+  if (loadError) {
+    return <ErrorScreen message="Couldn't load your profile." onRetry={load} />;
   }
 
   if (loading) {

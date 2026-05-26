@@ -7,6 +7,7 @@ import { useFocusEffect, useRouter } from "expo-router";
 import { useAuth } from "@/services/auth-context";
 import { getPages, toggleFollow } from "@/services/api";
 import { SkeletonBox } from "@/components/SkeletonBox";
+import { useToast } from "@/context/ToastContext";
 
 const CATEGORIES = ["All", "Nightlife", "Community", "Art", "Music", "Sports", "Food", "Culture"];
 
@@ -28,18 +29,23 @@ type PageItem = {
 export default function PagesScreen() {
   const router = useRouter();
   const { user } = useAuth();
+  const { showToast } = useToast();
 
   const [pages, setPages] = useState<PageItem[]>([]);
   const [loading, setLoading] = useState(true);
+  const [loadError, setLoadError] = useState(false);
   const [search, setSearch] = useState("");
   const [activeCategory, setActiveCategory] = useState("All");
 
   const load = useCallback(async () => {
     setLoading(true);
+    setLoadError(false);
     try {
       const data = await getPages(user ?? undefined);
       setPages(data);
-    } catch {}
+    } catch {
+      setLoadError(true);
+    }
     finally { setLoading(false); }
   }, [user]);
 
@@ -54,7 +60,9 @@ export default function PagesScreen() {
           ? { ...p, following: result.following, followerCount: result.followerCount }
           : p
       ));
-    } catch {}
+    } catch {
+      showToast("Couldn't update follow. Try again.");
+    }
   };
 
   const myPage = user ? pages.find((p) => p.createdBy === user) : undefined;
@@ -110,7 +118,14 @@ export default function PagesScreen() {
       </ScrollView>
 
       {/* Pages list */}
-      {loading ? (
+      {loadError ? (
+        <View style={{ flex: 1, alignItems: "center", justifyContent: "center", gap: 14 }}>
+          <Text style={{ color: "rgba(255,255,255,0.5)", fontSize: 15 }}>Couldn't load pages.</Text>
+          <Pressable style={{ paddingHorizontal: 24, paddingVertical: 10, borderRadius: 14, borderWidth: 1, borderColor: "rgba(220,38,38,0.5)", backgroundColor: "rgba(220,38,38,0.1)" }} onPress={load}>
+            <Text style={{ color: "#dc2626", fontWeight: "700" }}>Try Again</Text>
+          </Pressable>
+        </View>
+      ) : loading ? (
         <ScrollView contentContainerStyle={s.list} showsVerticalScrollIndicator={false}>
           {[0,1,2,3].map((i) => (
             <View key={i} style={s.card}>
@@ -182,6 +197,7 @@ export default function PagesScreen() {
       )}
     </View>
   );
+
 }
 
 const s = StyleSheet.create({

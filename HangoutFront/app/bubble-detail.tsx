@@ -13,7 +13,9 @@ import {
   deleteBubble, leaveBubble, notifyTyping, getTypingUsers,
 } from "@/services/api";
 import { SkeletonBox } from "@/components/SkeletonBox";
+import { ErrorScreen } from "@/components/ErrorScreen";
 import { useAuth } from "@/services/auth-context";
+import { useToast } from "@/context/ToastContext";
 
 // ── Emoji helpers ─────────────────────────────────────────────────────
 const FACE_EMOJIS = [
@@ -199,9 +201,12 @@ export default function BubbleDetailScreen() {
   const { user } = useAuth();
   const router = useRouter();
 
+  const { showToast } = useToast();
+
   const [bubble, setBubble]   = useState<Bubble | null>(null);
   const [members, setMembers] = useState<BubbleMember[]>([]);
   const [loading, setLoading] = useState(true);
+  const [loadError, setLoadError] = useState(false);
 
   // Location sharing
   const [sharing, setSharing]       = useState(false);
@@ -233,18 +238,22 @@ export default function BubbleDetailScreen() {
   const lastTypingNotifRef = useRef(0);
 
   // ── Data loading ────────────────────────────────────────────────
-  const loadBubble = useCallback(async () => {
+  const loadBubble = useCallback(async (): Promise<boolean> => {
     try {
       const all = await getBubbles();
       const found = all.find((b: Bubble) => b.id === bubbleId);
       if (found) {
         setBubble(found);
+        return true;
       } else {
         Alert.alert("Hangout Ended", "The host has ended this hangout.", [
           { text: "OK", onPress: () => router.back() },
         ]);
+        return true;
       }
-    } catch {}
+    } catch {
+      return false;
+    }
   }, [bubbleId, router]);
 
   const loadMembers = useCallback(async () => {
@@ -307,7 +316,9 @@ export default function BubbleDetailScreen() {
 
   const load = useCallback(async () => {
     setLoading(true);
-    await Promise.all([loadBubble(), loadMembers()]);
+    setLoadError(false);
+    const [ok] = await Promise.all([loadBubble(), loadMembers()]);
+    if (!ok) setLoadError(true);
     setLoading(false);
   }, [loadBubble, loadMembers]);
 
@@ -389,7 +400,9 @@ export default function BubbleDetailScreen() {
     try {
       await sendMessage(bubbleId, channelId, user ?? "Guest", text);
       await loadMessages();
-    } catch {} finally { setSending(false); }
+    } catch {
+      showToast("Failed to send message. Try again.");
+    } finally { setSending(false); }
   };
 
   const handleMsgInputChange = (text: string) => {
@@ -464,6 +477,10 @@ export default function BubbleDetailScreen() {
   // ── Derived ─────────────────────────────────────────────────────
   const membersInChannel = members.filter((m) => (m.channelId ?? 1) === channelId);
   const isHost = bubble?.createdBy === user;
+
+  if (!loading && loadError) {
+    return <ErrorScreen message="Couldn't load this hangout." onRetry={load} />;
+  }
 
   if (loading || !bubble) {
     return (

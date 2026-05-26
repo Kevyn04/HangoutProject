@@ -1,6 +1,14 @@
 import { API_BASE_URL } from "@/constants";
 const BASE_URL = API_BASE_URL;
 
+async function checked(response: Response, fallback: string): Promise<Response> {
+  if (!response.ok) {
+    const data = await response.json().catch(() => ({}));
+    throw new Error((data as any).error || fallback);
+  }
+  return response;
+}
+
 export async function getEvents(): Promise<any> {
   const response: Response = await fetch(`${BASE_URL}/events`);
   if (!response.ok) throw new Error('Failed to fetch events');
@@ -72,14 +80,12 @@ export async function leaveEvent(id: number, username: string): Promise<{ attend
 }
 
 export async function signUp(username: string, password: string): Promise<any> {
-  const response: Response = await fetch(`${BASE_URL}/auth/signup`, {
+  const response = await fetch(`${BASE_URL}/auth/signup`, {
     method: 'POST',
     headers: { 'Content-Type': 'application/json' },
     body: JSON.stringify({ username, password }),
   });
-  const data = await response.json();
-  if (!response.ok) throw new Error(data.error || 'Sign up failed');
-  return data;
+  return (await checked(response, 'Sign up failed')).json();
 }
 
 export async function getBubbles(): Promise<any> {
@@ -202,14 +208,12 @@ export async function sendMessage(
 }
 
 export async function signIn(username: string, password: string): Promise<any> {
-  const response: Response = await fetch(`${BASE_URL}/auth/signin`, {
+  const response = await fetch(`${BASE_URL}/auth/signin`, {
     method: 'POST',
     headers: { 'Content-Type': 'application/json' },
     body: JSON.stringify({ username, password }),
   });
-  const data = await response.json();
-  if (!response.ok) throw new Error(data.error || 'Sign in failed');
-  return data;
+  return (await checked(response, 'Sign in failed')).json();
 }
 
 export async function registerPushToken(username: string, token: string): Promise<void> {

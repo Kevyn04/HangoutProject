@@ -11,6 +11,8 @@ import {
   toggleUserFollow, canRateUser, submitRating,
 } from "@/services/api";
 import { SkeletonBox } from "@/components/SkeletonBox";
+import { ErrorScreen } from "@/components/ErrorScreen";
+import { useToast } from "@/context/ToastContext";
 
 const RATING_REASONS = [
   "Great vibes ✨", "Fun host 🎤", "Very welcoming 🤝",
@@ -50,8 +52,10 @@ export default function UserProfileScreen() {
   const { username } = useLocalSearchParams<{ username: string }>();
   const { user } = useAuth();
   const router = useRouter();
+  const { showToast } = useToast();
 
   const [profile, setProfile] = useState<ProfileData | null>(null);
+  const [loadError, setLoadError] = useState(false);
   const [createdBubbles, setCreatedBubbles] = useState<any[]>([]);
   const [joinedBubbles, setJoinedBubbles] = useState<any[]>([]);
   const [reasons, setReasons] = useState<any[]>([]);
@@ -68,6 +72,7 @@ export default function UserProfileScreen() {
   const load = useCallback(async () => {
     if (!username) return;
     setLoading(true);
+    setLoadError(false);
     try {
       const [p, b, r] = await Promise.all([
         getProfile(username, user ?? undefined),
@@ -83,7 +88,9 @@ export default function UserProfileScreen() {
         const eligibility = await canRateUser(username, user);
         setCanRate(eligibility.canRate === true);
       }
-    } catch {}
+    } catch {
+      setLoadError(true);
+    }
     finally { setLoading(false); }
   }, [username, user]);
 
@@ -96,7 +103,9 @@ export default function UserProfileScreen() {
     try {
       const result = await toggleUserFollow(username, user);
       setProfile((prev) => prev ? { ...prev, isFollowing: result.following, followerCount: result.followerCount } : prev);
-    } catch {}
+    } catch {
+      showToast("Couldn't update follow. Try again.");
+    }
     finally { setFollowLoading(false); }
   };
 
@@ -119,6 +128,10 @@ export default function UserProfileScreen() {
       Alert.alert("Error", "Could not submit rating. Try again.");
     } finally { setSubmitting(false); }
   };
+
+  if (loadError) {
+    return <ErrorScreen message="Couldn't load this profile." onRetry={load} />;
+  }
 
   if (loading || !profile) {
     return (

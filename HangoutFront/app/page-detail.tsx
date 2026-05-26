@@ -7,6 +7,9 @@ import { useLocalSearchParams, useRouter } from "expo-router";
 import { useFocusEffect } from "@react-navigation/native";
 import { useAuth } from "@/services/auth-context";
 import { getPage, getPageContent, toggleFollow } from "@/services/api";
+import { ErrorScreen } from "@/components/ErrorScreen";
+import { SkeletonBox } from "@/components/SkeletonBox";
+import { useToast } from "@/context/ToastContext";
 
 const CATEGORY_COLORS: Record<string, string> = {
   Nightlife: "#7c3aed", Community: "#0ea5e9", Art: "#ea580c",
@@ -23,16 +26,19 @@ export default function PageDetailScreen() {
   const pageId = parseInt(id, 10);
   const { user } = useAuth();
   const router = useRouter();
+  const { showToast } = useToast();
 
   const [page, setPage] = useState<PageData | null>(null);
   const [events, setEvents] = useState<any[]>([]);
   const [bubbles, setBubbles] = useState<any[]>([]);
   const [loading, setLoading] = useState(true);
+  const [loadError, setLoadError] = useState(false);
   const [tab, setTab] = useState<"events" | "bubbles">("events");
   const [followLoading, setFollowLoading] = useState(false);
 
   const load = useCallback(async () => {
     setLoading(true);
+    setLoadError(false);
     try {
       const [p, content] = await Promise.all([
         getPage(pageId, user ?? undefined),
@@ -41,7 +47,9 @@ export default function PageDetailScreen() {
       setPage(p);
       setEvents(content.events || []);
       setBubbles(content.bubbles || []);
-    } catch {}
+    } catch {
+      setLoadError(true);
+    }
     finally { setLoading(false); }
   }, [pageId, user]);
 
@@ -54,14 +62,31 @@ export default function PageDetailScreen() {
     try {
       const result = await toggleFollow(pageId, user);
       setPage((prev) => prev ? { ...prev, following: result.following, followerCount: result.followerCount } : prev);
-    } catch {}
+    } catch {
+      showToast("Couldn't update follow. Try again.");
+    }
     finally { setFollowLoading(false); }
   };
+
+  if (loadError) {
+    return <ErrorScreen message="Couldn't load this page." onRetry={load} />;
+  }
 
   if (loading || !page) {
     return (
       <View style={s.center}>
-        <ActivityIndicator color="#dc2626" size="large" />
+        <View style={{ gap: 16, padding: 24 }}>
+          <View style={{ flexDirection: "row", alignItems: "center", gap: 14 }}>
+            <SkeletonBox width={64} height={64} borderRadius={32} />
+            <View style={{ gap: 8 }}>
+              <SkeletonBox width={160} height={18} borderRadius={6} />
+              <SkeletonBox width={100} height={13} borderRadius={6} />
+            </View>
+          </View>
+          <SkeletonBox width="100%" height={44} borderRadius={14} />
+          <SkeletonBox width="100%" height={13} borderRadius={6} />
+          <SkeletonBox width="70%" height={13} borderRadius={6} />
+        </View>
       </View>
     );
   }
