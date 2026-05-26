@@ -1,11 +1,12 @@
 import React, { useState, useEffect } from "react";
-import { View, Text, StyleSheet, Pressable, Alert, ActivityIndicator } from "react-native";
+import { View, Text, StyleSheet, Pressable, Alert, ActivityIndicator, Modal, FlatList } from "react-native";
 import { LinearGradient } from "expo-linear-gradient";
 import * as Haptics from "expo-haptics";
+import * as Notifications from "expo-notifications";
 import { useFonts, Cinzel_700Bold } from "@expo-google-fonts/cinzel";
 import { useLocalSearchParams, useRouter } from "expo-router";
 import { useAuth } from "@/services/auth-context";
-import { deleteEvent, getEventAttendance, joinEvent, leaveEvent } from "@/services/api";
+import { deleteEvent, getEventAttendance, getEventAttendees, joinEvent, leaveEvent } from "@/services/api";
 
 export default function EventDetailsScreen() {
   const router = useRouter();
@@ -19,16 +20,52 @@ export default function EventDetailsScreen() {
   const [isAttending, setIsAttending] = useState(false);
   const [attendLoading, setAttendLoading] = useState(false);
   const [dataLoading, setDataLoading] = useState(true);
+  const [attendees, setAttendees] = useState<string[]>([]);
+  const [showAttendees, setShowAttendees] = useState(false);
+  const [reminded, setReminded] = useState(false);
 
   useEffect(() => {
-    getEventAttendance(Number(id), user ?? undefined)
-      .then((data) => {
-        setAttendeeCount(data.attendeeCount);
-        setIsAttending(data.isAttending);
+    const nid = Number(id);
+    Promise.all([
+      getEventAttendance(nid, user ?? undefined),
+      getEventAttendees(nid),
+    ])
+      .then(([att, list]) => {
+        setAttendeeCount(att.attendeeCount);
+        setIsAttending(att.isAttending);
+        setAttendees(list);
       })
       .catch(() => {})
       .finally(() => setDataLoading(false));
   }, [id, user]);
+
+  const handleRemind = async () => {
+    const { status } = await Notifications.requestPermissionsAsync();
+    if (status !== "granted") {
+      Alert.alert("Notifications Disabled", "Enable notifications in Settings to get reminders.");
+      return;
+    }
+    const eventTime = new Date(time ?? "");
+    const fireDate = isNaN(eventTime.getTime())
+      ? new Date(Date.now() + 60 * 60 * 1000)
+      : new Date(eventTime.getTime() - 60 * 60 * 1000);
+
+    if (fireDate <= new Date()) {
+      Alert.alert("Can't Set Reminder", "This event is in the past or too soon.");
+      return;
+    }
+
+    await Notifications.scheduleNotificationAsync({
+      content: {
+        title: `Hangout starting soon: ${title}`,
+        body: `${location} · ${time}`,
+        sound: true,
+      },
+      trigger: { type: Notifications.SchedulableTriggerInputTypes.DATE, date: fireDate },
+    });
+    setReminded(true);
+    Alert.alert("Reminder Set", `You'll be reminded 1 hour before: ${title}`);
+  };
 
   const handleAttend = async () => {
     if (!user) { router.push("/signin"); return; }
@@ -88,13 +125,15 @@ export default function EventDetailsScreen() {
             <Text style={styles.value}>{createdBy}</Text>
           </View>
           <View style={styles.divider} />
-          <View style={styles.row}>
+          <Pressable style={styles.row} onPress={() => !dataLoading && setShowAttendees(true)}>
             <Text style={styles.label}>Going</Text>
             {dataLoading
               ? <ActivityIndicator size="small" color="#fff" />
-              : <Text style={styles.attendeeCount}>{attendeeCount} {attendeeCount === 1 ? "person" : "people"}</Text>
+              : <Text style={[styles.attendeeCount, { textDecorationLine: "underline" }]}>
+                  {attendeeCount} {attendeeCount === 1 ? "person" : "people"}
+                </Text>
             }
-          </View>
+          </Pressable>
         </View>
 
         {/* Join / Leave — only for non-creators */}
@@ -117,6 +156,17 @@ export default function EventDetailsScreen() {
           </Pressable>
         )}
 
+        {/* Remind Me */}
+        {!isCreator && (
+          <Pressable
+            style={({ pressed }) => [styles.remindBtn, reminded && styles.remindBtnDone, pressed && styles.pressed]}
+            onPress={handleRemind}
+            disabled={reminded}
+          >
+            <Text style={styles.remindBtnText}>{reminded ? "Reminder Set ✓" : "Remind Me 1 Hr Before"}</Text>
+          </Pressable>
+        )}
+
         {/* Edit / Delete — only for creator */}
         {isCreator && (
           <View style={styles.actions}>
@@ -135,6 +185,33 @@ export default function EventDetailsScreen() {
           </View>
         )}
       </View>
+
+      {/* Attendee list modal */}
+      <Modal visible={showAttendees} transparent animationType="slide" onRequestClose={() => setShowAttendees(false)}>
+        <Pressable style={styles.modalBackdrop} onPress={() => setShowAttendees(false)} />
+        <View style={styles.attendeeSheet}>
+          <View style={styles.attendeeHandle} />
+          <Text style={styles.attendeeTitle}>
+            {attendeeCount} {attendeeCount === 1 ? "Person" : "People"} Going
+          </Text>
+          {attendees.length === 0 ? (
+            <Text style={styles.attendeeEmpty}>No one yet. Be the first!</Text>
+          ) : (
+            <FlatList
+              data={attendees}
+              keyExtractor={(item) => item}
+              renderItem={({ item }) => (
+                <View style={styles.attendeeRow}>
+                  <View style={styles.attendeeAvatar}>
+                    <Text style={styles.attendeeInitial}>{item.charAt(0).toUpperCase()}</Text>
+                  </View>
+                  <Text style={styles.attendeeName}>{item}</Text>
+                </View>
+              )}
+            />
+          )}
+        </View>
+      </Modal>
     </View>
   );
 }
@@ -181,4 +258,27 @@ const styles = StyleSheet.create({
   },
   deleteBtnText: { fontSize: 14, letterSpacing: 1.5, color: "#dc2626", fontFamily: "Cinzel_700Bold" },
   pressed: { transform: [{ scale: 0.98 }], opacity: 0.9 },
+
+  remindBtn: {
+    marginTop: 12, height: 48, borderRadius: 14,
+    alignItems: "center", justifyContent: "center",
+    borderWidth: 1, borderColor: "rgba(251,191,36,0.5)",
+    backgroundColor: "rgba(251,191,36,0.1)",
+  },
+  remindBtnDone: { borderColor: "rgba(34,197,94,0.5)", backgroundColor: "rgba(34,197,94,0.1)" },
+  remindBtnText: { fontSize: 14, fontFamily: "Cinzel_700Bold", letterSpacing: 0.8, color: "#fbbf24" },
+
+  modalBackdrop: { flex: 1, backgroundColor: "rgba(0,0,0,0.5)" },
+  attendeeSheet: {
+    backgroundColor: "#1a0808", borderTopLeftRadius: 24, borderTopRightRadius: 24,
+    borderTopWidth: 1, borderColor: "rgba(255,255,255,0.08)",
+    padding: 20, paddingBottom: 40, maxHeight: "60%",
+  },
+  attendeeHandle: { width: 40, height: 5, borderRadius: 3, backgroundColor: "rgba(255,255,255,0.3)", alignSelf: "center", marginBottom: 16 },
+  attendeeTitle: { color: "#fff", fontSize: 18, fontWeight: "800", marginBottom: 16 },
+  attendeeEmpty: { color: "rgba(255,255,255,0.4)", fontSize: 14, textAlign: "center", paddingVertical: 20 },
+  attendeeRow: { flexDirection: "row", alignItems: "center", gap: 12, paddingVertical: 10, borderBottomWidth: 1, borderColor: "rgba(255,255,255,0.06)" },
+  attendeeAvatar: { width: 36, height: 36, borderRadius: 18, backgroundColor: "#dc2626", alignItems: "center", justifyContent: "center" },
+  attendeeInitial: { color: "#fff", fontWeight: "700", fontSize: 15 },
+  attendeeName: { color: "#fff", fontSize: 15, fontWeight: "600" },
 });

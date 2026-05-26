@@ -2,7 +2,7 @@ import React, { useState, useEffect, useRef, useCallback } from "react";
 import {
   View, Text, StyleSheet, FlatList, Pressable, TextInput,
   ActivityIndicator, KeyboardAvoidingView, Platform, Modal,
-  ScrollView, Alert, Animated, Easing,
+  ScrollView, Alert, Animated, Easing, Share,
 } from "react-native";
 import { useLocalSearchParams, useRouter } from "expo-router";
 import { useFocusEffect } from "@react-navigation/native";
@@ -431,6 +431,16 @@ export default function BubbleDetailScreen() {
     setTab(newTab);
   };
 
+  // ── Invite ──────────────────────────────────────────────────────
+  const handleInvite = async () => {
+    try {
+      await Share.share({
+        message: `Join my bubble "${bubble?.name}" on The Hangout!\nthehangout://bubble-detail?id=${bubbleId}`,
+        title: `Join ${bubble?.name}`,
+      });
+    } catch {}
+  };
+
   // ── End / Leave hangout ─────────────────────────────────────────
   const handleEndHangout = () => {
     Alert.alert(
@@ -528,15 +538,20 @@ export default function BubbleDetailScreen() {
       <View style={s.header}>
         <View style={s.headerTop}>
           <Text style={s.headerName}>{bubble.name}</Text>
-          {isHost ? (
-            <Pressable style={s.endBtn} onPress={handleEndHangout}>
-              <Text style={s.endBtnText}>End</Text>
+          <View style={{ flexDirection: "row", alignItems: "center", gap: 8 }}>
+            <Pressable style={s.inviteBtn} onPress={handleInvite}>
+              <Ionicons name="share-outline" size={16} color="rgba(255,255,255,0.7)" />
             </Pressable>
-          ) : (
-            <Pressable style={s.leaveBtn} onPress={handleLeave}>
-              <Text style={s.leaveBtnText}>Leave</Text>
-            </Pressable>
-          )}
+            {isHost ? (
+              <Pressable style={s.endBtn} onPress={handleEndHangout}>
+                <Text style={s.endBtnText}>End</Text>
+              </Pressable>
+            ) : (
+              <Pressable style={s.leaveBtn} onPress={handleLeave}>
+                <Text style={s.leaveBtnText}>Leave</Text>
+              </Pressable>
+            )}
+          </View>
         </View>
         <View style={s.headerMeta}>
           {bubble.type && <View style={s.typeBadge}><Text style={s.typeBadgeText}>{bubble.type}</Text></View>}
@@ -849,6 +864,11 @@ const s = StyleSheet.create({
   header: { paddingHorizontal: 20, paddingTop: 16, paddingBottom: 12, borderBottomWidth: 1, borderColor: "rgba(255,255,255,0.08)" },
   headerTop: { flexDirection: "row", alignItems: "center", justifyContent: "space-between", marginBottom: 6 },
   headerName: { color: "#fff", fontSize: 22, fontWeight: "800", flex: 1 },
+  inviteBtn: {
+    backgroundColor: "rgba(255,255,255,0.07)", borderWidth: 1,
+    borderColor: "rgba(255,255,255,0.15)", borderRadius: 8,
+    padding: 7,
+  },
   endBtn: {
     backgroundColor: "rgba(220,38,38,0.15)", borderWidth: 1,
     borderColor: "rgba(220,38,38,0.5)", borderRadius: 8,

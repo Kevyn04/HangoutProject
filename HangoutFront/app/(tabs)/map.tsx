@@ -11,6 +11,7 @@ import {
   Dimensions,
   Platform,
   Modal,
+  TextInput,
 } from "react-native";
 import MapView, { Marker, PROVIDER_GOOGLE, PROVIDER_DEFAULT } from "react-native-maps";
 import { useRouter } from "expo-router";
@@ -68,6 +69,7 @@ export default function MapScreen() {
   const [selectedBubble, setSelectedBubble] = useState<Bubble | null>(null);
   const [joining, setJoining] = useState(false);
   const [joinedIds, setJoinedIds] = useState<Set<number>>(new Set());
+  const [searchQuery, setSearchQuery] = useState("");
 
   const translateY = useRef(new Animated.Value(COLLAPSED_Y)).current;
   const offsetRef = useRef(COLLAPSED_Y);
@@ -135,7 +137,11 @@ export default function MapScreen() {
     }
   };
 
-  const eventMarkers = events.filter((e) => e.latitude != null && e.longitude != null);
+  const q = searchQuery.toLowerCase().trim();
+  const filteredEvents = q
+    ? events.filter((e) => e.title.toLowerCase().includes(q) || e.location.toLowerCase().includes(q))
+    : events;
+  const eventMarkers = filteredEvents.filter((e) => e.latitude != null && e.longitude != null);
   const bubbleMarkers = bubbles.filter((b) => b.latitude != null && b.longitude != null);
 
   const alreadyJoined = selectedBubble
@@ -207,6 +213,14 @@ export default function MapScreen() {
               <Text style={styles.newEventBtnText}>+ New</Text>
             </Pressable>
           </View>
+          <TextInput
+            style={styles.searchInput}
+            placeholder="Search events…"
+            placeholderTextColor="rgba(255,255,255,0.3)"
+            value={searchQuery}
+            onChangeText={setSearchQuery}
+            clearButtonMode="while-editing"
+          />
         </View>
 
         <ScrollView
@@ -216,10 +230,10 @@ export default function MapScreen() {
         >
           {loading ? (
             <ActivityIndicator size="large" color="white" style={{ marginTop: 20 }} />
-          ) : events.length === 0 ? (
+          ) : filteredEvents.length === 0 ? (
             <Text style={styles.emptyText}>No events nearby yet.</Text>
           ) : (
-            events.map((item) => (
+            filteredEvents.map((item) => (
               <Pressable
                 key={item.id}
                 style={({ pressed }) => [styles.card, pressed && styles.cardPressed]}
@@ -419,6 +433,17 @@ const styles = StyleSheet.create({
     color: "#fff",
     fontWeight: "700",
     fontSize: 13,
+  },
+  searchInput: {
+    backgroundColor: "rgba(255,255,255,0.07)",
+    borderRadius: 10,
+    borderWidth: 1,
+    borderColor: "rgba(255,255,255,0.1)",
+    paddingHorizontal: 12,
+    paddingVertical: 8,
+    color: "#fff",
+    fontSize: 14,
+    marginTop: 8,
   },
   sheetScroll: {
     flex: 1,

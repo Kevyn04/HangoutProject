@@ -142,6 +142,16 @@ export async function deleteEvent(id: number, _username: string): Promise<void> 
   if (error) throw new Error(error.message);
 }
 
+export async function getEventAttendees(id: number): Promise<string[]> {
+  const { data, error } = await supabase
+    .from('event_attendees')
+    .select('username')
+    .eq('event_id', id)
+    .order('created_at', { ascending: true });
+  if (error) throw new Error(error.message);
+  return (data ?? []).map((r) => r.username);
+}
+
 export async function getEventAttendance(
   id: number, viewer?: string
 ): Promise<{ attendeeCount: number; isAttending: boolean }> {
