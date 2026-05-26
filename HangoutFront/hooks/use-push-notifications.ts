@@ -37,7 +37,7 @@ export function usePushNotifications(username: string | null) {
       }
 
       const tokenData = await Notifications.getExpoPushTokenAsync();
-      await registerPushToken(username, tokenData.data);
+      if (username) await registerPushToken(username, tokenData.data);
     }
 
     register().catch(console.error);

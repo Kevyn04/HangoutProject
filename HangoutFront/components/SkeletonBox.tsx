@@ -1,9 +1,9 @@
 import React, { useEffect, useRef } from "react";
-import { Animated, View, ViewStyle } from "react-native";
+import { Animated, DimensionValue, View, ViewStyle } from "react-native";
 import { LinearGradient } from "expo-linear-gradient";
 
 interface Props {
-  width?: number | string;
+  width?: DimensionValue;
   height: number;
   borderRadius?: number;
   style?: ViewStyle;
