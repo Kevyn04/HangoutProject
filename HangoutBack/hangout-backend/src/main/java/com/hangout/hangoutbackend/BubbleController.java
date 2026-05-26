@@ -1,5 +1,6 @@
 package com.hangout.hangoutbackend;
 
+import jakarta.servlet.http.HttpServletRequest;
 import org.springframework.http.ResponseEntity;
 import org.springframework.web.bind.annotation.*;
 import java.time.Instant;
@@ -15,6 +16,7 @@ public class BubbleController {
     private final ChatMessageRepository chatRepository;
     private final UserRepository userRepository;
     private final NotificationService notificationService;
+    private final RateLimiterService rateLimiter;
 
     // key = "bubbleId:username", value = lastTypedAt millis
     private final ConcurrentHashMap<String, Long> typingMap = new ConcurrentHashMap<>();
@@ -23,12 +25,14 @@ public class BubbleController {
                             BubbleMemberRepository memberRepository,
                             ChatMessageRepository chatRepository,
                             UserRepository userRepository,
-                            NotificationService notificationService) {
+                            NotificationService notificationService,
+                            RateLimiterService rateLimiter) {
         this.bubbleRepository = bubbleRepository;
         this.memberRepository = memberRepository;
         this.chatRepository = chatRepository;
         this.userRepository = userRepository;
         this.notificationService = notificationService;
+        this.rateLimiter = rateLimiter;
     }
 
     // ── Bubble CRUD ────────────────────────────────────────────────────
@@ -39,9 +43,13 @@ public class BubbleController {
     }
 
     @PostMapping("/bubbles")
-    public Bubble createBubble(@RequestBody Bubble bubble) {
+    public ResponseEntity<?> createBubble(@RequestBody Bubble bubble) {
+        if (bubble.getName() == null || bubble.getName().isBlank() || bubble.getName().length() > 100)
+            return ResponseEntity.badRequest().body(Map.of("error", "Bubble name must be 1–100 characters"));
+        if (bubble.getDescription() != null && bubble.getDescription().length() > 500)
+            return ResponseEntity.badRequest().body(Map.of("error", "Description too long (max 500)"));
+
         Bubble saved = bubbleRepository.save(bubble);
-        // Create a BubbleMember record for the creator so they appear in the visual container
         if (saved.getCreatedBy() != null &&
                 memberRepository.findByBubbleIdAndUsername(saved.getId(), saved.getCreatedBy()).isEmpty()) {
             BubbleMember bm = new BubbleMember();
@@ -51,14 +59,18 @@ public class BubbleController {
             bm.setShareLocation(false);
             memberRepository.save(bm);
         }
-        return saved;
+        return ResponseEntity.ok(saved);
     }
 
     @DeleteMapping("/bubbles/{id}")
-    public ResponseEntity<Void> deleteBubble(@PathVariable Long id) {
-        if (!bubbleRepository.existsById(id)) return ResponseEntity.notFound().build();
-        bubbleRepository.deleteById(id);
-        return ResponseEntity.ok().build();
+    public ResponseEntity<Void> deleteBubble(@PathVariable Long id,
+                                              @RequestParam String username) {
+        return bubbleRepository.findById(id).map(bubble -> {
+            if (!bubble.getCreatedBy().equals(username))
+                return ResponseEntity.status(403).<Void>build();
+            bubbleRepository.deleteById(id);
+            return ResponseEntity.ok().<Void>build();
+        }).orElse(ResponseEntity.notFound().build());
     }
 
     // ── Join ───────────────────────────────────────────────────────────
@@ -73,7 +85,6 @@ public class BubbleController {
                         bubble.getMembers().add(username);
                         bubbleRepository.save(bubble);
                     }
-                    // Create BubbleMember record if not exists
                     if (username != null) {
                         boolean exists = memberRepository
                                 .findByBubbleIdAndUsername(id, username).isPresent();
@@ -87,7 +98,6 @@ public class BubbleController {
                             bm.setShareLocation(false);
                             memberRepository.save(bm);
 
-                            // Notify bubble creator
                             String creator = bubble.getCreatedBy();
                             if (creator != null && !creator.equals(username)) {
                                 userRepository.findByUsername(creator).ifPresent(creatorUser ->
@@ -122,7 +132,6 @@ public class BubbleController {
     @GetMapping("/bubbles/{id}/members")
     public ResponseEntity<List<BubbleMember>> getMembers(@PathVariable Long id) {
         return bubbleRepository.findById(id).map(bubble -> {
-            // Auto-heal: ensure the host always has a BubbleMember record
             if (bubble.getCreatedBy() != null &&
                     memberRepository.findByBubbleIdAndUsername(id, bubble.getCreatedBy()).isEmpty()) {
                 BubbleMember bm = new BubbleMember();
@@ -144,12 +153,26 @@ public class BubbleController {
     // ── Location sharing ───────────────────────────────────────────────
 
     @PostMapping("/bubbles/{id}/location")
-    public ResponseEntity<BubbleMember> updateLocation(@PathVariable Long id,
-                                                        @RequestBody Map<String, Object> body) {
+    public ResponseEntity<?> updateLocation(@PathVariable Long id,
+                                             @RequestBody Map<String, Object> body,
+                                             HttpServletRequest request) {
         String username = (String) body.get("username");
+        if (username == null)
+            return ResponseEntity.badRequest().body(Map.of("error", "username required"));
+
+        // 30 location updates per user per minute
+        if (!rateLimiter.isAllowed("location:" + username, 30, 60_000L))
+            return ResponseEntity.status(429).body(Map.of("error", "Too many location updates"));
+
         Boolean shareLocation = (Boolean) body.get("shareLocation");
         Double latitude  = body.get("latitude")  != null ? ((Number) body.get("latitude")).doubleValue()  : null;
         Double longitude = body.get("longitude") != null ? ((Number) body.get("longitude")).doubleValue() : null;
+
+        // Validate coordinate ranges
+        if (latitude != null && (latitude < -90 || latitude > 90))
+            return ResponseEntity.badRequest().body(Map.of("error", "Invalid latitude"));
+        if (longitude != null && (longitude < -180 || longitude > 180))
+            return ResponseEntity.badRequest().body(Map.of("error", "Invalid longitude"));
 
         Optional<BubbleMember> opt = memberRepository.findByBubbleIdAndUsername(id, username);
         BubbleMember bm = opt.orElseGet(() -> {
@@ -207,23 +230,39 @@ public class BubbleController {
     }
 
     @PostMapping("/bubbles/{id}/messages")
-    public ResponseEntity<ChatMessage> sendMessage(@PathVariable Long id,
-                                                    @RequestBody Map<String, Object> body) {
+    public ResponseEntity<?> sendMessage(@PathVariable Long id,
+                                          @RequestBody Map<String, Object> body,
+                                          HttpServletRequest request) {
         if (!bubbleRepository.existsById(id)) return ResponseEntity.notFound().build();
+
+        String username = (String) body.get("username");
+        String message  = (String) body.get("message");
+
+        if (username == null || username.isBlank())
+            return ResponseEntity.badRequest().body(Map.of("error", "username required"));
+
+        // 20 messages per user per minute
+        if (!rateLimiter.isAllowed("chat:" + username, 20, 60_000L))
+            return ResponseEntity.status(429).body(Map.of("error", "Slow down — too many messages"));
+
+        if (message == null || message.isBlank())
+            return ResponseEntity.badRequest().body(Map.of("error", "Message cannot be empty"));
+        if (message.length() > 500)
+            return ResponseEntity.badRequest().body(Map.of("error", "Message too long (max 500 characters)"));
+
         ChatMessage msg = new ChatMessage();
         msg.setBubbleId(id);
         msg.setChannelId(body.get("channelId") != null
                 ? ((Number) body.get("channelId")).intValue() : 1);
-        msg.setUsername((String) body.get("username"));
-        msg.setMessage((String) body.get("message"));
+        msg.setUsername(username);
+        msg.setMessage(message.trim());
         msg.setCreatedAt(Instant.now().toString());
         ChatMessage saved = chatRepository.save(msg);
 
-        // Notify other members in the same channel
-        String sender = (String) body.get("username");
+        String sender = username;
         int channelId = saved.getChannelId() != null ? saved.getChannelId() : 1;
         String preview = saved.getMessage();
-        if (preview != null && preview.length() > 60) preview = preview.substring(0, 60) + "…";
+        if (preview.length() > 60) preview = preview.substring(0, 60) + "…";
         final String finalPreview = preview;
 
         bubbleRepository.findById(id).ifPresent(bubble -> {
@@ -252,6 +291,9 @@ public class BubbleController {
                                           @RequestBody Map<String, String> body) {
         String username = body.get("username");
         if (username == null) return ResponseEntity.badRequest().build();
+        // 60 typing pings per user per minute — effectively just 1/sec
+        if (!rateLimiter.isAllowed("typing:" + username, 60, 60_000L))
+            return ResponseEntity.status(429).build();
         typingMap.put(id + ":" + username, System.currentTimeMillis());
         return ResponseEntity.ok().build();
     }

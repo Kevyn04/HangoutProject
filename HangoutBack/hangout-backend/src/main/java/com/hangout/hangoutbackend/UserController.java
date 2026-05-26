@@ -42,13 +42,28 @@ public class UserController {
     }
 
     @PutMapping("/{username}")
-    public ResponseEntity<Map<String, Object>> updateProfile(
+    public ResponseEntity<?> updateProfile(
             @PathVariable String username,
             @RequestBody Map<String, String> body) {
 
+        // Caller must supply their own username in the body to prevent casual spoofing
+        String callerUsername = body.get("username");
+        if (callerUsername == null || !callerUsername.equals(username))
+            return ResponseEntity.status(403).body(Map.of("error", "Forbidden"));
+
+        // Validate bio length
+        String bio = body.get("bio");
+        if (bio != null && bio.length() > 300)
+            return ResponseEntity.badRequest().body(Map.of("error", "Bio too long (max 300 characters)"));
+
+        // Validate avatar colour
+        String avatarColor = body.get("avatarColor");
+        if (avatarColor != null && !InputValidator.isValidHexColor(avatarColor))
+            return ResponseEntity.badRequest().body(Map.of("error", "Invalid avatar colour (use #rrggbb)"));
+
         return userRepository.findByUsername(username).map(user -> {
-            if (body.containsKey("bio")) user.setBio(body.get("bio"));
-            if (body.containsKey("avatarColor")) user.setAvatarColor(body.get("avatarColor"));
+            if (bio != null) user.setBio(bio);
+            if (avatarColor != null) user.setAvatarColor(avatarColor);
             if (body.containsKey("profileEmoji")) user.setProfileEmoji(body.get("profileEmoji"));
             userRepository.save(user);
             return ResponseEntity.ok(buildProfile(user, username));
@@ -74,13 +89,19 @@ public class UserController {
     // ── Follow / Unfollow ─────────────────────────────────────────────
 
     @PostMapping("/{username}/follow")
-    public ResponseEntity<Map<String, Object>> toggleFollow(
+    public ResponseEntity<?> toggleFollow(
             @PathVariable String username,
             @RequestBody Map<String, String> body) {
 
         String follower = body.get("follower");
-        if (follower == null || follower.equals(username))
-            return ResponseEntity.badRequest().build();
+        if (follower == null || follower.isBlank())
+            return ResponseEntity.badRequest().body(Map.of("error", "follower required"));
+        if (follower.equals(username))
+            return ResponseEntity.badRequest().body(Map.of("error", "Cannot follow yourself"));
+
+        // Verify the follower actually exists
+        if (userRepository.findByUsername(follower).isEmpty())
+            return ResponseEntity.badRequest().body(Map.of("error", "User not found"));
 
         Optional<UserFollow> existing = followRepository.findByFollowerAndFollowee(follower, username);
         boolean nowFollowing;
@@ -102,7 +123,6 @@ public class UserController {
 
     // ── Ratings ───────────────────────────────────────────────────────
 
-    /** Check if rater can rate this user (shared a bubble + hasn't already rated) */
     @GetMapping("/{username}/can-rate")
     public ResponseEntity<Map<String, Object>> canRate(
             @PathVariable String username,
@@ -115,7 +135,6 @@ public class UserController {
         if (alreadyRated)
             return ResponseEntity.ok(Map.<String, Object>of("canRate", false, "reason", "already_rated"));
 
-        // Check shared bubble
         Set<Long> raterBubbles = memberRepository.findByUsername(raterUsername).stream()
                 .map(BubbleMember::getBubbleId).collect(Collectors.toSet());
         Set<Long> ratedBubbles = memberRepository.findByUsername(username).stream()
@@ -129,9 +148,8 @@ public class UserController {
                 "sharedBubbleId", raterBubbles.iterator().next()));
     }
 
-    /** Submit a rating */
     @PostMapping("/{username}/rate")
-    public ResponseEntity<Map<String, Object>> submitRating(
+    public ResponseEntity<?> submitRating(
             @PathVariable String username,
             @RequestBody Map<String, Object> body) {
 
@@ -140,13 +158,18 @@ public class UserController {
         String reason = (String) body.get("reason");
 
         if (raterUsername == null || rating < 1 || rating > 5)
-            return ResponseEntity.badRequest().build();
+            return ResponseEntity.badRequest().body(Map.of("error", "Invalid rating (1–5 required)"));
         if (raterUsername.equals(username))
-            return ResponseEntity.badRequest().build();
+            return ResponseEntity.badRequest().body(Map.of("error", "Cannot rate yourself"));
+        if (!InputValidator.isValidRatingReason(reason))
+            return ResponseEntity.badRequest().body(Map.of("error", "Invalid reason tag"));
         if (ratingRepository.existsByRaterUsernameAndRatedUsername(raterUsername, username))
             return ResponseEntity.badRequest().body(Map.of("error", "already_rated"));
 
-        // Verify shared bubble
+        // Verify rater exists
+        if (userRepository.findByUsername(raterUsername).isEmpty())
+            return ResponseEntity.badRequest().body(Map.of("error", "Rater not found"));
+
         Set<Long> raterBubbles = memberRepository.findByUsername(raterUsername).stream()
                 .map(BubbleMember::getBubbleId).collect(Collectors.toSet());
         Set<Long> ratedBubbles = memberRepository.findByUsername(username).stream()
@@ -166,7 +189,6 @@ public class UserController {
         return ResponseEntity.ok(buildRatingSummary(username));
     }
 
-    /** Get public rating summary (no rater names exposed) */
     @GetMapping("/{username}/ratings")
     public ResponseEntity<Map<String, Object>> getRatings(@PathVariable String username) {
         return ResponseEntity.ok(buildRatingSummary(username));
@@ -200,7 +222,6 @@ public class UserController {
         double avg = ratings.stream().mapToInt(UserRating::getRating).average().orElse(0.0);
         avg = Math.round(avg * 10.0) / 10.0;
 
-        // reason breakdown — count per reason tag
         Map<String, Long> reasonCounts = ratings.stream()
                 .filter(r -> r.getReason() != null)
                 .collect(Collectors.groupingBy(UserRating::getReason, Collectors.counting()));

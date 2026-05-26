@@ -37,8 +37,8 @@ export async function updateEvent(
   return response.json();
 }
 
-export async function deleteEvent(id: number): Promise<void> {
-  const response: Response = await fetch(`${BASE_URL}/events/${id}`, {
+export async function deleteEvent(id: number, username: string): Promise<void> {
+  const response: Response = await fetch(`${BASE_URL}/events/${id}?username=${encodeURIComponent(username)}`, {
     method: 'DELETE',
   });
   if (!response.ok) throw new Error('Failed to delete event');
@@ -88,8 +88,8 @@ export async function getBubbles(): Promise<any> {
   return response.json();
 }
 
-export async function deleteBubble(id: number): Promise<void> {
-  const response: Response = await fetch(`${BASE_URL}/bubbles/${id}`, { method: 'DELETE' });
+export async function deleteBubble(id: number, username: string): Promise<void> {
+  const response: Response = await fetch(`${BASE_URL}/bubbles/${id}?username=${encodeURIComponent(username)}`, { method: 'DELETE' });
   if (!response.ok) throw new Error('Failed to delete bubble');
 }
 
@@ -288,7 +288,7 @@ export async function updateProfile(username: string, data: { bio?: string; avat
   const response = await fetch(`${BASE_URL}/users/${username}`, {
     method: 'PUT',
     headers: { 'Content-Type': 'application/json' },
-    body: JSON.stringify(data),
+    body: JSON.stringify({ ...data, username }),
   });
   if (!response.ok) throw new Error('Failed to update profile');
   return response.json();

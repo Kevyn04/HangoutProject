@@ -50,7 +50,7 @@ export default function EventDetailsScreen() {
         text: "Delete", style: "destructive",
         onPress: async () => {
           try {
-            await deleteEvent(Number(id));
+            await deleteEvent(Number(id), user ?? "");
             router.back();
           } catch {
             Alert.alert("Error", "Failed to delete event.");

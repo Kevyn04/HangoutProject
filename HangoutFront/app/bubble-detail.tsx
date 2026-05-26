@@ -425,7 +425,7 @@ export default function BubbleDetailScreen() {
           text: "End Hangout", style: "destructive",
           onPress: async () => {
             try {
-              await deleteBubble(bubbleId);
+              await deleteBubble(bubbleId, user ?? "");
               router.back();
             } catch {
               Alert.alert("Error", "Could not end the hangout. Try again.");

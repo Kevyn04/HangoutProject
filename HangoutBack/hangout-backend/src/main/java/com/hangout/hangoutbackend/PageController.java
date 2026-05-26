@@ -34,23 +34,31 @@ public class PageController {
     // ── Create page ───────────────────────────────────────────────────
 
     @PostMapping
-    public ResponseEntity<Map<String, Object>> createPage(@RequestBody Map<String, String> body) {
+    public ResponseEntity<?> createPage(@RequestBody Map<String, String> body) {
         String name = body.get("name");
-        if (name == null || name.isBlank())
-            return ResponseEntity.badRequest().build();
+        if (name == null || name.isBlank() || name.length() > 100)
+            return ResponseEntity.badRequest().body(Map.of("error", "Page name must be 1–100 characters"));
+
+        String description = body.get("description");
+        if (description != null && description.length() > 500)
+            return ResponseEntity.badRequest().body(Map.of("error", "Description too long (max 500)"));
+
+        String avatarColor = body.get("avatarColor");
+        if (avatarColor != null && !InputValidator.isValidHexColor(avatarColor))
+            return ResponseEntity.badRequest().body(Map.of("error", "Invalid avatar colour (use #rrggbb)"));
 
         String createdBy = body.get("createdBy");
         if (createdBy != null && !pageRepository.findByCreatedBy(createdBy).isEmpty())
-            return ResponseEntity.status(409).build();
+            return ResponseEntity.status(409).body(Map.of("error", "You already have a page"));
 
         Page page = new Page();
         page.setName(name.trim());
-        page.setDescription(body.get("description"));
+        page.setDescription(description);
         page.setCategory(body.get("category"));
-        page.setCreatedBy(body.get("createdBy"));
-        page.setAvatarColor(body.getOrDefault("avatarColor", "#7c3aed"));
+        page.setCreatedBy(createdBy);
+        page.setAvatarColor(avatarColor != null ? avatarColor : "#7c3aed");
         Page saved = pageRepository.save(page);
-        return ResponseEntity.ok(toMap(saved, body.get("createdBy")));
+        return ResponseEntity.ok(toMap(saved, createdBy));
     }
 
     // ── Get page detail ───────────────────────────────────────────────
@@ -66,10 +74,11 @@ public class PageController {
     // ── Follow / unfollow ─────────────────────────────────────────────
 
     @PostMapping("/{id}/follow")
-    public ResponseEntity<Map<String, Object>> toggleFollow(@PathVariable Long id,
-                                                             @RequestBody Map<String, String> body) {
+    public ResponseEntity<?> toggleFollow(@PathVariable Long id,
+                                           @RequestBody Map<String, String> body) {
         String username = body.get("username");
-        if (username == null) return ResponseEntity.badRequest().build();
+        if (username == null || username.isBlank())
+            return ResponseEntity.badRequest().body(Map.of("error", "username required"));
 
         return pageRepository.findById(id).map(page -> {
             Optional<PageFollower> existing = followerRepository.findByPageIdAndUsername(id, username);
