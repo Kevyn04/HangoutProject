@@ -165,23 +165,18 @@ export async function getEventAttendees(id: number): Promise<string[]> {
 export async function getEventAttendance(
   id: number, viewer?: string
 ): Promise<{ attendeeCount: number; isAttending: boolean }> {
-  const { count } = await supabase
+  const { data, error } = await supabase
     .from('event_attendees')
-    .select('*', { count: 'exact', head: true })
+    .select('username')
     .eq('event_id', id);
 
-  let isAttending = false;
-  if (viewer) {
-    const { data } = await supabase
-      .from('event_attendees')
-      .select('id')
-      .eq('event_id', id)
-      .eq('username', viewer)
-      .maybeSingle();
-    isAttending = !!data;
-  }
+  if (error) throw new Error(error.message);
 
-  return { attendeeCount: count ?? 0, isAttending };
+  const usernames = (data ?? []).map((r) => r.username as string);
+  return {
+    attendeeCount: usernames.length,
+    isAttending: viewer ? usernames.includes(viewer) : false,
+  };
 }
 
 export async function joinEvent(
