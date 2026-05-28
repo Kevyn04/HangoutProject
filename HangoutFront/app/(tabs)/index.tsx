@@ -160,10 +160,12 @@ export default function FeedScreen() {
   const [discoverFeed, setDiscoverFeed]     = useState<ActivityItem[]>([]);
   const [suggestions, setSuggestions]       = useState<Suggestion[]>([]);
   const [loading, setLoading]               = useState(true);
+  const [loadError, setLoadError]           = useState(false);
   const [following, setFollowing]           = useState<Set<string>>(new Set());
 
   const load = useCallback(async () => {
     setLoading(true);
+    setLoadError(false);
     try {
       const [discover] = await Promise.all([getDiscoverFeed(user ?? undefined)]);
       setDiscoverFeed(discover);
@@ -177,7 +179,9 @@ export default function FeedScreen() {
         setSuggestedFeed(suggested);
         setSuggestions(sugg);
       }
-    } catch {}
+    } catch {
+      setLoadError(true);
+    }
     finally { setLoading(false); }
   }, [user]);
 
@@ -245,6 +249,13 @@ export default function FeedScreen() {
       </View>
 
       <ScrollView contentContainerStyle={s.scroll} showsVerticalScrollIndicator={false}>
+
+        {/* ── Error banner ── */}
+        {!loading && loadError && (
+          <Pressable style={s.errorBanner} onPress={load}>
+            <Text style={s.errorBannerText}>Couldn't load feed. Tap to retry.</Text>
+          </Pressable>
+        )}
 
         {/* ── Following Feed ── */}
         {user && (
@@ -402,6 +413,14 @@ const s = StyleSheet.create({
   followBtnDone: { backgroundColor: "rgba(124,58,237,0.25)", borderWidth: 1, borderColor: "rgba(124,58,237,0.5)" },
   followBtnText: { color: "#0b0b0f", fontWeight: "700", fontSize: 12 },
   followBtnTextDone: { color: "#c4b5fd" },
+
+  errorBanner: {
+    marginHorizontal: 20, marginTop: 16, marginBottom: 4,
+    backgroundColor: "rgba(220,38,38,0.12)", borderRadius: 12,
+    borderWidth: 1, borderColor: "rgba(220,38,38,0.3)",
+    paddingVertical: 14, alignItems: "center",
+  },
+  errorBannerText: { color: "#dc2626", fontSize: 13, fontWeight: "600" },
 
   guestContainer: { flex: 1, alignItems: "center", justifyContent: "center", gap: 14, paddingHorizontal: 44 },
   guestTitle: { fontSize: 36, fontWeight: "700", color: "#fff", letterSpacing: 0.5 },

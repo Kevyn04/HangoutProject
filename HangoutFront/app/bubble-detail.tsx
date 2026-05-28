@@ -296,8 +296,10 @@ export default function BubbleDetailScreen() {
 
       setMessages(data);
       setTimeout(() => msgListRef.current?.scrollToEnd({ animated: false }), 50);
-    } catch {}
-  }, [bubbleId, channelId]);
+    } catch {
+      showToast("Couldn't load messages. Check your connection.");
+    }
+  }, [bubbleId, channelId, showToast]);
 
   const load = useCallback(async () => {
     setLoading(true);

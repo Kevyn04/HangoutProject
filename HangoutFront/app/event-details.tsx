@@ -20,6 +20,7 @@ export default function EventDetailsScreen() {
   const [isAttending, setIsAttending] = useState(false);
   const [attendLoading, setAttendLoading] = useState(false);
   const [dataLoading, setDataLoading] = useState(true);
+  const [dataError, setDataError] = useState(false);
   const [attendees, setAttendees] = useState<string[]>([]);
   const [showAttendees, setShowAttendees] = useState(false);
   const [reminded, setReminded] = useState(false);
@@ -35,7 +36,7 @@ export default function EventDetailsScreen() {
         setIsAttending(att.isAttending);
         setAttendees(list);
       })
-      .catch(() => {})
+      .catch(() => setDataError(true))
       .finally(() => setDataLoading(false));
   }, [id, user]);
 
@@ -125,10 +126,12 @@ export default function EventDetailsScreen() {
             <Text style={styles.value}>{createdBy}</Text>
           </View>
           <View style={styles.divider} />
-          <Pressable style={styles.row} onPress={() => !dataLoading && setShowAttendees(true)}>
+          <Pressable style={styles.row} onPress={() => !dataLoading && !dataError && setShowAttendees(true)}>
             <Text style={styles.label}>Going</Text>
             {dataLoading
               ? <ActivityIndicator size="small" color="#fff" />
+              : dataError
+              ? <Text style={styles.dataErrorText}>Couldn't load</Text>
               : <Text style={[styles.attendeeCount, { textDecorationLine: "underline" }]}>
                   {attendeeCount} {attendeeCount === 1 ? "person" : "people"}
                 </Text>
@@ -230,6 +233,7 @@ const styles = StyleSheet.create({
   label: { fontSize: 13, fontFamily: "Cinzel_700Bold", letterSpacing: 1, color: "rgba(255,255,255,0.5)" },
   value: { fontSize: 16, color: "rgba(255,255,255,0.9)", flexShrink: 1, textAlign: "right", marginLeft: 16 },
   attendeeCount: { fontSize: 16, color: "#fff", fontWeight: "700" },
+  dataErrorText: { fontSize: 13, color: "rgba(220,38,38,0.8)", fontStyle: "italic" },
   divider: { height: 1, backgroundColor: "rgba(255,255,255,0.08)" },
 
   attendBtn: {
