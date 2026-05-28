@@ -1,24 +1,37 @@
 import React, { useCallback, useState } from "react";
 import {
   View, Text, StyleSheet, ScrollView, Pressable,
-  StatusBar, FlatList, ActivityIndicator,
+  StatusBar, FlatList,
 } from "react-native";
 import { useFocusEffect, useRouter } from "expo-router";
 import { Ionicons } from "@expo/vector-icons";
 import * as Haptics from "expo-haptics";
 import { useAuth } from "@/services/auth-context";
 import {
-  getSuggestedUsers, getTrendingBubbles, getPopularEvents,
-  toggleUserFollow,
+  ActivityItem, getFollowingFeed, getDiscoverFeed, getSuggestedFeed,
+  getSuggestedUsers, toggleUserFollow,
 } from "@/services/api";
 import { SkeletonBox } from "@/components/SkeletonBox";
 import { ScreenBackground } from "@/components/ScreenBackground";
 
 type Suggestion = { username: string; mutualBubbles: number };
-type Bubble     = { id: number; name: string; type?: string; members: string[]; description?: string };
-type Event      = { id: number; title: string; location: string; time: string; createdBy: string; attendeeCount: number };
 
-// ── Section label ─────────────────────────────────────────────────────────────
+function timeAgo(dateStr: string): string {
+  const diff = Date.now() - new Date(dateStr).getTime();
+  const mins = Math.floor(diff / 60000);
+  if (mins < 1) return "just now";
+  if (mins < 60) return `${mins}m`;
+  const hrs = Math.floor(mins / 60);
+  if (hrs < 24) return `${hrs}h`;
+  return `${Math.floor(hrs / 24)}d`;
+}
+
+function actionLabel(type: ActivityItem["type"]): string {
+  if (type === "bubble_created") return "started a bubble";
+  if (type === "event_created") return "created an event";
+  return "is going to an event";
+}
+
 function SectionLabel({ title, icon }: { title: string; icon: string }) {
   return (
     <View style={s.sectionRow}>
@@ -28,13 +41,67 @@ function SectionLabel({ title, icon }: { title: string; icon: string }) {
   );
 }
 
-// ── Person card (horizontal) ──────────────────────────────────────────────────
+function ActivityCard({ item, onPress }: { item: ActivityItem; onPress: () => void }) {
+  const isBubble = item.type === "bubble_created";
+  return (
+    <Pressable
+      style={({ pressed }) => [s.actCard, pressed && s.cardPressed]}
+      onPress={() => { Haptics.impactAsync(Haptics.ImpactFeedbackStyle.Light); onPress(); }}
+    >
+      <View style={s.actHeader}>
+        <View style={s.actAvatar}>
+          <Text style={s.actAvatarText}>{item.username.charAt(0).toUpperCase()}</Text>
+        </View>
+        <View style={{ flex: 1, marginLeft: 10 }}>
+          <Text style={s.actUsername}>@{item.username}</Text>
+          <Text style={s.actAction}>{actionLabel(item.type)}</Text>
+        </View>
+        <Text style={s.actTime}>{timeAgo(item.createdAt)}</Text>
+      </View>
+
+      {isBubble && item.bubble && (
+        <View style={s.actContent}>
+          <View style={s.actBubbleIcon}>
+            <Text style={s.actBubbleIconText}>{item.bubble.name.charAt(0).toUpperCase()}</Text>
+          </View>
+          <View style={{ flex: 1 }}>
+            <Text style={s.actContentTitle} numberOfLines={1}>{item.bubble.name}</Text>
+            <View style={s.actMeta}>
+              {item.bubble.type ? (
+                <View style={s.badge}><Text style={s.badgeText}>{item.bubble.type}</Text></View>
+              ) : null}
+              <Text style={s.actContentSub}>
+                {item.bubble.members.length} member{item.bubble.members.length !== 1 ? "s" : ""}
+              </Text>
+            </View>
+          </View>
+          <Ionicons name="chevron-forward" size={14} color="rgba(255,255,255,0.2)" />
+        </View>
+      )}
+
+      {!isBubble && item.event && (
+        <View style={s.actContent}>
+          <View style={s.actEventIcon}>
+            <Ionicons name="calendar" size={16} color="#dc2626" />
+          </View>
+          <View style={{ flex: 1 }}>
+            <Text style={s.actContentTitle} numberOfLines={1}>{item.event.title}</Text>
+            <View style={s.actMeta}>
+              <Ionicons name="location-outline" size={11} color="rgba(255,255,255,0.35)" />
+              <Text style={s.actContentSub}>{item.event.location}</Text>
+            </View>
+          </View>
+          <Ionicons name="chevron-forward" size={14} color="rgba(255,255,255,0.2)" />
+        </View>
+      )}
+    </Pressable>
+  );
+}
+
 function PersonCard({
   item, onFollow, following,
 }: {
-  item: Suggestion;
-  onFollow: (username: string) => void;
-  following: Set<string>;
+  item: Suggestion; onFollow: (username: string) => void; following: Set<string>;
 }) {
   const isFollowing = following.has(item.username);
   return (
@@ -58,27 +125,57 @@ function PersonCard({
   );
 }
 
-// ── Main screen ───────────────────────────────────────────────────────────────
+function FeedSkeleton() {
+  return (
+    <>
+      {[0, 1, 2].map((i) => (
+        <View key={i} style={[s.actCard, { gap: 12 }]}>
+          <View style={{ flexDirection: "row", alignItems: "center", gap: 10 }}>
+            <SkeletonBox width={36} height={36} borderRadius={18} />
+            <View style={{ gap: 6, flex: 1 }}>
+              <SkeletonBox width={90} height={12} borderRadius={6} />
+              <SkeletonBox width={130} height={10} borderRadius={6} />
+            </View>
+            <SkeletonBox width={28} height={10} borderRadius={6} />
+          </View>
+          <View style={[s.actContent, { opacity: 0.5 }]}>
+            <SkeletonBox width={36} height={36} borderRadius={18} />
+            <View style={{ gap: 6, flex: 1 }}>
+              <SkeletonBox width="70%" height={13} borderRadius={6} />
+              <SkeletonBox width="40%" height={10} borderRadius={6} />
+            </View>
+          </View>
+        </View>
+      ))}
+    </>
+  );
+}
+
 export default function FeedScreen() {
   const { user, loading: authLoading } = useAuth();
   const router = useRouter();
 
-  const [suggestions, setSuggestions] = useState<Suggestion[]>([]);
-  const [bubbles, setBubbles]         = useState<Bubble[]>([]);
-  const [events, setEvents]           = useState<Event[]>([]);
-  const [loading, setLoading]         = useState(true);
-  const [following, setFollowing]     = useState<Set<string>>(new Set());
+  const [followingFeed, setFollowingFeed]   = useState<ActivityItem[]>([]);
+  const [suggestedFeed, setSuggestedFeed]   = useState<ActivityItem[]>([]);
+  const [discoverFeed, setDiscoverFeed]     = useState<ActivityItem[]>([]);
+  const [suggestions, setSuggestions]       = useState<Suggestion[]>([]);
+  const [loading, setLoading]               = useState(true);
+  const [following, setFollowing]           = useState<Set<string>>(new Set());
 
   const load = useCallback(async () => {
     setLoading(true);
     try {
-      const [b, e] = await Promise.all([getTrendingBubbles(), getPopularEvents()]);
-      setBubbles(b);
-      setEvents(e);
-
+      const [discover] = await Promise.all([getDiscoverFeed(user ?? undefined)]);
+      setDiscoverFeed(discover);
       if (user) {
-        const s = await getSuggestedUsers(user);
-        setSuggestions(s);
+        const [feed, suggested, sugg] = await Promise.all([
+          getFollowingFeed(user),
+          getSuggestedFeed(user),
+          getSuggestedUsers(user),
+        ]);
+        setFollowingFeed(feed);
+        setSuggestedFeed(suggested);
+        setSuggestions(sugg);
       }
     } catch {}
     finally { setLoading(false); }
@@ -96,7 +193,6 @@ export default function FeedScreen() {
     try {
       await toggleUserFollow(username, user);
     } catch {
-      // revert
       setFollowing((prev) => {
         const next = new Set(prev);
         next.has(username) ? next.delete(username) : next.add(username);
@@ -105,7 +201,23 @@ export default function FeedScreen() {
     }
   };
 
-  // ── Not signed in ────────────────────────────────────────────────────────────
+  const handleActivityPress = (item: ActivityItem) => {
+    if (item.bubble) {
+      router.push({ pathname: "/bubble-detail", params: { id: item.bubble.id } });
+    } else if (item.event) {
+      router.push({
+        pathname: "/event-details",
+        params: {
+          id: item.event.id,
+          title: item.event.title,
+          location: item.event.location,
+          time: item.event.time,
+          createdBy: item.event.createdBy,
+        },
+      });
+    }
+  };
+
   if (!authLoading && !user) {
     return (
       <ScreenBackground style={s.container}>
@@ -124,37 +236,6 @@ export default function FeedScreen() {
     );
   }
 
-  // ── Loading skeleton ──────────────────────────────────────────────────────────
-  if (loading) {
-    return (
-      <ScreenBackground style={s.container}>
-        <StatusBar barStyle="light-content" backgroundColor="transparent" translucent />
-        <View style={s.header}><Text style={s.headerTitle}>Discover</Text></View>
-        <ScrollView contentContainerStyle={s.scroll} showsVerticalScrollIndicator={false}>
-          <View style={s.sectionRow}>
-            <SkeletonBox width={140} height={13} borderRadius={6} />
-          </View>
-          <ScrollView horizontal showsHorizontalScrollIndicator={false} contentContainerStyle={s.hScroll}>
-            {[0, 1, 2, 3].map((i) => (
-              <View key={i} style={[s.personCard, { gap: 8 }]}>
-                <SkeletonBox width={56} height={56} borderRadius={28} />
-                <SkeletonBox width={70} height={12} borderRadius={6} />
-                <SkeletonBox width={60} height={10} borderRadius={6} />
-                <SkeletonBox width={72} height={28} borderRadius={10} />
-              </View>
-            ))}
-          </ScrollView>
-          {[0, 1, 2].map((i) => (
-            <View key={i} style={[s.card, { gap: 10, marginBottom: 10 }]}>
-              <SkeletonBox width="55%" height={15} borderRadius={6} />
-              <SkeletonBox width="35%" height={11} borderRadius={6} />
-            </View>
-          ))}
-        </ScrollView>
-      </ScreenBackground>
-    );
-  }
-
   return (
     <ScreenBackground style={s.container}>
       <StatusBar barStyle="light-content" backgroundColor="transparent" translucent />
@@ -165,109 +246,81 @@ export default function FeedScreen() {
 
       <ScrollView contentContainerStyle={s.scroll} showsVerticalScrollIndicator={false}>
 
-        {/* ── People You Might Know ── */}
+        {/* ── Following Feed ── */}
         {user && (
           <>
-            <SectionLabel title="PEOPLE YOU MIGHT KNOW" icon="people-outline" />
-            {suggestions.length === 0 ? (
+            <SectionLabel title="FOLLOWING" icon="people" />
+            {loading ? (
+              <FeedSkeleton />
+            ) : followingFeed.length === 0 ? (
               <View style={s.emptySection}>
-                <Text style={s.emptySectionText}>
-                  Join bubbles to find people with shared interests.
-                </Text>
+                <Text style={s.emptySectionText}>Follow people to see their activity here.</Text>
               </View>
             ) : (
-              <FlatList
-                horizontal
-                data={suggestions}
-                keyExtractor={(item) => item.username}
-                showsHorizontalScrollIndicator={false}
-                contentContainerStyle={s.hScroll}
-                renderItem={({ item }) => (
-                  <PersonCard item={item} onFollow={handleFollow} following={following} />
-                )}
-              />
+              followingFeed.map((item) => (
+                <ActivityCard key={item.id} item={item} onPress={() => handleActivityPress(item)} />
+              ))
             )}
           </>
         )}
 
-        {/* ── Trending Bubbles ── */}
-        <SectionLabel title="TRENDING BUBBLES" icon="flame-outline" />
-        {bubbles.length === 0 ? (
-          <View style={s.emptySection}>
-            <Text style={s.emptySectionText}>No bubbles yet — create the first one!</Text>
-          </View>
-        ) : (
-          bubbles.map((b) => (
-            <Pressable
-              key={b.id}
-              style={({ pressed }) => [s.card, pressed && s.cardPressed]}
-              onPress={() => {
-                Haptics.impactAsync(Haptics.ImpactFeedbackStyle.Light);
-                router.push({ pathname: "/bubble-detail", params: { id: b.id } });
-              }}
-            >
-              <View style={s.cardTop}>
-                <View style={s.bubbleIcon}>
-                  <Text style={s.bubbleIconText}>{b.name.charAt(0).toUpperCase()}</Text>
-                </View>
-                <View style={{ flex: 1 }}>
-                  <Text style={s.cardTitle}>{b.name}</Text>
-                  <View style={s.cardMeta}>
-                    {b.type ? <View style={s.badge}><Text style={s.badgeText}>{b.type}</Text></View> : null}
-                    <Text style={s.cardSub}>
-                      {b.members.length} member{b.members.length !== 1 ? "s" : ""}
-                    </Text>
-                  </View>
-                </View>
-                <Ionicons name="chevron-forward" size={16} color="rgba(255,255,255,0.2)" />
+        {/* ── People You May Know ── */}
+        {user && (
+          <>
+            <SectionLabel title="PEOPLE YOU MAY KNOW" icon="person-add-outline" />
+            {loading ? (
+              <>
+                <ScrollView horizontal showsHorizontalScrollIndicator={false} contentContainerStyle={s.hScroll}>
+                  {[0, 1, 2, 3].map((i) => (
+                    <View key={i} style={[s.personCard, { gap: 8 }]}>
+                      <SkeletonBox width={56} height={56} borderRadius={28} />
+                      <SkeletonBox width={70} height={12} borderRadius={6} />
+                      <SkeletonBox width={60} height={10} borderRadius={6} />
+                      <SkeletonBox width={72} height={28} borderRadius={10} />
+                    </View>
+                  ))}
+                </ScrollView>
+                <FeedSkeleton />
+              </>
+            ) : suggestions.length === 0 ? (
+              <View style={s.emptySection}>
+                <Text style={s.emptySectionText}>Join bubbles to find people with shared interests.</Text>
               </View>
-              {b.description ? (
-                <Text style={s.cardDesc} numberOfLines={1}>{b.description}</Text>
-              ) : null}
-            </Pressable>
-          ))
+            ) : (
+              <>
+                <FlatList
+                  horizontal
+                  data={suggestions}
+                  keyExtractor={(item) => item.username}
+                  showsHorizontalScrollIndicator={false}
+                  contentContainerStyle={s.hScroll}
+                  renderItem={({ item }) => (
+                    <PersonCard item={item} onFollow={handleFollow} following={following} />
+                  )}
+                />
+                {suggestedFeed.length > 0 && (
+                  <View style={{ marginTop: 8 }}>
+                    {suggestedFeed.map((item) => (
+                      <ActivityCard key={item.id} item={item} onPress={() => handleActivityPress(item)} />
+                    ))}
+                  </View>
+                )}
+              </>
+            )}
+          </>
         )}
 
-        {/* ── Popular Events ── */}
-        <SectionLabel title="POPULAR EVENTS" icon="calendar-outline" />
-        {events.length === 0 ? (
+        {/* ── Discover Feed ── */}
+        <SectionLabel title="DISCOVER" icon="compass-outline" />
+        {loading ? (
+          <FeedSkeleton />
+        ) : discoverFeed.length === 0 ? (
           <View style={s.emptySection}>
-            <Text style={s.emptySectionText}>No events yet — create the first one!</Text>
+            <Text style={s.emptySectionText}>No activity yet — create the first bubble or event!</Text>
           </View>
         ) : (
-          events.map((e) => (
-            <Pressable
-              key={e.id}
-              style={({ pressed }) => [s.card, pressed && s.cardPressed]}
-              onPress={() => {
-                Haptics.impactAsync(Haptics.ImpactFeedbackStyle.Light);
-                router.push({
-                  pathname: "/event-details",
-                  params: { id: e.id, title: e.title, location: e.location, time: e.time, createdBy: e.createdBy },
-                });
-              }}
-            >
-              <View style={s.cardTop}>
-                <View style={s.eventIcon}>
-                  <Ionicons name="calendar" size={18} color="#dc2626" />
-                </View>
-                <View style={{ flex: 1 }}>
-                  <Text style={s.cardTitle}>{e.title}</Text>
-                  <View style={s.cardMeta}>
-                    <Ionicons name="location-outline" size={11} color="rgba(255,255,255,0.35)" />
-                    <Text style={s.cardSub}>{e.location}</Text>
-                  </View>
-                </View>
-                <View style={s.attendeePill}>
-                  <Ionicons name="people-outline" size={11} color="#dc2626" />
-                  <Text style={s.attendeePillText}>{e.attendeeCount}</Text>
-                </View>
-              </View>
-              <View style={s.cardMeta}>
-                <Ionicons name="time-outline" size={11} color="rgba(255,255,255,0.35)" />
-                <Text style={s.cardSub}>{e.time}</Text>
-              </View>
-            </Pressable>
+          discoverFeed.map((item) => (
+            <ActivityCard key={item.id} item={item} onPress={() => handleActivityPress(item)} />
           ))
         )}
 
@@ -283,15 +336,52 @@ const s = StyleSheet.create({
   headerTitle: { fontSize: 28, fontWeight: "700", color: "#fff", letterSpacing: 0.5 },
   scroll: { paddingBottom: 40 },
 
-  // Section labels
   sectionRow: { flexDirection: "row", alignItems: "center", gap: 6, paddingHorizontal: 20, marginTop: 22, marginBottom: 10 },
-  sectionLabel: { color: "rgba(255,255,255,0.35)", fontSize: 11, fontWeight: "700", letterSpacing: 1.5, textTransform: "uppercase" },
+  sectionLabel: { color: "rgba(255,255,255,0.35)", fontSize: 11, fontWeight: "700", letterSpacing: 1.5 },
 
-  // Empty states
   emptySection: { paddingHorizontal: 20, paddingBottom: 4 },
   emptySectionText: { color: "rgba(255,255,255,0.3)", fontSize: 13, fontStyle: "italic" },
 
-  // People horizontal scroll
+  actCard: {
+    marginHorizontal: 20, marginBottom: 10,
+    backgroundColor: "rgba(255,255,255,0.05)", borderRadius: 16, padding: 14,
+    borderWidth: StyleSheet.hairlineWidth,
+    borderColor: "rgba(255,255,255,0.13)", borderTopColor: "rgba(255,255,255,0.2)",
+    gap: 12,
+  },
+  cardPressed: { opacity: 0.7, transform: [{ scale: 0.98 }] },
+  actHeader: { flexDirection: "row", alignItems: "center" },
+  actAvatar: {
+    width: 36, height: 36, borderRadius: 18,
+    backgroundColor: "#7c3aed", alignItems: "center", justifyContent: "center",
+  },
+  actAvatarText: { color: "#fff", fontSize: 15, fontWeight: "700" },
+  actUsername: { color: "#fff", fontSize: 13, fontWeight: "700" },
+  actAction: { color: "rgba(255,255,255,0.45)", fontSize: 12, marginTop: 1 },
+  actTime: { color: "rgba(255,255,255,0.3)", fontSize: 11 },
+
+  actContent: {
+    flexDirection: "row", alignItems: "center", gap: 10,
+    backgroundColor: "rgba(255,255,255,0.04)", borderRadius: 12, padding: 10,
+    borderWidth: StyleSheet.hairlineWidth, borderColor: "rgba(255,255,255,0.08)",
+  },
+  actBubbleIcon: {
+    width: 36, height: 36, borderRadius: 18,
+    backgroundColor: "#7c3aed", alignItems: "center", justifyContent: "center",
+  },
+  actBubbleIconText: { color: "#fff", fontSize: 15, fontWeight: "700" },
+  actEventIcon: {
+    width: 36, height: 36, borderRadius: 18,
+    backgroundColor: "rgba(220,38,38,0.15)", alignItems: "center", justifyContent: "center",
+    borderWidth: 1, borderColor: "rgba(220,38,38,0.3)",
+  },
+  actContentTitle: { color: "#fff", fontSize: 14, fontWeight: "600" },
+  actMeta: { flexDirection: "row", alignItems: "center", gap: 4, marginTop: 2 },
+  actContentSub: { color: "rgba(255,255,255,0.4)", fontSize: 11 },
+
+  badge: { backgroundColor: "rgba(124,58,237,0.3)", borderRadius: 6, paddingHorizontal: 6, paddingVertical: 2 },
+  badgeText: { color: "#c4b5fd", fontSize: 10, fontWeight: "700" },
+
   hScroll: { paddingHorizontal: 20, gap: 10, paddingBottom: 4 },
   personCard: {
     width: 110, alignItems: "center", gap: 6, padding: 12,
@@ -313,41 +403,6 @@ const s = StyleSheet.create({
   followBtnText: { color: "#0b0b0f", fontWeight: "700", fontSize: 12 },
   followBtnTextDone: { color: "#c4b5fd" },
 
-  // Cards
-  card: {
-    marginHorizontal: 20, marginBottom: 10,
-    backgroundColor: "rgba(255,255,255,0.05)", borderRadius: 16, padding: 16,
-    borderWidth: StyleSheet.hairlineWidth,
-    borderColor: "rgba(255,255,255,0.13)", borderTopColor: "rgba(255,255,255,0.2)",
-    gap: 6,
-  },
-  cardPressed: { opacity: 0.7, transform: [{ scale: 0.98 }] },
-  cardTop: { flexDirection: "row", alignItems: "center", gap: 12 },
-  bubbleIcon: {
-    width: 40, height: 40, borderRadius: 20,
-    backgroundColor: "#7c3aed", alignItems: "center", justifyContent: "center",
-  },
-  bubbleIconText: { color: "#fff", fontSize: 17, fontWeight: "700" },
-  eventIcon: {
-    width: 40, height: 40, borderRadius: 20,
-    backgroundColor: "rgba(220,38,38,0.15)", alignItems: "center", justifyContent: "center",
-    borderWidth: 1, borderColor: "rgba(220,38,38,0.3)",
-  },
-  cardTitle: { color: "#fff", fontSize: 15, fontWeight: "700" },
-  cardMeta: { flexDirection: "row", alignItems: "center", gap: 4, flexWrap: "wrap" },
-  cardSub: { color: "rgba(255,255,255,0.45)", fontSize: 12 },
-  cardDesc: { color: "rgba(255,255,255,0.4)", fontSize: 12 },
-  badge: { backgroundColor: "rgba(124,58,237,0.3)", borderRadius: 6, paddingHorizontal: 6, paddingVertical: 2 },
-  badgeText: { color: "#c4b5fd", fontSize: 10, fontWeight: "700" },
-  attendeePill: {
-    flexDirection: "row", alignItems: "center", gap: 3,
-    backgroundColor: "rgba(220,38,38,0.12)", borderRadius: 8,
-    paddingHorizontal: 8, paddingVertical: 3,
-    borderWidth: 1, borderColor: "rgba(220,38,38,0.25)",
-  },
-  attendeePillText: { color: "#dc2626", fontSize: 11, fontWeight: "700" },
-
-  // Guest state
   guestContainer: { flex: 1, alignItems: "center", justifyContent: "center", gap: 14, paddingHorizontal: 44 },
   guestTitle: { fontSize: 36, fontWeight: "700", color: "#fff", letterSpacing: 0.5 },
   guestSub: { color: "rgba(255,255,255,0.45)", fontSize: 14, textAlign: "center" },

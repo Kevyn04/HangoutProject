@@ -1,5 +1,14 @@
 import { supabase } from './supabase';
 
+export type ActivityItem = {
+  id: string;
+  type: 'bubble_created' | 'event_created' | 'event_attending';
+  username: string;
+  createdAt: string;
+  bubble?: { id: number; name: string; type?: string; members: string[]; description?: string; isSecret: boolean };
+  event?: { id: number; title: string; location: string; time: string; createdBy: string };
+};
+
 // ── Auth ──────────────────────────────────────────────────────────────────────
 
 export async function signUp(username: string, password: string): Promise<any> {
@@ -442,8 +451,32 @@ export async function toggleFollow(pageId: number, username: string): Promise<an
   return { following, followerCount: count ?? 0 };
 }
 
-export async function getPageContent(_pageId: number): Promise<{ events: any[]; bubbles: any[] }> {
-  return { events: [], bubbles: [] };
+export async function getPageContent(pageId: number): Promise<{ events: any[]; bubbles: any[] }> {
+  const { data: page, error: pageError } = await supabase
+    .from('pages')
+    .select('created_by')
+    .eq('id', pageId)
+    .single();
+
+  if (pageError || !page) return { events: [], bubbles: [] };
+
+  const [eventsRes, bubblesRes] = await Promise.all([
+    supabase
+      .from('events')
+      .select('*')
+      .eq('created_by', page.created_by)
+      .order('created_at', { ascending: false }),
+    supabase
+      .from('bubbles')
+      .select('*, bubble_member_detail(username)')
+      .eq('created_by', page.created_by)
+      .order('created_at', { ascending: false }),
+  ]);
+
+  return {
+    events: (eventsRes.data ?? []).map(mapEvent),
+    bubbles: (bubblesRes.data ?? []).map(mapBubble),
+  };
 }
 
 export async function getFollowingPages(username: string): Promise<any[]> {
@@ -681,6 +714,170 @@ export async function getPopularEvents(): Promise<any[]> {
     .map((e: any) => ({ ...mapEvent(e), attendeeCount: countMap[e.id] ?? 0 }))
     .sort((a: any, b: any) => b.attendeeCount - a.attendeeCount)
     .slice(0, 6);
+}
+
+// ── Activity Feeds ────────────────────────────────────────────────────────────
+
+export async function getFollowingFeed(username: string): Promise<ActivityItem[]> {
+  const { data: follows } = await supabase
+    .from('user_follows')
+    .select('followee')
+    .eq('follower', username);
+
+  const followed = (follows ?? []).map((f: any) => f.followee);
+  if (!followed.length) return [];
+
+  const [bubblesRes, eventsRes, attendRes] = await Promise.all([
+    supabase
+      .from('bubbles')
+      .select('*, bubble_member_detail(username)')
+      .in('created_by', followed)
+      .order('created_at', { ascending: false })
+      .limit(20),
+    supabase
+      .from('events')
+      .select('*')
+      .in('created_by', followed)
+      .order('created_at', { ascending: false })
+      .limit(20),
+    supabase
+      .from('event_attendees')
+      .select('username, event_id, created_at, events(*)')
+      .in('username', followed)
+      .order('created_at', { ascending: false })
+      .limit(20),
+  ]);
+
+  const items: ActivityItem[] = [
+    ...(bubblesRes.data ?? []).map((b: any) => ({
+      id: `bc_${b.id}`,
+      type: 'bubble_created' as const,
+      username: b.created_by,
+      createdAt: b.created_at,
+      bubble: mapBubble(b),
+    })),
+    ...(eventsRes.data ?? []).map((e: any) => ({
+      id: `ec_${e.id}`,
+      type: 'event_created' as const,
+      username: e.created_by,
+      createdAt: e.created_at,
+      event: mapEvent(e),
+    })),
+    ...(attendRes.data ?? [])
+      .filter((a: any) => a.events)
+      .map((a: any) => ({
+        id: `ea_${a.username}_${a.event_id}`,
+        type: 'event_attending' as const,
+        username: a.username,
+        createdAt: a.created_at,
+        event: mapEvent(a.events),
+      })),
+  ];
+
+  return items
+    .sort((a, b) => new Date(b.createdAt).getTime() - new Date(a.createdAt).getTime())
+    .slice(0, 30);
+}
+
+export async function getSuggestedFeed(username: string): Promise<ActivityItem[]> {
+  // Get users who share bubbles with you but you don't follow yet
+  const [membershipsRes, followsRes] = await Promise.all([
+    supabase.from('bubble_member_detail').select('bubble_id').eq('username', username),
+    supabase.from('user_follows').select('followee').eq('follower', username),
+  ]);
+
+  const bubbleIds = (membershipsRes.data ?? []).map((m: any) => m.bubble_id);
+  const followedSet = new Set((followsRes.data ?? []).map((f: any) => f.followee));
+
+  if (!bubbleIds.length) return [];
+
+  const { data: coMembers } = await supabase
+    .from('bubble_member_detail')
+    .select('username')
+    .in('bubble_id', bubbleIds)
+    .neq('username', username);
+
+  const suggested = [...new Set((coMembers ?? []).map((m: any) => m.username))]
+    .filter((u) => !followedSet.has(u))
+    .slice(0, 20);
+
+  if (!suggested.length) return [];
+
+  const [bubblesRes, eventsRes] = await Promise.all([
+    supabase
+      .from('bubbles')
+      .select('*, bubble_member_detail(username)')
+      .in('created_by', suggested)
+      .order('created_at', { ascending: false })
+      .limit(20),
+    supabase
+      .from('events')
+      .select('*')
+      .in('created_by', suggested)
+      .order('created_at', { ascending: false })
+      .limit(20),
+  ]);
+
+  const items: ActivityItem[] = [
+    ...(bubblesRes.data ?? []).map((b: any) => ({
+      id: `sbc_${b.id}`,
+      type: 'bubble_created' as const,
+      username: b.created_by,
+      createdAt: b.created_at,
+      bubble: mapBubble(b),
+    })),
+    ...(eventsRes.data ?? []).map((e: any) => ({
+      id: `sec_${e.id}`,
+      type: 'event_created' as const,
+      username: e.created_by,
+      createdAt: e.created_at,
+      event: mapEvent(e),
+    })),
+  ];
+
+  return items
+    .sort((a, b) => new Date(b.createdAt).getTime() - new Date(a.createdAt).getTime())
+    .slice(0, 30);
+}
+
+export async function getDiscoverFeed(excludeUsername?: string): Promise<ActivityItem[]> {
+  const [bubblesRes, eventsRes] = await Promise.all([
+    supabase
+      .from('bubbles')
+      .select('*, bubble_member_detail(username)')
+      .order('created_at', { ascending: false })
+      .limit(25),
+    supabase
+      .from('events')
+      .select('*')
+      .order('created_at', { ascending: false })
+      .limit(25),
+  ]);
+
+  const items: ActivityItem[] = [
+    ...(bubblesRes.data ?? [])
+      .filter((b: any) => b.created_by !== excludeUsername)
+      .map((b: any) => ({
+        id: `dbc_${b.id}`,
+        type: 'bubble_created' as const,
+        username: b.created_by,
+        createdAt: b.created_at,
+        bubble: mapBubble(b),
+      })),
+    ...(eventsRes.data ?? [])
+      .filter((e: any) => e.created_by !== excludeUsername)
+      .map((e: any) => ({
+        id: `dec_${e.id}`,
+        type: 'event_created' as const,
+        username: e.created_by,
+        createdAt: e.created_at,
+        event: mapEvent(e),
+      })),
+  ];
+
+  return items
+    .sort((a, b) => new Date(b.createdAt).getTime() - new Date(a.createdAt).getTime())
+    .slice(0, 30);
 }
 
 // ── Mappers ───────────────────────────────────────────────────────────────────
