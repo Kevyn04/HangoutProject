@@ -1,6 +1,6 @@
 {
   "expo": {
-    "name": "The Hangout",
+    "name": "Hangout",
     "slug": "the-hangout",
     "version": "1.0.0",
     "orientation": "portrait",
@@ -12,7 +12,8 @@
       "supportsTablet": true,
       "bundleIdentifier": "com.hangout.thehangout",
       "infoPlist": {
-        "NSLocationWhenInUseUsageDescription": "The Hangout uses your location to show nearby events."
+        "NSLocationWhenInUseUsageDescription": "The Hangout uses your location to show nearby events.",
+        "ITSAppUsesNonExemptEncryption": false
       }
     },
     "android": {
