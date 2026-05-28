@@ -19,6 +19,7 @@ import { useToast } from "@/context/ToastContext";
 import { Ionicons } from "@expo/vector-icons";
 import * as Haptics from "expo-haptics";
 import { ScreenBackground } from "@/components/ScreenBackground";
+import { supabase } from "@/services/supabase";
 
 // ── Emoji helpers ─────────────────────────────────────────────────────
 const FACE_EMOJIS = [
@@ -226,7 +227,6 @@ export default function BubbleDetailScreen() {
   const [msgInput, setMsgInput]   = useState("");
   const [sending, setSending]     = useState(false);
   const msgListRef = useRef<FlatList>(null);
-  const pollRef    = useRef<ReturnType<typeof setInterval> | null>(null);
 
   // Channel modal
   const [chanSearch, setChanSearch] = useState(false);
@@ -286,36 +286,18 @@ export default function BubbleDetailScreen() {
 
   const loadMessages = useCallback(async () => {
     try {
-      const [data, typing]: [ChatMsg[], string[]] = await Promise.all([
-        getMessages(bubbleId, channelId),
-        getTypingUsers(bubbleId),
-      ]);
-      setTypingUsers(typing);
+      const data = await getMessages(bubbleId, channelId);
 
       if (data.length > 0) {
         const maxId = Math.max(...data.map((m) => m.id));
-        if (lastSeenMsgIdRef.current === -1) {
-          // First load — baseline, no lightbulbs
-          lastSeenMsgIdRef.current = maxId;
-        } else {
-          const newMsgs = data.filter(
-            (m) => m.id > lastSeenMsgIdRef.current && m.username !== user
-          );
-          if (newMsgs.length > 0) {
-            setNewMsgSenders((prev) => {
-              const next = new Set(prev);
-              newMsgs.forEach((m) => next.add(m.username));
-              return next;
-            });
-            lastSeenMsgIdRef.current = maxId;
-          }
-        }
+        // First load — set baseline so existing messages don't trigger lightbulbs
+        lastSeenMsgIdRef.current = maxId;
       }
 
       setMessages(data);
       setTimeout(() => msgListRef.current?.scrollToEnd({ animated: false }), 50);
     } catch {}
-  }, [bubbleId, channelId, user]);
+  }, [bubbleId, channelId]);
 
   const load = useCallback(async () => {
     setLoading(true);
@@ -347,14 +329,40 @@ export default function BubbleDetailScreen() {
     return () => clearInterval(p);
   }, [bubbleId]);
 
-  // Poll messages while on chat tab
+  // Realtime chat subscription
   useEffect(() => {
-    if (tab !== "chat") { if (pollRef.current) clearInterval(pollRef.current); return; }
+    if (tab !== "chat") return;
+
     loadMessages();
     loadChannels();
-    pollRef.current = setInterval(loadMessages, 3000);
-    return () => { if (pollRef.current) clearInterval(pollRef.current); };
-  }, [tab, loadMessages, loadChannels]);
+
+    const ch = supabase
+      .channel(`chat-${bubbleId}-${channelId}`)
+      .on(
+        "postgres_changes",
+        { event: "INSERT", schema: "public", table: "chat_messages", filter: `bubble_id=eq.${bubbleId}` },
+        (payload) => {
+          const row = payload.new as any;
+          if (row.channel_id !== channelId) return;
+
+          const msg: ChatMsg = {
+            id: row.id, bubbleId: row.bubble_id, channelId: row.channel_id,
+            username: row.username, message: row.message, createdAt: row.created_at,
+          };
+
+          setMessages((prev) => prev.some((m) => m.id === msg.id) ? prev : [...prev, msg]);
+
+          if (row.username !== user) {
+            setNewMsgSenders((prev) => { const next = new Set(prev); next.add(row.username); return next; });
+          }
+
+          setTimeout(() => msgListRef.current?.scrollToEnd({ animated: true }), 50);
+        }
+      )
+      .subscribe();
+
+    return () => { supabase.removeChannel(ch); };
+  }, [tab, bubbleId, channelId, user, loadMessages, loadChannels]);
 
   // Reset msg tracking when channel changes
   useEffect(() => {
@@ -402,7 +410,6 @@ export default function BubbleDetailScreen() {
     setMsgInput("");
     try {
       await sendMessage(bubbleId, channelId, user ?? "Guest", text);
-      await loadMessages();
     } catch {
       showToast("Failed to send message. Try again.");
     } finally { setSending(false); }
