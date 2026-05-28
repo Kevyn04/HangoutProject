@@ -186,14 +186,18 @@ export async function getEventAttendance(
 export async function joinEvent(
   id: number, username: string
 ): Promise<{ attendeeCount: number; isAttending: boolean }> {
-  await supabase.from('event_attendees').insert({ event_id: id, username });
+  const { error } = await supabase
+    .from('event_attendees')
+    .upsert({ event_id: id, username }, { onConflict: 'event_id,username', ignoreDuplicates: true });
+  if (error) throw new Error(error.message);
   return getEventAttendance(id, username);
 }
 
 export async function leaveEvent(
   id: number, username: string
 ): Promise<{ attendeeCount: number; isAttending: boolean }> {
-  await supabase.from('event_attendees').delete().eq('event_id', id).eq('username', username);
+  const { error } = await supabase.from('event_attendees').delete().eq('event_id', id).eq('username', username);
+  if (error) throw new Error(error.message);
   return getEventAttendance(id, username);
 }
 
