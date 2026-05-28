@@ -53,6 +53,8 @@ export default function RootLayout() {
             <Stack.Screen name="bubble-detail" options={{ title: 'Bubble', headerStyle: { backgroundColor: '#0f0305' }, headerTintColor: '#fff' }} />
             <Stack.Screen name="page-detail" options={{ title: 'Page', headerStyle: { backgroundColor: '#0f0305' }, headerTintColor: '#fff' }} />
             <Stack.Screen name="user-profile" options={{ title: 'Profile', headerStyle: { backgroundColor: '#0f0305' }, headerTintColor: '#fff' }} />
+            <Stack.Screen name="event-chat" options={{ title: 'Event Chat', headerStyle: { backgroundColor: '#0f0305' }, headerTintColor: '#fff' }} />
+            <Stack.Screen name="discussion-detail" options={{ title: 'Discussion', headerStyle: { backgroundColor: '#0f0305' }, headerTintColor: '#fff' }} />
             <Stack.Screen name="create-page" options={{ presentation: 'modal', title: 'New Page', headerStyle: { backgroundColor: '#0f0305' }, headerTintColor: '#fff' }} />
             <Stack.Screen name="signin" options={{ presentation: 'modal', title: 'Sign In', headerStyle: { backgroundColor: '#1a0505' }, headerTintColor: '#fff' }} />
             <Stack.Screen name="signup" options={{ presentation: 'modal', title: 'Sign Up', headerStyle: { backgroundColor: '#1a0505' }, headerTintColor: '#fff' }} />

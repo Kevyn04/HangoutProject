@@ -10,13 +10,12 @@ import {
   PanResponder,
   Dimensions,
   Platform,
-  Modal,
   TextInput,
 } from "react-native";
 import MapView, { Marker, PROVIDER_GOOGLE, PROVIDER_DEFAULT } from "react-native-maps";
 import { useRouter } from "expo-router";
 import { useFocusEffect } from "@react-navigation/native";
-import { getEvents, getBubbles, joinBubble } from "@/services/api";
+import { getEvents } from "@/services/api";
 import { useAuth } from "@/services/auth-context";
 import { useToast } from "@/context/ToastContext";
 
@@ -40,21 +39,9 @@ type Event = {
   createdBy: string;
   latitude?: number;
   longitude?: number;
+  type?: string | null;
 };
 
-type Bubble = {
-  id: number;
-  name: string;
-  description?: string;
-  createdBy: string;
-  type?: string;
-  meetTime?: string;
-  latitude?: number;
-  longitude?: number;
-  members: string[];
-  isSecret?: boolean;
-  revealAt?: string;
-};
 
 export default function MapScreen() {
   const router = useRouter();
@@ -63,12 +50,7 @@ export default function MapScreen() {
   const { showToast } = useToast();
 
   const [events, setEvents] = useState<Event[]>([]);
-  const [bubbles, setBubbles] = useState<Bubble[]>([]);
   const [loading, setLoading] = useState(true);
-
-  const [selectedBubble, setSelectedBubble] = useState<Bubble | null>(null);
-  const [joining, setJoining] = useState(false);
-  const [joinedIds, setJoinedIds] = useState<Set<number>>(new Set());
   const [searchQuery, setSearchQuery] = useState("");
 
   const translateY = useRef(new Animated.Value(COLLAPSED_Y)).current;
@@ -104,9 +86,8 @@ export default function MapScreen() {
   const loadData = useCallback(async () => {
     setLoading(true);
     try {
-      const [eventsData, bubblesData] = await Promise.all([getEvents(), getBubbles()]);
+      const eventsData = await getEvents();
       setEvents(eventsData);
-      setBubbles(bubblesData);
     } catch {
       showToast("Couldn't load map data. Try again.");
     } finally {
@@ -120,33 +101,11 @@ export default function MapScreen() {
     }, [loadData])
   );
 
-  const handleJoin = async () => {
-    if (!selectedBubble) return;
-    if (!user) { router.push("/signin"); return; }
-    setJoining(true);
-    try {
-      await joinBubble(selectedBubble.id, user);
-      const updatedBubble = { ...selectedBubble, members: [...selectedBubble.members, user] };
-      setBubbles((prev) => prev.map((b) => (b.id === selectedBubble.id ? updatedBubble : b)));
-      setJoinedIds((prev) => new Set(prev).add(selectedBubble.id));
-      setSelectedBubble(updatedBubble);
-    } catch {
-      showToast("Couldn't join bubble. Try again.");
-    } finally {
-      setJoining(false);
-    }
-  };
-
   const q = searchQuery.toLowerCase().trim();
   const filteredEvents = q
     ? events.filter((e) => e.title.toLowerCase().includes(q) || e.location.toLowerCase().includes(q))
     : events;
   const eventMarkers = filteredEvents.filter((e) => e.latitude != null && e.longitude != null);
-  const bubbleMarkers = bubbles.filter((b) => b.latitude != null && b.longitude != null);
-
-  const alreadyJoined = selectedBubble
-    ? joinedIds.has(selectedBubble.id) || (user != null && selectedBubble.members.includes(user))
-    : false;
 
   return (
     <View style={styles.container}>
@@ -168,25 +127,6 @@ export default function MapScreen() {
             pinColor="#dc2626"
           />
         ))}
-
-        {/* Bubble markers — custom view, lock icon if secret */}
-        {bubbleMarkers.map((b) => {
-          const stillSecret = b.isSecret && b.revealAt && new Date(b.revealAt) > new Date();
-          return (
-            <Marker
-              key={`bubble-${b.id}`}
-              coordinate={{ latitude: b.latitude!, longitude: b.longitude! }}
-              onPress={() => setSelectedBubble(b)}
-              anchor={{ x: 0.5, y: 1 }}
-            >
-              <View style={stillSecret ? bMarker.secret : bMarker.normal}>
-                <Text style={bMarker.label}>
-                  {stillSecret ? "🔒" : b.name.charAt(0).toUpperCase()}
-                </Text>
-              </View>
-            </Marker>
-          );
-        })}
       </MapView>
 
       {/* Legend */}
@@ -194,10 +134,6 @@ export default function MapScreen() {
         <View style={styles.legendItem}>
           <View style={[styles.legendDot, { backgroundColor: "#dc2626" }]} />
           <Text style={styles.legendText}>Events</Text>
-        </View>
-        <View style={styles.legendItem}>
-          <View style={[styles.legendDot, { backgroundColor: "#7c3aed" }]} />
-          <Text style={styles.legendText}>Bubbles</Text>
         </View>
       </View>
 
@@ -246,11 +182,15 @@ export default function MapScreen() {
                       location: item.location,
                       time: item.time,
                       createdBy: item.createdBy,
+                      type: item.type ?? "",
                     },
                   })
                 }
               >
-                <Text style={styles.cardTitle}>{item.title}</Text>
+                <View style={{ flexDirection: "row", alignItems: "center", gap: 8, marginBottom: 2 }}>
+                  <Text style={styles.cardTitle}>{item.title}</Text>
+                  {!!item.type && <View style={styles.typeBadge}><Text style={styles.typeBadgeText}>{item.type}</Text></View>}
+                </View>
                 <View style={styles.cardRow}>
                   <Text style={styles.cardLabel}>Location</Text>
                   <Text style={styles.cardValue}>{item.location}</Text>
@@ -266,86 +206,6 @@ export default function MapScreen() {
         </ScrollView>
       </Animated.View>
 
-      {/* Bubble join modal */}
-      <Modal
-        visible={selectedBubble != null}
-        transparent
-        animationType="slide"
-        onRequestClose={() => setSelectedBubble(null)}
-      >
-        <Pressable style={styles.modalBackdrop} onPress={() => setSelectedBubble(null)} />
-        {selectedBubble && (() => {
-          const stillSecret = selectedBubble.isSecret && selectedBubble.revealAt
-            && new Date(selectedBubble.revealAt) > new Date();
-          const revealTime = selectedBubble.revealAt
-            ? new Date(selectedBubble.revealAt).toLocaleTimeString([], { hour: "2-digit", minute: "2-digit" })
-            : null;
-          return (
-            <View style={styles.bubbleSheet}>
-              <View style={styles.bubbleSheetHandle} />
-
-              <View style={styles.bubbleIconRow}>
-                <View style={[styles.bubbleIcon, stillSecret && styles.bubbleIconSecret]}>
-                  <Text style={styles.bubbleIconText}>
-                    {stillSecret ? "🔒" : selectedBubble.name.charAt(0).toUpperCase()}
-                  </Text>
-                </View>
-                <View style={{ flex: 1 }}>
-                  <Text style={styles.bubbleName}>{selectedBubble.name}</Text>
-                  <Text style={styles.bubbleMeta}>
-                    {selectedBubble.members.length} member{selectedBubble.members.length !== 1 ? "s" : ""} · by {selectedBubble.createdBy}
-                  </Text>
-                </View>
-              </View>
-
-              {/* Type + time row */}
-              {(selectedBubble.type || selectedBubble.meetTime) && (
-                <View style={styles.bubbleTagRow}>
-                  {selectedBubble.type && (
-                    <View style={styles.bubbleTypeBadge}>
-                      <Text style={styles.bubbleTypeBadgeText}>{selectedBubble.type}</Text>
-                    </View>
-                  )}
-                  {selectedBubble.meetTime && (
-                    <Text style={styles.bubbleTimeText}>🕐 {selectedBubble.meetTime}</Text>
-                  )}
-                </View>
-              )}
-
-              {/* Secret reveal notice */}
-              {stillSecret && revealTime && (
-                <View style={styles.secretBanner}>
-                  <Text style={styles.secretBannerText}>
-                    🔒 Location revealed at {revealTime}
-                  </Text>
-                </View>
-              )}
-
-              {selectedBubble.description ? (
-                <Text style={styles.bubbleDesc}>{selectedBubble.description}</Text>
-              ) : null}
-
-              <Pressable
-                style={({ pressed }) => [
-                  styles.joinBtn,
-                  alreadyJoined && styles.joinBtnJoined,
-                  pressed && { opacity: 0.8 },
-                ]}
-                onPress={alreadyJoined ? undefined : handleJoin}
-                disabled={joining || alreadyJoined}
-              >
-                {joining ? (
-                  <ActivityIndicator color="#fff" size="small" />
-                ) : (
-                  <Text style={styles.joinBtnText}>
-                    {alreadyJoined ? "Already in this Bubble" : "Join Bubble"}
-                  </Text>
-                )}
-              </Pressable>
-            </View>
-          );
-        })()}
-      </Modal>
     </View>
   );
 }
@@ -495,144 +355,10 @@ const styles = StyleSheet.create({
     textAlign: "center",
     paddingVertical: 20,
   },
-
-  // Bubble join modal
-  modalBackdrop: {
-    flex: 1,
-    backgroundColor: "rgba(0,0,0,0.45)",
+  typeBadge: {
+    backgroundColor: "rgba(220,38,38,0.15)", borderRadius: 6,
+    borderWidth: 1, borderColor: "rgba(220,38,38,0.3)",
+    paddingHorizontal: 6, paddingVertical: 2,
   },
-  bubbleSheet: {
-    backgroundColor: "#1a0808",
-    borderTopLeftRadius: 24,
-    borderTopRightRadius: 24,
-    borderTopWidth: 1,
-    borderColor: "rgba(124,58,237,0.3)",
-    padding: 24,
-    paddingBottom: 40,
-    gap: 14,
-  },
-  bubbleSheetHandle: {
-    width: 40,
-    height: 5,
-    borderRadius: 3,
-    backgroundColor: "rgba(255,255,255,0.3)",
-    alignSelf: "center",
-    marginBottom: 4,
-  },
-  bubbleIconRow: {
-    flexDirection: "row",
-    alignItems: "center",
-    gap: 14,
-  },
-  bubbleIcon: {
-    width: 52,
-    height: 52,
-    borderRadius: 26,
-    backgroundColor: "#7c3aed",
-    alignItems: "center",
-    justifyContent: "center",
-  },
-  bubbleIconText: {
-    color: "#fff",
-    fontSize: 22,
-    fontWeight: "700",
-  },
-  bubbleName: {
-    color: "#fff",
-    fontSize: 20,
-    fontWeight: "700",
-  },
-  bubbleMeta: {
-    color: "rgba(255,255,255,0.45)",
-    fontSize: 13,
-    marginTop: 2,
-  },
-  bubbleDesc: {
-    color: "rgba(255,255,255,0.65)",
-    fontSize: 14,
-    lineHeight: 20,
-  },
-  joinBtn: {
-    backgroundColor: "#7c3aed",
-    height: 48,
-    borderRadius: 14,
-    alignItems: "center",
-    justifyContent: "center",
-    marginTop: 4,
-  },
-  joinBtnJoined: {
-    backgroundColor: "rgba(124,58,237,0.35)",
-  },
-  joinBtnText: {
-    color: "#fff",
-    fontSize: 15,
-    fontWeight: "700",
-    letterSpacing: 0.5,
-  },
-
-  bubbleIconSecret: {
-    backgroundColor: "#374151",
-  },
-  bubbleTagRow: {
-    flexDirection: "row",
-    alignItems: "center",
-    gap: 8,
-    flexWrap: "wrap",
-  },
-  bubbleTypeBadge: {
-    backgroundColor: "rgba(124,58,237,0.3)",
-    borderRadius: 6,
-    paddingHorizontal: 8,
-    paddingVertical: 3,
-  },
-  bubbleTypeBadgeText: {
-    color: "#c4b5fd",
-    fontSize: 12,
-    fontWeight: "600",
-  },
-  bubbleTimeText: {
-    color: "rgba(255,255,255,0.55)",
-    fontSize: 13,
-  },
-  secretBanner: {
-    backgroundColor: "rgba(55,65,81,0.6)",
-    borderRadius: 10,
-    paddingHorizontal: 14,
-    paddingVertical: 10,
-    borderWidth: 1,
-    borderColor: "rgba(255,255,255,0.1)",
-  },
-  secretBannerText: {
-    color: "rgba(255,255,255,0.7)",
-    fontSize: 13,
-    fontWeight: "600",
-  },
-});
-
-const bMarker = StyleSheet.create({
-  normal: {
-    width: 38,
-    height: 38,
-    borderRadius: 19,
-    backgroundColor: "#7c3aed",
-    alignItems: "center",
-    justifyContent: "center",
-    borderWidth: 2,
-    borderColor: "#fff",
-  },
-  secret: {
-    width: 38,
-    height: 38,
-    borderRadius: 19,
-    backgroundColor: "#374151",
-    alignItems: "center",
-    justifyContent: "center",
-    borderWidth: 2,
-    borderColor: "rgba(255,255,255,0.4)",
-  },
-  label: {
-    color: "#fff",
-    fontSize: 16,
-    fontWeight: "700",
-  },
+  typeBadgeText: { color: "#dc2626", fontSize: 10, fontWeight: "700" },
 });

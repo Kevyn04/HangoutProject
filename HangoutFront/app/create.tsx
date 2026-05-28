@@ -1,7 +1,7 @@
 import React, { useState, useEffect, useRef } from "react";
 import {
   View, Text, TextInput, StyleSheet, Pressable, ActivityIndicator,
-  KeyboardAvoidingView, Platform, ScrollView, Modal,
+  KeyboardAvoidingView, Platform, ScrollView, Modal, FlatList,
 } from "react-native";
 import { LinearGradient } from "expo-linear-gradient";
 import { useFonts, Cinzel_700Bold } from "@expo-google-fonts/cinzel";
@@ -25,11 +25,14 @@ function formatEventDate(d: Date): string {
   });
 }
 
+const EVENT_TYPES = ["Hangout", "Munchies", "Secret Location", "Sports", "Games"];
+
 export default function CreateScreen() {
   const router = useRouter();
   const { user } = useAuth();
   const [title, setTitle] = useState("");
   const [location, setLocation] = useState("");
+  const [eventType, setEventType] = useState<string>("Hangout");
   const [eventDate, setEventDate] = useState(() => {
     const d = new Date();
     d.setDate(d.getDate() + 1);
@@ -97,6 +100,7 @@ export default function CreateScreen() {
         location: location.trim(),
         time: formatEventDate(eventDate),
         createdBy: user!,
+        type: eventType,
         ...(pinCoords && { latitude: pinCoords.latitude, longitude: pinCoords.longitude }),
       });
       router.back();
@@ -135,6 +139,19 @@ export default function CreateScreen() {
             value={location}
             onChangeText={(v) => { setLocation(v); setError(""); }}
           />
+
+          <Text style={s.label}>Type</Text>
+          <ScrollView horizontal showsHorizontalScrollIndicator={false} style={{ marginBottom: 20 }} contentContainerStyle={{ gap: 8, paddingRight: 8 }}>
+            {EVENT_TYPES.map((t) => (
+              <Pressable
+                key={t}
+                onPress={() => setEventType(t)}
+                style={[s.typeChip, eventType === t && s.typeChipActive]}
+              >
+                <Text style={[s.typeChipText, eventType === t && s.typeChipTextActive]}>{t}</Text>
+              </Pressable>
+            ))}
+          </ScrollView>
 
           <Text style={s.label}>Date & Time</Text>
           <Pressable
@@ -271,4 +288,13 @@ const s = StyleSheet.create({
   mapModalTitle: { color: "#fff", fontSize: 14, fontWeight: "600" },
   mapModalDone: { backgroundColor: "#dc2626", borderRadius: 10, paddingHorizontal: 16, paddingVertical: 8 },
   mapModalDoneText: { color: "#fff", fontWeight: "700", fontSize: 14 },
+
+  typeChip: {
+    paddingHorizontal: 16, paddingVertical: 9, borderRadius: 20,
+    borderWidth: 1, borderColor: AppColors.border,
+    backgroundColor: AppColors.card,
+  },
+  typeChipActive: { backgroundColor: AppColors.red, borderColor: AppColors.red },
+  typeChipText: { color: AppColors.textSub, fontSize: 14, fontWeight: "600" },
+  typeChipTextActive: { color: "#fff" },
 });

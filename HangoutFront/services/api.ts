@@ -112,7 +112,7 @@ export async function getEvents(): Promise<any[]> {
 
 export async function createEvent(event: {
   title: string; location: string; time: string;
-  createdBy: string; latitude?: number; longitude?: number;
+  createdBy: string; latitude?: number; longitude?: number; type?: string;
 }): Promise<any> {
   const { data, error } = await supabase
     .from('events')
@@ -123,6 +123,7 @@ export async function createEvent(event: {
       created_by: event.createdBy,
       lat: event.latitude,
       lng: event.longitude,
+      type: event.type ?? null,
     })
     .select()
     .single();
@@ -927,13 +928,69 @@ export async function getBlockedUsers(username: string): Promise<string[]> {
   return (data ?? []).map((r) => r.blocked);
 }
 
+// ── Event Messages ────────────────────────────────────────────────────────────
+
+export async function getEventMessages(eventId: number) {
+  const { data, error } = await supabase
+    .from('event_messages').select('*').eq('event_id', eventId)
+    .order('created_at', { ascending: true });
+  if (error) throw new Error(error.message);
+  return (data ?? []).map((r) => ({
+    id: r.id, username: r.username, message: r.message, createdAt: r.created_at,
+  }));
+}
+
+export async function sendEventMessage(eventId: number, username: string, message: string) {
+  const { error } = await supabase
+    .from('event_messages').insert({ event_id: eventId, username, message });
+  if (error) throw new Error(error.message);
+}
+
+// ── Discussions ───────────────────────────────────────────────────────────────
+
+export async function getDiscussions(bubbleId: number) {
+  const { data, error } = await supabase
+    .from('discussions')
+    .select('id, title, body, created_by, created_at, discussion_replies(count)')
+    .eq('bubble_id', bubbleId)
+    .order('created_at', { ascending: false });
+  if (error) throw new Error(error.message);
+  return (data ?? []).map((r: any) => ({
+    id: r.id, title: r.title, body: r.body,
+    createdBy: r.created_by, createdAt: r.created_at,
+    replyCount: r.discussion_replies?.[0]?.count ?? 0,
+  }));
+}
+
+export async function createDiscussion(bubbleId: number, title: string, body: string, createdBy: string) {
+  const { error } = await supabase
+    .from('discussions').insert({ bubble_id: bubbleId, title, body, created_by: createdBy });
+  if (error) throw new Error(error.message);
+}
+
+export async function getDiscussionReplies(discussionId: number) {
+  const { data, error } = await supabase
+    .from('discussion_replies').select('*').eq('discussion_id', discussionId)
+    .order('created_at', { ascending: true });
+  if (error) throw new Error(error.message);
+  return (data ?? []).map((r) => ({
+    id: r.id, username: r.username, content: r.content, createdAt: r.created_at,
+  }));
+}
+
+export async function addDiscussionReply(discussionId: number, username: string, content: string) {
+  const { error } = await supabase
+    .from('discussion_replies').insert({ discussion_id: discussionId, username, content });
+  if (error) throw new Error(error.message);
+}
+
 // ── Mappers ───────────────────────────────────────────────────────────────────
 
 function mapEvent(r: any) {
   return {
     id: r.id, title: r.title, location: r.location, time: r.time,
     createdBy: r.created_by, latitude: r.lat, longitude: r.lng,
-    createdAt: r.created_at,
+    createdAt: r.created_at, type: r.type ?? null,
   };
 }
 

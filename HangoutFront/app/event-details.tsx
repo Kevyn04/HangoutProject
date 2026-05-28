@@ -6,13 +6,15 @@ import * as Notifications from "expo-notifications";
 import { useFonts, Cinzel_700Bold } from "@expo-google-fonts/cinzel";
 import { useLocalSearchParams, useRouter } from "expo-router";
 import { useAuth } from "@/services/auth-context";
+import { useToast } from "@/context/ToastContext";
 import { deleteEvent, getEventAttendance, getEventAttendees, joinEvent, leaveEvent } from "@/services/api";
 
 export default function EventDetailsScreen() {
   const router = useRouter();
-  const { user } = useAuth();
-  const { id, title, location, time, createdBy } = useLocalSearchParams<{
-    id: string; title: string; location: string; time: string; createdBy: string;
+  const { user, loading: authLoading } = useAuth();
+  const { showToast } = useToast();
+  const { id, title, location, time, createdBy, type } = useLocalSearchParams<{
+    id: string; title: string; location: string; time: string; createdBy: string; type?: string;
   }>();
 
   const [fontsLoaded] = useFonts({ Cinzel_700Bold });
@@ -26,7 +28,10 @@ export default function EventDetailsScreen() {
   const [reminded, setReminded] = useState(false);
 
   useEffect(() => {
+    if (authLoading) return;
     const nid = Number(id);
+    setDataLoading(true);
+    setDataError(false);
     Promise.all([
       getEventAttendance(nid, user ?? undefined),
       getEventAttendees(nid),
@@ -38,7 +43,7 @@ export default function EventDetailsScreen() {
       })
       .catch(() => setDataError(true))
       .finally(() => setDataLoading(false));
-  }, [id, user]);
+  }, [id, user, authLoading]);
 
   const handleRemind = async () => {
     const { status } = await Notifications.requestPermissionsAsync();
@@ -72,11 +77,15 @@ export default function EventDetailsScreen() {
     if (!user) { router.push("/signin"); return; }
     setAttendLoading(true);
     try {
-      const result = isAttending
-        ? await leaveEvent(Number(id), user)
-        : await joinEvent(Number(id), user);
-      setAttendeeCount(result.attendeeCount);
-      setIsAttending(result.isAttending);
+      if (isAttending) {
+        const result = await leaveEvent(Number(id), user);
+        setAttendeeCount(result.attendeeCount);
+        setIsAttending(result.isAttending);
+      } else {
+        await joinEvent(Number(id), user);
+        showToast(`Joined ${title}!`);
+        router.back();
+      }
     } catch {
       Alert.alert("Error", "Could not update attendance.");
     } finally { setAttendLoading(false); }
@@ -109,6 +118,11 @@ export default function EventDetailsScreen() {
 
       <View style={styles.content}>
         <Text style={styles.title}>{title}</Text>
+        {!!type && (
+          <View style={styles.typeBadge}>
+            <Text style={styles.typeBadgeText}>{type}</Text>
+          </View>
+        )}
 
         <View style={styles.card}>
           <View style={styles.row}>
@@ -167,6 +181,16 @@ export default function EventDetailsScreen() {
             disabled={reminded}
           >
             <Text style={styles.remindBtnText}>{reminded ? "Reminder Set ✓" : "Remind Me 1 Hr Before"}</Text>
+          </Pressable>
+        )}
+
+        {/* Event Chat — visible to attendees and creator */}
+        {(isAttending || isCreator) && !dataLoading && (
+          <Pressable
+            style={({ pressed }) => [styles.chatBtn, pressed && styles.pressed]}
+            onPress={() => router.push({ pathname: "/event-chat", params: { eventId: id, title } })}
+          >
+            <Text style={styles.chatBtnText}>Open Event Chat</Text>
           </Pressable>
         )}
 
@@ -262,6 +286,21 @@ const styles = StyleSheet.create({
   },
   deleteBtnText: { fontSize: 14, letterSpacing: 1.5, color: "#dc2626", fontFamily: "Cinzel_700Bold" },
   pressed: { transform: [{ scale: 0.98 }], opacity: 0.9 },
+
+  typeBadge: {
+    alignSelf: "flex-start", backgroundColor: "rgba(220,38,38,0.15)",
+    borderWidth: 1, borderColor: "rgba(220,38,38,0.35)",
+    borderRadius: 8, paddingHorizontal: 10, paddingVertical: 4, marginBottom: 16,
+  },
+  typeBadgeText: { color: "#dc2626", fontSize: 12, fontWeight: "700", letterSpacing: 0.5 },
+
+  chatBtn: {
+    marginTop: 12, height: 48, borderRadius: 14,
+    alignItems: "center", justifyContent: "center",
+    backgroundColor: "rgba(124,58,237,0.2)",
+    borderWidth: 1, borderColor: "rgba(124,58,237,0.5)",
+  },
+  chatBtnText: { fontSize: 14, fontFamily: "Cinzel_700Bold", letterSpacing: 0.8, color: "#c4b5fd" },
 
   remindBtn: {
     marginTop: 12, height: 48, borderRadius: 14,

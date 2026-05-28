@@ -11,7 +11,7 @@ import {
   getBubbles, getBubbleMembers, updateMemberLocation,
   getBubbleChannels, switchChannel, getMessages, sendMessage,
   deleteBubble, leaveBubble, notifyTyping, getTypingUsers,
-  getBlockedUsers, reportMessage,
+  getBlockedUsers, reportMessage, getDiscussions, createDiscussion,
 } from "@/services/api";
 import { SkeletonBox } from "@/components/SkeletonBox";
 import { ErrorScreen } from "@/components/ErrorScreen";
@@ -219,7 +219,15 @@ export default function BubbleDetailScreen() {
   const watcherRef = useRef<Location.LocationSubscription | null>(null);
 
   // Tab
-  const [tab, setTab] = useState<"members" | "chat">("members");
+  const [tab, setTab] = useState<"members" | "chat" | "discussions">("members");
+
+  // Discussions
+  const [discussions, setDiscussions] = useState<{ id: number; title: string; body?: string; createdBy: string; createdAt: string; replyCount: number }[]>([]);
+  const [discLoading, setDiscLoading] = useState(false);
+  const [newDiscTitle, setNewDiscTitle] = useState("");
+  const [newDiscBody, setNewDiscBody] = useState("");
+  const [postingDisc, setPostingDisc] = useState(false);
+  const [showNewDisc, setShowNewDisc] = useState(false);
 
   // Chat
   const [channelId, setChannelId] = useState(1);
@@ -449,9 +457,28 @@ export default function BubbleDetailScreen() {
     setChanInput("");
   };
 
-  const switchTab = (newTab: "members" | "chat") => {
+  const switchTab = (newTab: "members" | "chat" | "discussions") => {
     if (newTab === "chat") setNewMsgSenders(new Set());
+    if (newTab === "discussions") {
+      setDiscLoading(true);
+      getDiscussions(bubbleId).then(setDiscussions).catch(() => {}).finally(() => setDiscLoading(false));
+    }
     setTab(newTab);
+  };
+
+  const handlePostDiscussion = async () => {
+    if (!newDiscTitle.trim() || !user) return;
+    setPostingDisc(true);
+    try {
+      await createDiscussion(bubbleId, newDiscTitle.trim(), newDiscBody.trim(), user);
+      setNewDiscTitle("");
+      setNewDiscBody("");
+      setShowNewDisc(false);
+      const updated = await getDiscussions(bubbleId);
+      setDiscussions(updated);
+    } catch {
+      showToast("Couldn't post discussion.");
+    } finally { setPostingDisc(false); }
   };
 
   // ── Invite ──────────────────────────────────────────────────────
@@ -638,14 +665,20 @@ export default function BubbleDetailScreen() {
         <Pressable style={[s.tab, tab === "members" && s.tabActive]} onPress={() => switchTab("members")}>
           <Text style={[s.tabText, tab === "members" && s.tabTextActive]}>Members</Text>
         </Pressable>
-        <Pressable style={[s.tab, tab === "chat" && s.tabActive]} onPress={() => switchTab("chat")}>
-          <Text style={[s.tabText, tab === "chat" && s.tabTextActive]}>
-            {"Chat"}
-            {newMsgSenders.size > 0 && (
-              <Text style={s.tabBadge}>{` (${newMsgSenders.size})`}</Text>
-            )}
-          </Text>
-        </Pressable>
+        {(bubble?.members?.length ?? 0) < 10 ? (
+          <Pressable style={[s.tab, tab === "chat" && s.tabActive]} onPress={() => switchTab("chat")}>
+            <Text style={[s.tabText, tab === "chat" && s.tabTextActive]}>
+              {"Chat"}
+              {newMsgSenders.size > 0 && (
+                <Text style={s.tabBadge}>{` (${newMsgSenders.size})`}</Text>
+              )}
+            </Text>
+          </Pressable>
+        ) : (
+          <Pressable style={[s.tab, tab === "discussions" && s.tabActive]} onPress={() => switchTab("discussions")}>
+            <Text style={[s.tabText, tab === "discussions" && s.tabTextActive]}>Discussions</Text>
+          </Pressable>
+        )}
       </View>
 
       {/* ── Members tab ────────────────────────────────────────── */}
@@ -775,6 +808,69 @@ export default function BubbleDetailScreen() {
               }
             </Pressable>
           </View>
+        </View>
+      )}
+
+      {/* ── Discussions tab ─────────────────────────────────────── */}
+      {tab === "discussions" && (
+        <View style={{ flex: 1 }}>
+          <View style={s.discHeader}>
+            <Text style={s.discHeaderTitle}>{discussions.length} Discussion{discussions.length !== 1 ? "s" : ""}</Text>
+            <Pressable style={s.discNewBtn} onPress={() => setShowNewDisc(true)}>
+              <Text style={s.discNewBtnText}>+ New Post</Text>
+            </Pressable>
+          </View>
+          {discLoading ? (
+            <ActivityIndicator color="#fff" style={{ marginTop: 20 }} />
+          ) : (
+            <FlatList
+              data={discussions}
+              keyExtractor={(d) => String(d.id)}
+              contentContainerStyle={{ padding: 16, gap: 10 }}
+              ListEmptyComponent={<Text style={s.discEmpty}>No discussions yet. Start one!</Text>}
+              renderItem={({ item }) => (
+                <Pressable
+                  style={s.discCard}
+                  onPress={() => router.push({ pathname: "/discussion-detail", params: { discussionId: item.id, title: item.title, body: item.body ?? "", createdBy: item.createdBy } })}
+                >
+                  <Text style={s.discCardTitle}>{item.title}</Text>
+                  {!!item.body && <Text style={s.discCardBody} numberOfLines={2}>{item.body}</Text>}
+                  <View style={s.discCardMeta}>
+                    <Text style={s.discCardMetaText}>by {item.createdBy}</Text>
+                    <Text style={s.discCardMetaText}>{item.replyCount} {item.replyCount === 1 ? "reply" : "replies"}</Text>
+                  </View>
+                </Pressable>
+              )}
+            />
+          )}
+          {showNewDisc && (
+            <View style={s.newDiscSheet}>
+              <Text style={s.newDiscTitle}>New Discussion</Text>
+              <TextInput
+                style={s.newDiscInput}
+                placeholder="Title"
+                placeholderTextColor="rgba(255,255,255,0.3)"
+                value={newDiscTitle}
+                onChangeText={setNewDiscTitle}
+              />
+              <TextInput
+                style={[s.newDiscInput, { height: 80 }]}
+                placeholder="Body (optional)"
+                placeholderTextColor="rgba(255,255,255,0.3)"
+                value={newDiscBody}
+                onChangeText={setNewDiscBody}
+                multiline
+              />
+              <View style={{ flexDirection: "row", gap: 10 }}>
+                <Pressable style={s.newDiscCancel} onPress={() => { setShowNewDisc(false); setNewDiscTitle(""); setNewDiscBody(""); }}>
+                  <Text style={s.newDiscCancelText}>Cancel</Text>
+                </Pressable>
+                <Pressable style={[s.newDiscPost, (!newDiscTitle.trim() || postingDisc) && { opacity: 0.4 }]} onPress={handlePostDiscussion} disabled={!newDiscTitle.trim() || postingDisc}>
+                  <Text style={s.newDiscPostText}>{postingDisc ? "Posting…" : "Post"}</Text>
+                </Pressable>
+              </View>
+            </View>
+          )}
         </View>
       )}
 
@@ -1112,4 +1208,41 @@ const s = StyleSheet.create({
   chanItemText: { color: "rgba(255,255,255,0.7)", fontSize: 16, fontWeight: "600" },
   chanItemTextActive: { color: "#dc2626" },
   chanItemCount: { color: "rgba(255,255,255,0.3)", fontSize: 12 },
+
+  // Discussions
+  discHeader: { flexDirection: "row", alignItems: "center", justifyContent: "space-between", paddingHorizontal: 16, paddingVertical: 12 },
+  discHeaderTitle: { color: "rgba(255,255,255,0.6)", fontSize: 13, fontWeight: "700", letterSpacing: 1 },
+  discNewBtn: { backgroundColor: "#dc2626", borderRadius: 16, paddingHorizontal: 14, paddingVertical: 6 },
+  discNewBtnText: { color: "#fff", fontWeight: "700", fontSize: 13 },
+  discEmpty: { color: "rgba(255,255,255,0.4)", fontSize: 14, textAlign: "center", marginTop: 20 },
+  discCard: {
+    backgroundColor: "rgba(255,255,255,0.06)", borderRadius: 14,
+    borderWidth: 1, borderColor: "rgba(255,255,255,0.09)", padding: 14,
+  },
+  discCardTitle: { color: "#fff", fontSize: 16, fontWeight: "700", marginBottom: 4 },
+  discCardBody: { color: "rgba(255,255,255,0.55)", fontSize: 13, lineHeight: 18, marginBottom: 8 },
+  discCardMeta: { flexDirection: "row", justifyContent: "space-between" },
+  discCardMetaText: { color: "rgba(255,255,255,0.35)", fontSize: 11 },
+  newDiscSheet: {
+    position: "absolute", bottom: 0, left: 0, right: 0,
+    backgroundColor: "#1a0505", borderTopLeftRadius: 20, borderTopRightRadius: 20,
+    borderTopWidth: 1, borderColor: "rgba(255,255,255,0.1)",
+    padding: 20, gap: 12,
+  },
+  newDiscTitle: { color: "#fff", fontSize: 17, fontWeight: "800" },
+  newDiscInput: {
+    backgroundColor: "rgba(255,255,255,0.08)", borderRadius: 12,
+    borderWidth: 1, borderColor: "rgba(255,255,255,0.12)",
+    paddingHorizontal: 14, paddingVertical: 10, color: "#fff", fontSize: 15,
+  },
+  newDiscCancel: {
+    flex: 1, height: 44, borderRadius: 12, alignItems: "center", justifyContent: "center",
+    borderWidth: 1, borderColor: "rgba(255,255,255,0.2)",
+  },
+  newDiscCancelText: { color: "rgba(255,255,255,0.6)", fontWeight: "600" },
+  newDiscPost: {
+    flex: 1, height: 44, borderRadius: 12, alignItems: "center", justifyContent: "center",
+    backgroundColor: "#dc2626",
+  },
+  newDiscPostText: { color: "#fff", fontWeight: "700" },
 });
