@@ -5,9 +5,21 @@ import * as Haptics from "expo-haptics";
 import * as Notifications from "expo-notifications";
 import { useFonts, Cinzel_700Bold } from "@expo-google-fonts/cinzel";
 import { useLocalSearchParams, useRouter } from "expo-router";
+import AsyncStorage from "@react-native-async-storage/async-storage";
 import { useAuth } from "@/services/auth-context";
 import { useToast } from "@/context/ToastContext";
-import { deleteEvent, getEventAttendance, getEventAttendees, joinEvent, leaveEvent } from "@/services/api";
+import { deleteEvent, getEventAttendees, joinEvent, leaveEvent } from "@/services/api";
+
+async function loadJoined(username: string): Promise<number[]> {
+  try {
+    const v = await AsyncStorage.getItem(`joined_events_${username}`);
+    return v ? JSON.parse(v) : [];
+  } catch { return []; }
+}
+
+async function saveJoined(username: string, ids: number[]): Promise<void> {
+  try { await AsyncStorage.setItem(`joined_events_${username}`, JSON.stringify(ids)); } catch {}
+}
 
 export default function EventDetailsScreen() {
   const router = useRouter();
@@ -28,22 +40,21 @@ export default function EventDetailsScreen() {
   const [reminded, setReminded] = useState(false);
 
   useEffect(() => {
-    if (authLoading) return;
+    if (!user) return;
     const nid = Number(id);
+    // Restore isAttending from local cache immediately
+    loadJoined(user).then((ids) => setIsAttending(ids.includes(nid)));
+    // Fetch count + attendee list from DB (display only)
     setDataLoading(true);
     setDataError(false);
-    Promise.all([
-      getEventAttendance(nid, user ?? undefined),
-      getEventAttendees(nid),
-    ])
-      .then(([att, list]) => {
-        setAttendeeCount(att.attendeeCount);
-        setIsAttending(att.isAttending);
+    getEventAttendees(nid)
+      .then((list) => {
         setAttendees(list);
+        setAttendeeCount(list.length);
       })
       .catch(() => setDataError(true))
       .finally(() => setDataLoading(false));
-  }, [id, user, authLoading]);
+  }, [id, user]);
 
   const handleRemind = async () => {
     const { status } = await Notifications.requestPermissionsAsync();
@@ -75,14 +86,20 @@ export default function EventDetailsScreen() {
 
   const handleAttend = async () => {
     if (!user) { router.push("/signin"); return; }
+    const nid = Number(id);
     setAttendLoading(true);
     try {
       if (isAttending) {
-        const result = await leaveEvent(Number(id), user);
-        setAttendeeCount(result.attendeeCount);
-        setIsAttending(result.isAttending);
+        await leaveEvent(nid, user);
+        const ids = await loadJoined(user);
+        await saveJoined(user, ids.filter((eid) => eid !== nid));
+        setIsAttending(false);
+        setAttendeeCount((c) => Math.max(0, c - 1));
+        setAttendees((prev) => prev.filter((u) => u !== user));
       } else {
-        await joinEvent(Number(id), user);
+        await joinEvent(nid, user);
+        const ids = await loadJoined(user);
+        if (!ids.includes(nid)) await saveJoined(user, [...ids, nid]);
         showToast(`Joined ${title}!`);
         router.back();
       }
