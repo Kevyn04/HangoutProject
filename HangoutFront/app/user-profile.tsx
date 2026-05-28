@@ -9,6 +9,7 @@ import { useAuth } from "@/services/auth-context";
 import {
   getProfile, getUserBubbles, getUserRatings,
   toggleUserFollow, canRateUser, submitRating,
+  reportUser, blockUser, unblockUser, getIsBlocked,
 } from "@/services/api";
 import { SkeletonBox } from "@/components/SkeletonBox";
 import { ErrorScreen } from "@/components/ErrorScreen";
@@ -22,6 +23,8 @@ const RATING_REASONS = [
   "Punctual ⏰", "Good energy ⚡", "Would hang again 🔄",
   "Made it memorable 🎉", "Chill person 😎",
 ];
+
+const REPORT_REASONS = ["Spam", "Harassment", "Inappropriate behavior", "Fake profile", "Other"];
 
 function Stars({ value, size = 14 }: { value: number; size?: number }) {
   return (
@@ -81,6 +84,13 @@ export default function UserProfileScreen() {
   const [starValue, setStarValue] = useState(0);
   const [submitting, setSubmitting] = useState(false);
 
+  // Moderation
+  const [isBlocked, setIsBlocked] = useState(false);
+  const [blockLoading, setBlockLoading] = useState(false);
+  const [reportModal, setReportModal] = useState(false);
+  const [reportReason, setReportReason] = useState<string | null>(null);
+  const [reportSubmitting, setReportSubmitting] = useState(false);
+
   const load = useCallback(async () => {
     if (!username) return;
     setLoading(true);
@@ -97,8 +107,12 @@ export default function UserProfileScreen() {
       setReasons(r.reasons || []);
 
       if (user && user !== username) {
-        const eligibility = await canRateUser(username, user);
+        const [eligibility, blocked] = await Promise.all([
+          canRateUser(username, user),
+          getIsBlocked(user, username),
+        ]);
         setCanRate(eligibility.canRate === true);
+        setIsBlocked(blocked);
       }
     } catch {
       setLoadError(true);
@@ -119,6 +133,53 @@ export default function UserProfileScreen() {
       showToast("Couldn't update follow. Try again.");
     }
     finally { setFollowLoading(false); }
+  };
+
+  const handleBlock = async () => {
+    if (!user) return;
+    setBlockLoading(true);
+    try {
+      if (isBlocked) {
+        await unblockUser(user, username);
+        setIsBlocked(false);
+        showToast(`@${username} unblocked.`);
+      } else {
+        Alert.alert(
+          `Block @${username}?`,
+          "Their messages and activity will be hidden from you.",
+          [
+            { text: "Cancel", style: "cancel" },
+            {
+              text: "Block", style: "destructive",
+              onPress: async () => {
+                try {
+                  await blockUser(user, username);
+                  setIsBlocked(true);
+                  showToast(`@${username} blocked.`);
+                } catch {
+                  showToast("Couldn't block. Try again.");
+                }
+              },
+            },
+          ]
+        );
+      }
+    } catch {
+      showToast("Couldn't update block. Try again.");
+    } finally { setBlockLoading(false); }
+  };
+
+  const handleReport = async () => {
+    if (!user || !reportReason) return;
+    setReportSubmitting(true);
+    try {
+      await reportUser(user, username, reportReason);
+      setReportModal(false);
+      setReportReason(null);
+      Alert.alert("Report Submitted", "Thanks for keeping the community safe. We'll review this.");
+    } catch {
+      showToast("Couldn't submit report. Try again.");
+    } finally { setReportSubmitting(false); }
   };
 
   const handleSubmitRating = async () => {
@@ -218,25 +279,42 @@ export default function UserProfileScreen() {
 
           {/* Action buttons */}
           {!isOwnProfile && (
-            <View style={s.actionRow}>
-              <Pressable
-                style={[s.followBtn, profile.isFollowing && s.followingBtn, followLoading && { opacity: 0.6 }]}
-                onPress={handleFollow} disabled={followLoading}
-              >
-                <Text style={[s.followBtnText, profile.isFollowing && s.followingBtnText]}>
-                  {profile.isFollowing ? "✓ Following" : "Follow"}
-                </Text>
-              </Pressable>
-
-              {canRate && (
-                <Pressable style={s.rateBtn} onPress={() => { Haptics.impactAsync(Haptics.ImpactFeedbackStyle.Light); setRateModal(true); }}>
-                  <View style={{ flexDirection: "row", alignItems: "center", gap: 6 }}>
-                    <Ionicons name="star" size={15} color="#fbbf24" />
-                    <Text style={s.rateBtnText}>Rate</Text>
-                  </View>
+            <>
+              <View style={s.actionRow}>
+                <Pressable
+                  style={[s.followBtn, profile.isFollowing && s.followingBtn, followLoading && { opacity: 0.6 }]}
+                  onPress={handleFollow} disabled={followLoading}
+                >
+                  <Text style={[s.followBtnText, profile.isFollowing && s.followingBtnText]}>
+                    {profile.isFollowing ? "✓ Following" : "Follow"}
+                  </Text>
                 </Pressable>
-              )}
-            </View>
+
+                {canRate && (
+                  <Pressable style={s.rateBtn} onPress={() => { Haptics.impactAsync(Haptics.ImpactFeedbackStyle.Light); setRateModal(true); }}>
+                    <View style={{ flexDirection: "row", alignItems: "center", gap: 6 }}>
+                      <Ionicons name="star" size={15} color="#fbbf24" />
+                      <Text style={s.rateBtnText}>Rate</Text>
+                    </View>
+                  </Pressable>
+                )}
+              </View>
+
+              <View style={s.moderationRow}>
+                <Pressable
+                  style={[s.blockBtn, isBlocked && s.blockBtnActive, blockLoading && { opacity: 0.5 }]}
+                  onPress={handleBlock} disabled={blockLoading}
+                >
+                  <Ionicons name={isBlocked ? "remove-circle" : "remove-circle-outline"} size={14} color={isBlocked ? "#dc2626" : "rgba(255,255,255,0.4)"} />
+                  <Text style={[s.modBtnText, isBlocked && { color: "#dc2626" }]}>{isBlocked ? "Unblock" : "Block"}</Text>
+                </Pressable>
+
+                <Pressable style={s.reportBtn} onPress={() => { setReportReason(null); setReportModal(true); }}>
+                  <Ionicons name="flag-outline" size={14} color="rgba(255,255,255,0.4)" />
+                  <Text style={s.modBtnText}>Report</Text>
+                </Pressable>
+              </View>
+            </>
           )}
         </View>
 
@@ -280,6 +358,37 @@ export default function UserProfileScreen() {
         )}
 
       </ScrollView>
+
+      {/* Report modal */}
+      <Modal visible={reportModal} transparent animationType="slide" onRequestClose={() => setReportModal(false)}>
+        <Pressable style={s.backdrop} onPress={() => setReportModal(false)} />
+        <View style={s.modal}>
+          <View style={s.modalHandle} />
+          <Text style={s.modalTitle}>Report @{username}</Text>
+          <Text style={s.modalSub}>Reports are anonymous and reviewed by the team</Text>
+
+          <Text style={s.reasonLabel}>What's the issue?</Text>
+          <View style={s.reasonGrid}>
+            {REPORT_REASONS.map((r) => (
+              <Pressable
+                key={r}
+                style={[s.reasonChip, reportReason === r && s.reasonChipActive]}
+                onPress={() => setReportReason(r)}
+              >
+                <Text style={[s.reasonChipText, reportReason === r && s.reasonChipTextActive]}>{r}</Text>
+              </Pressable>
+            ))}
+          </View>
+
+          <Pressable
+            style={[s.submitRatingBtn, (!reportReason || reportSubmitting) && { opacity: 0.5 }]}
+            onPress={handleReport}
+            disabled={!reportReason || reportSubmitting}
+          >
+            <Text style={s.submitRatingText}>{reportSubmitting ? "Submitting…" : "Submit Report"}</Text>
+          </Pressable>
+        </View>
+      </Modal>
 
       {/* Rating modal */}
       <Modal visible={rateModal} transparent animationType="slide" onRequestClose={() => setRateModal(false)}>
@@ -340,6 +449,21 @@ const s = StyleSheet.create({
   statLbl: { color: "rgba(255,255,255,0.4)", fontSize: 11 },
 
   actionRow: { flexDirection: "row", gap: 10 },
+  moderationRow: { flexDirection: "row", gap: 10, marginTop: 4 },
+  blockBtn: {
+    flexDirection: "row", alignItems: "center", gap: 5,
+    paddingHorizontal: 14, paddingVertical: 7, borderRadius: 20,
+    borderWidth: 1, borderColor: "rgba(255,255,255,0.15)",
+    backgroundColor: "rgba(255,255,255,0.05)",
+  },
+  blockBtnActive: { borderColor: "rgba(220,38,38,0.4)", backgroundColor: "rgba(220,38,38,0.08)" },
+  reportBtn: {
+    flexDirection: "row", alignItems: "center", gap: 5,
+    paddingHorizontal: 14, paddingVertical: 7, borderRadius: 20,
+    borderWidth: 1, borderColor: "rgba(255,255,255,0.15)",
+    backgroundColor: "rgba(255,255,255,0.05)",
+  },
+  modBtnText: { color: "rgba(255,255,255,0.4)", fontSize: 13, fontWeight: "600" },
   followBtn: {
     paddingHorizontal: 28, paddingVertical: 10, borderRadius: 24,
     borderWidth: 1.5, borderColor: "#dc2626",

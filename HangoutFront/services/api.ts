@@ -880,6 +880,49 @@ export async function getDiscoverFeed(excludeUsername?: string): Promise<Activit
     .slice(0, 30);
 }
 
+// ── Moderation ────────────────────────────────────────────────────────────────
+
+export async function reportUser(
+  reporter: string, reported: string, reason: string
+): Promise<void> {
+  const { error } = await supabase.from('reports').insert({
+    reporter_username: reporter, reported_username: reported, type: 'user', reason,
+  });
+  if (error) throw new Error(error.message);
+}
+
+export async function reportMessage(
+  reporter: string, messageId: number, bubbleId: number, reason: string
+): Promise<void> {
+  const { error } = await supabase.from('reports').insert({
+    reporter_username: reporter, reported_message_id: messageId,
+    bubble_id: bubbleId, type: 'message', reason,
+  });
+  if (error) throw new Error(error.message);
+}
+
+export async function blockUser(blocker: string, blocked: string): Promise<void> {
+  await supabase.from('blocked_users').insert({ blocker, blocked });
+}
+
+export async function unblockUser(blocker: string, blocked: string): Promise<void> {
+  await supabase.from('blocked_users').delete().eq('blocker', blocker).eq('blocked', blocked);
+}
+
+export async function getIsBlocked(blocker: string, blocked: string): Promise<boolean> {
+  const { data } = await supabase
+    .from('blocked_users').select('id')
+    .eq('blocker', blocker).eq('blocked', blocked).maybeSingle();
+  return !!data;
+}
+
+export async function getBlockedUsers(username: string): Promise<string[]> {
+  const { data, error } = await supabase
+    .from('blocked_users').select('blocked').eq('blocker', username);
+  if (error) throw new Error(error.message);
+  return (data ?? []).map((r) => r.blocked);
+}
+
 // ── Mappers ───────────────────────────────────────────────────────────────────
 
 function mapEvent(r: any) {

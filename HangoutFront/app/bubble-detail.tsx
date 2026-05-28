@@ -11,6 +11,7 @@ import {
   getBubbles, getBubbleMembers, updateMemberLocation,
   getBubbleChannels, switchChannel, getMessages, sendMessage,
   deleteBubble, leaveBubble, notifyTyping, getTypingUsers,
+  getBlockedUsers, reportMessage,
 } from "@/services/api";
 import { SkeletonBox } from "@/components/SkeletonBox";
 import { ErrorScreen } from "@/components/ErrorScreen";
@@ -232,6 +233,13 @@ export default function BubbleDetailScreen() {
   const [chanSearch, setChanSearch] = useState(false);
   const [chanInput, setChanInput]   = useState("");
 
+  // Moderation
+  const [blockedUsers, setBlockedUsers]       = useState<Set<string>>(new Set());
+  const [reportingMsgId, setReportingMsgId]   = useState<number | null>(null);
+  const [reportModalVisible, setReportModalVisible] = useState(false);
+  const [reportReason, setReportReason]       = useState<string | null>(null);
+  const [reportSubmitting, setReportSubmitting] = useState(false);
+
   // Visual container
   const [typingUsers, setTypingUsers]       = useState<string[]>([]);
   const [newMsgSenders, setNewMsgSenders]   = useState<Set<string>>(new Set());
@@ -310,6 +318,12 @@ export default function BubbleDetailScreen() {
   }, [loadBubble, loadMembers]);
 
   useFocusEffect(useCallback(() => { load(); }, [load]));
+
+  // Load blocked users once on mount
+  useEffect(() => {
+    if (!user) return;
+    getBlockedUsers(user).then((list) => setBlockedUsers(new Set(list))).catch(() => {});
+  }, [user]);
 
   // Poll bubble existence
   useEffect(() => {
@@ -496,8 +510,30 @@ export default function BubbleDetailScreen() {
     return true;
   }, []);
 
+  // ── Moderation handlers ─────────────────────────────────────────
+  const handleLongPressMessage = (msgId: number, msgUsername: string) => {
+    if (msgUsername === user) return;
+    setReportingMsgId(msgId);
+    setReportReason(null);
+    setReportModalVisible(true);
+  };
+
+  const handleReportMessage = async () => {
+    if (!user || !reportingMsgId || !reportReason) return;
+    setReportSubmitting(true);
+    try {
+      await reportMessage(user, reportingMsgId, bubbleId, reportReason);
+      setReportModalVisible(false);
+      showToast("Message reported. Thanks for keeping things safe.");
+    } catch {
+      showToast("Couldn't submit report. Try again.");
+    } finally { setReportSubmitting(false); }
+  };
+
   // ── Derived ─────────────────────────────────────────────────────
-  const membersInChannel = members.filter((m) => (m.channelId ?? 1) === channelId);
+  const visibleMembers = members.filter((m) => !blockedUsers.has(m.username));
+  const visibleMessages = messages.filter((m) => m.username === user || !blockedUsers.has(m.username));
+  const membersInChannel = visibleMembers.filter((m) => (m.channelId ?? 1) === channelId);
   const isHost = bubble?.createdBy === user;
 
   if (!loading && loadError) {
@@ -577,11 +613,11 @@ export default function BubbleDetailScreen() {
 
       {/* ── Bubble Visual Container ──────────────────────────────── */}
       <View style={vs.container}>
-        {members.length === 0 ? (
+        {visibleMembers.length === 0 ? (
           <Text style={vs.emptyText}>Waiting for members…</Text>
         ) : (
           <View style={vs.grid}>
-            {members.map((m) => (
+            {visibleMembers.map((m) => (
               <MemberEmoji
                 key={m.username}
                 username={m.username}
@@ -615,7 +651,7 @@ export default function BubbleDetailScreen() {
       {/* ── Members tab ────────────────────────────────────────── */}
       {tab === "members" && (
         <FlatList
-          data={members}
+          data={visibleMembers}
           keyExtractor={(m) => String(m.id)}
           contentContainerStyle={s.listContent}
           ListHeaderComponent={
@@ -684,7 +720,7 @@ export default function BubbleDetailScreen() {
           {/* Messages */}
           <FlatList
             ref={msgListRef}
-            data={messages}
+            data={visibleMessages}
             keyExtractor={(m) => String(m.id)}
             contentContainerStyle={s.msgList}
             onContentSizeChange={() => msgListRef.current?.scrollToEnd({ animated: false })}
@@ -694,7 +730,11 @@ export default function BubbleDetailScreen() {
             renderItem={({ item: msg }) => {
               const isMe = msg.username === user;
               return (
-                <View style={[s.msgRow, isMe && s.msgRowMe]}>
+                <Pressable
+                  style={[s.msgRow, isMe && s.msgRowMe]}
+                  onLongPress={() => handleLongPressMessage(msg.id, msg.username)}
+                  delayLongPress={400}
+                >
                   {!isMe && (
                     <View style={s.msgAvatar}>
                       <Text style={s.msgAvatarEmoji}>
@@ -707,7 +747,7 @@ export default function BubbleDetailScreen() {
                     <Text style={s.msgText}>{msg.message}</Text>
                     <Text style={s.msgTime}>{fmtTime(msg.createdAt)}</Text>
                   </View>
-                </View>
+                </Pressable>
               );
             }}
           />
@@ -737,6 +777,33 @@ export default function BubbleDetailScreen() {
           </View>
         </View>
       )}
+
+      {/* ── Report message modal ────────────────────────────────── */}
+      <Modal visible={reportModalVisible} transparent animationType="slide" onRequestClose={() => setReportModalVisible(false)}>
+        <Pressable style={s.modalBackdrop} onPress={() => setReportModalVisible(false)} />
+        <View style={s.reportSheet}>
+          <View style={s.chanModalHandle} />
+          <Text style={s.reportSheetTitle}>Report Message</Text>
+          <Text style={s.reportSheetSub}>Reports are anonymous and reviewed by the team</Text>
+          {["Spam", "Harassment", "Inappropriate content", "Other"].map((r) => (
+            <Pressable
+              key={r}
+              style={[s.reportReasonRow, reportReason === r && s.reportReasonRowActive]}
+              onPress={() => setReportReason(r)}
+            >
+              <Text style={[s.reportReasonText, reportReason === r && s.reportReasonTextActive]}>{r}</Text>
+              {reportReason === r && <Text style={{ color: "#dc2626" }}>✓</Text>}
+            </Pressable>
+          ))}
+          <Pressable
+            style={[s.reportSubmitBtn, (!reportReason || reportSubmitting) && { opacity: 0.4 }]}
+            onPress={handleReportMessage}
+            disabled={!reportReason || reportSubmitting}
+          >
+            <Text style={s.reportSubmitBtnText}>{reportSubmitting ? "Submitting…" : "Submit Report"}</Text>
+          </Pressable>
+        </View>
+      </Modal>
 
       {/* ── Channel search modal ─────────────────────────────────── */}
       <Modal visible={chanSearch} transparent animationType="slide" onRequestClose={() => setChanSearch(false)}>
@@ -993,6 +1060,28 @@ const s = StyleSheet.create({
   },
   sendBtnDisabled: { opacity: 0.35 },
   sendBtnText: { color: "#fff", fontSize: 20, fontWeight: "700", lineHeight: 22 },
+
+  // Report modal
+  reportSheet: {
+    backgroundColor: "#1a0808", borderTopLeftRadius: 24, borderTopRightRadius: 24,
+    borderTopWidth: 1, borderColor: "rgba(255,255,255,0.08)",
+    padding: 20, paddingBottom: 36,
+  },
+  reportSheetTitle: { color: "#fff", fontSize: 18, fontWeight: "800", marginBottom: 4 },
+  reportSheetSub: { color: "rgba(255,255,255,0.4)", fontSize: 12, marginBottom: 16 },
+  reportReasonRow: {
+    flexDirection: "row", alignItems: "center", justifyContent: "space-between",
+    paddingVertical: 14, paddingHorizontal: 4,
+    borderBottomWidth: 1, borderColor: "rgba(255,255,255,0.06)",
+  },
+  reportReasonRowActive: { borderColor: "rgba(220,38,38,0.2)" },
+  reportReasonText: { color: "rgba(255,255,255,0.7)", fontSize: 15, fontWeight: "600" },
+  reportReasonTextActive: { color: "#dc2626" },
+  reportSubmitBtn: {
+    marginTop: 20, backgroundColor: "#dc2626", borderRadius: 14,
+    height: 48, alignItems: "center", justifyContent: "center",
+  },
+  reportSubmitBtnText: { color: "#fff", fontSize: 15, fontWeight: "700" },
 
   // Channel search modal
   modalBackdrop: { flex: 1, backgroundColor: "rgba(0,0,0,0.5)" },
