@@ -22,7 +22,7 @@ export default function LoadingScreen() {
       <View style={styles.track}>
         <Animated.View style={[styles.fluid, { transform: [{ translateX }] }]}>
           <LinearGradient
-            colors={['transparent', '#dc2626', '#ff4444', '#dc2626', 'transparent']}
+            colors={['transparent', 'rgba(255,255,255,0.9)', '#ffffff', 'rgba(255,255,255,0.9)', 'transparent']}
             start={{ x: 0, y: 0.5 }}
             end={{ x: 1, y: 0.5 }}
             style={StyleSheet.absoluteFill}
@@ -36,7 +36,7 @@ export default function LoadingScreen() {
 const styles = StyleSheet.create({
   container: {
     flex: 1,
-    backgroundColor: '#120303',
+    backgroundColor: '#dc2626',
     alignItems: 'center',
     justifyContent: 'center',
     gap: 16,
@@ -50,7 +50,7 @@ const styles = StyleSheet.create({
   track: {
     width: 200,
     height: 4,
-    backgroundColor: '#2a0a0a',
+    backgroundColor: 'rgba(0,0,0,0.3)',
     borderRadius: 2,
     overflow: 'hidden',
   },
