@@ -12,7 +12,7 @@
       "supportsTablet": true,
       "bundleIdentifier": "com.hangout.thehangout",
       "infoPlist": {
-        "NSLocationWhenInUseUsageDescription": "The Hangout uses your location to show nearby events.",
+        "NSLocationWhenInUseUsageDescription": "Hangout uses your location to show nearby events.",
         "ITSAppUsesNonExemptEncryption": false
       }
     },
@@ -39,7 +39,7 @@
       [
         "expo-location",
         {
-          "locationAlwaysAndWhenInUsePermission": "The Hangout uses your location to show nearby events."
+          "locationAlwaysAndWhenInUsePermission": "Hangout uses your location to show nearby events."
         }
       ],
       "expo-notifications",
