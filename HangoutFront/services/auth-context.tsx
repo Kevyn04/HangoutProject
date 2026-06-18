@@ -94,7 +94,7 @@ export function AuthProvider({ children }: { children: React.ReactNode }) {
 
     const { error } = await supabase
       .from("profiles")
-      .insert({ id: authUser.id, username });
+      .upsert({ id: authUser.id, username });
 
     if (error) throw new Error(error.message);
 
