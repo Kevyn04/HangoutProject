@@ -31,10 +31,11 @@ Core loop:
 
 ### Authentication
 - Username + password sign-up and sign-in (synthetic email pattern)
-- Apple Sign-In (`signInWithIdToken`)
+- Apple Sign-In (`signInWithIdToken`) — fully configured with Supabase provider
 - Google OAuth (`signInWithOAuth` + `openAuthSessionAsync`)
 - `choose-username.tsx` screen for OAuth users who don't have a username yet
 - Session persistence via Supabase built-in storage
+- Fixed: `createProfile` uses `upsert` to handle repeat OAuth sign-ins without duplicate key error
 
 ### Discover / Home Feed (`index.tsx`)
 - Three-tab feed: **Following**, **People You May Know**, **Discover**
@@ -98,11 +99,21 @@ Core loop:
 
 ### Push Notifications
 - Expo push token saved to `profiles.push_token`
-- Currently blocked on dev build — requires Apple Developer account activation
+- Apple Developer account active (purchased + activated 2026-05-28)
+- EAS credentials configured — Distribution Certificate + Provisioning Profile valid until May 2027
+- iPhone + iPad registered as provisioned devices
+
+### Branding & UI
+- Custom app icon — white H with location pin on red background (1024x1024)
+- Custom splash screen — same icon, red `#dc2626` background
+- Animated loading screen — "Loading" text + fluid white wave on red bar (`LoadingScreen.tsx`)
+- App name: **Hangout** (renamed from "The Hangout")
 
 ### Legal / Store Prep
 - Privacy Policy hosted at `docs/privacy.html`
 - GitHub Pages URL: `https://kevyn04.github.io/HangoutProject/privacy.html`
+- Apple Services ID configured: `com.hangout.thehangout.signin`
+- Apple Sign In Key ID: `TFNFJVC526` (expires ~6 months, needs Supabase secret regeneration)
 
 ---
 
@@ -134,19 +145,20 @@ Core loop:
 - [ ] **Map filters** — no way to filter map by event type, distance, or date
 
 ### App Store / Production
-- [ ] Accept Apple Developer agreement (developer.apple.com yellow banner)
-- [ ] Run `eas credentials` to link Apple account
-- [ ] `eas build --platform ios --profile development` — first real dev build
+- [x] Accept Apple Developer agreement
+- [x] Run `eas credentials` to link Apple account
+- [x] `eas build --platform ios --profile development` — dev build installed on iPhone + iPad
 - [ ] Fill out App Privacy nutrition labels in App Store Connect
-- [ ] TestFlight beta distribution
+- [ ] Create app record in App Store Connect
 - [ ] `eas build --platform ios --profile production` + `eas submit`
+- [ ] TestFlight beta distribution
 
 ### Polish
 - [ ] Onboarding flow — new users land on the Discover tab with no guidance
 - [ ] Empty states — many screens have no empty-state illustration or helpful prompt
 - [ ] Skeleton loaders are partially implemented; not consistent across all screens
-- [ ] No loading/success feedback after creating a bubble or event (toast/animation)
 - [ ] Dark mode is hardcoded — no system theme toggle
+- [ ] Splash screen background color update (`#dc2626`) pending next rebuild
 
 ---
 
