@@ -1,7 +1,7 @@
 import React, { useCallback, useState } from "react";
 import {
   View, Text, StyleSheet, ScrollView, Pressable,
-  StatusBar, FlatList,
+  StatusBar, FlatList, RefreshControl,
 } from "react-native";
 import { useFocusEffect, useRouter } from "expo-router";
 import { Ionicons } from "@expo/vector-icons";
@@ -9,7 +9,7 @@ import * as Haptics from "expo-haptics";
 import { useAuth } from "@/services/auth-context";
 import {
   ActivityItem, getFollowingFeed, getDiscoverFeed, getSuggestedFeed,
-  getSuggestedUsers, toggleUserFollow,
+  getSuggestedUsers, toggleUserFollow, getUnreadNotificationCount, getUnreadInviteCount,
 } from "@/services/api";
 import { SkeletonBox } from "@/components/SkeletonBox";
 import { ScreenBackground } from "@/components/ScreenBackground";
@@ -162,28 +162,40 @@ export default function FeedScreen() {
   const [loading, setLoading]               = useState(true);
   const [loadError, setLoadError]           = useState(false);
   const [following, setFollowing]           = useState<Set<string>>(new Set());
+  const [bellCount, setBellCount]           = useState(0);
+  const [refreshing, setRefreshing]         = useState(false);
 
-  const load = useCallback(async () => {
-    setLoading(true);
+  const load = useCallback(async (silent = false) => {
+    if (!silent) setLoading(true);
     setLoadError(false);
     try {
       const [discover] = await Promise.all([getDiscoverFeed(user ?? undefined)]);
       setDiscoverFeed(discover);
       if (user) {
-        const [feed, suggested, sugg] = await Promise.all([
+        const [feed, suggested, sugg, notifCount, inviteCount] = await Promise.all([
           getFollowingFeed(user),
           getSuggestedFeed(user),
           getSuggestedUsers(user),
+          getUnreadNotificationCount(user),
+          getUnreadInviteCount(user),
         ]);
         setFollowingFeed(feed);
         setSuggestedFeed(suggested);
         setSuggestions(sugg);
+        setBellCount(notifCount + inviteCount);
       }
     } catch {
       setLoadError(true);
+    } finally {
+      if (!silent) setLoading(false);
     }
-    finally { setLoading(false); }
   }, [user]);
+
+  const handleRefresh = useCallback(async () => {
+    setRefreshing(true);
+    await load(true);
+    setRefreshing(false);
+  }, [load]);
 
   useFocusEffect(useCallback(() => { load(); }, [load]));
 
@@ -246,13 +258,36 @@ export default function FeedScreen() {
 
       <View style={s.header}>
         <Text style={s.headerTitle}>Discover</Text>
+        <View style={s.headerActions}>
+          <Pressable
+            style={s.headerIconBtn}
+            onPress={() => { Haptics.impactAsync(Haptics.ImpactFeedbackStyle.Light); router.push("/search" as any); }}
+          >
+            <Ionicons name="search" size={22} color="rgba(255,255,255,0.75)" />
+          </Pressable>
+          <Pressable
+            style={s.headerIconBtn}
+            onPress={() => { Haptics.impactAsync(Haptics.ImpactFeedbackStyle.Light); router.push("/notifications" as any); }}
+          >
+            <Ionicons name={bellCount > 0 ? "notifications" : "notifications-outline"} size={22} color={bellCount > 0 ? "#dc2626" : "rgba(255,255,255,0.75)"} />
+            {bellCount > 0 && (
+              <View style={s.bellBadge}>
+                <Text style={s.bellBadgeText}>{bellCount > 9 ? "9+" : bellCount}</Text>
+              </View>
+            )}
+          </Pressable>
+        </View>
       </View>
 
-      <ScrollView contentContainerStyle={s.scroll} showsVerticalScrollIndicator={false}>
+      <ScrollView
+        contentContainerStyle={s.scroll}
+        showsVerticalScrollIndicator={false}
+        refreshControl={<RefreshControl refreshing={refreshing} onRefresh={handleRefresh} tintColor="#dc2626" colors={["#dc2626"]} />}
+      >
 
         {/* ── Error banner ── */}
         {!loading && loadError && (
-          <Pressable style={s.errorBanner} onPress={load}>
+          <Pressable style={s.errorBanner} onPress={() => load()}>
             <Text style={s.errorBannerText}>Couldn't load feed. Tap to retry.</Text>
           </Pressable>
         )}
@@ -343,8 +378,17 @@ export default function FeedScreen() {
 
 const s = StyleSheet.create({
   container: { flex: 1, paddingTop: 56 },
-  header: { paddingHorizontal: 20, marginBottom: 4 },
+  header: { paddingHorizontal: 20, marginBottom: 4, flexDirection: "row", alignItems: "center", justifyContent: "space-between" },
   headerTitle: { fontSize: 28, fontWeight: "700", color: "#fff", letterSpacing: 0.5 },
+  headerActions: { flexDirection: "row", alignItems: "center", gap: 4 },
+  headerIconBtn: { padding: 8, position: "relative" },
+  bellBadge: {
+    position: "absolute", top: 4, right: 4,
+    backgroundColor: "#dc2626", borderRadius: 8,
+    minWidth: 16, height: 16, alignItems: "center", justifyContent: "center",
+    paddingHorizontal: 3,
+  },
+  bellBadgeText: { color: "#fff", fontSize: 9, fontWeight: "800" },
   scroll: { paddingBottom: 40 },
 
   sectionRow: { flexDirection: "row", alignItems: "center", gap: 6, paddingHorizontal: 20, marginTop: 22, marginBottom: 10 },

@@ -1,7 +1,7 @@
 import React, { useState, useCallback } from "react";
 import {
   View, Text, StyleSheet, ScrollView, Pressable,
-  TextInput, ActivityIndicator, StatusBar, Alert,
+  TextInput, ActivityIndicator, StatusBar, Alert, RefreshControl,
 } from "react-native";
 import { Ionicons } from "@expo/vector-icons";
 import * as Haptics from "expo-haptics";
@@ -62,10 +62,11 @@ export default function ProfileScreen() {
   const [bioInput, setBioInput] = useState("");
   const [saving, setSaving] = useState(false);
   const [colorPickerOpen, setColorPickerOpen] = useState(false);
+  const [refreshing, setRefreshing] = useState(false);
 
-  const load = useCallback(async () => {
-    if (!user) { setLoading(false); return; }
-    setLoading(true);
+  const load = useCallback(async (silent = false) => {
+    if (!user) { if (!silent) setLoading(false); return; }
+    if (!silent) setLoading(true);
     setLoadError(false);
     try {
       const [p, b, r] = await Promise.all([
@@ -82,9 +83,16 @@ export default function ProfileScreen() {
       setReasons(r.reasons || []);
     } catch {
       setLoadError(true);
+    } finally {
+      if (!silent) setLoading(false);
     }
-    finally { setLoading(false); }
   }, [user]);
+
+  const handleRefresh = useCallback(async () => {
+    setRefreshing(true);
+    await load(true);
+    setRefreshing(false);
+  }, [load]);
 
   useFocusEffect(useCallback(() => { load(); }, [load]));
 
@@ -177,7 +185,12 @@ export default function ProfileScreen() {
   return (
     <ScreenBackground style={s.container}>
       <StatusBar barStyle="light-content" backgroundColor="transparent" translucent />
-      <ScrollView contentContainerStyle={s.scroll} showsVerticalScrollIndicator={false} keyboardShouldPersistTaps="handled">
+      <ScrollView
+        contentContainerStyle={s.scroll}
+        showsVerticalScrollIndicator={false}
+        keyboardShouldPersistTaps="handled"
+        refreshControl={<RefreshControl refreshing={refreshing} onRefresh={handleRefresh} tintColor="#dc2626" colors={["#dc2626"]} />}
+      >
 
         {/* Avatar */}
         <View style={s.avatarSection}>

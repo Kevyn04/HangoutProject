@@ -1,7 +1,7 @@
 import React, { useState, useCallback } from "react";
 import {
   View, Text, StyleSheet, ScrollView, Pressable,
-  ActivityIndicator, StatusBar,
+  ActivityIndicator, StatusBar, RefreshControl,
 } from "react-native";
 import { useLocalSearchParams, useRouter } from "expo-router";
 import { useFocusEffect } from "@react-navigation/native";
@@ -37,9 +37,10 @@ export default function PageDetailScreen() {
   const [loadError, setLoadError] = useState(false);
   const [tab, setTab] = useState<"events" | "bubbles">("events");
   const [followLoading, setFollowLoading] = useState(false);
+  const [refreshing, setRefreshing] = useState(false);
 
-  const load = useCallback(async () => {
-    setLoading(true);
+  const load = useCallback(async (silent = false) => {
+    if (!silent) setLoading(true);
     setLoadError(false);
     try {
       const [p, content] = await Promise.all([
@@ -51,9 +52,16 @@ export default function PageDetailScreen() {
       setBubbles(content.bubbles || []);
     } catch {
       setLoadError(true);
+    } finally {
+      if (!silent) setLoading(false);
     }
-    finally { setLoading(false); }
   }, [pageId, user]);
+
+  const handleRefresh = useCallback(async () => {
+    setRefreshing(true);
+    await load(true);
+    setRefreshing(false);
+  }, [load]);
 
   useFocusEffect(useCallback(() => { load(); }, [load]));
 
@@ -98,7 +106,11 @@ export default function PageDetailScreen() {
   return (
     <ScreenBackground style={s.container}>
       <StatusBar barStyle="light-content" backgroundColor="transparent" translucent />
-      <ScrollView contentContainerStyle={s.scroll} showsVerticalScrollIndicator={false}>
+      <ScrollView
+        contentContainerStyle={s.scroll}
+        showsVerticalScrollIndicator={false}
+        refreshControl={<RefreshControl refreshing={refreshing} onRefresh={handleRefresh} tintColor="#dc2626" colors={["#dc2626"]} />}
+      >
 
         {/* Hero */}
         <View style={s.hero}>

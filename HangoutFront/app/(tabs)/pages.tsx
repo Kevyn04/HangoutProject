@@ -1,7 +1,7 @@
 import React, { useState, useCallback } from "react";
 import {
   View, Text, StyleSheet, ScrollView, Pressable,
-  TextInput, StatusBar,
+  TextInput, StatusBar, RefreshControl,
 } from "react-native";
 import { useFocusEffect, useRouter } from "expo-router";
 import * as Haptics from "expo-haptics";
@@ -38,18 +38,26 @@ export default function PagesScreen() {
   const [loadError, setLoadError] = useState(false);
   const [search, setSearch] = useState("");
   const [activeCategory, setActiveCategory] = useState("All");
+  const [refreshing, setRefreshing] = useState(false);
 
-  const load = useCallback(async () => {
-    setLoading(true);
+  const load = useCallback(async (silent = false) => {
+    if (!silent) setLoading(true);
     setLoadError(false);
     try {
       const data = await getPages(user ?? undefined);
       setPages(data);
     } catch {
       setLoadError(true);
+    } finally {
+      if (!silent) setLoading(false);
     }
-    finally { setLoading(false); }
   }, [user]);
+
+  const handleRefresh = useCallback(async () => {
+    setRefreshing(true);
+    await load(true);
+    setRefreshing(false);
+  }, [load]);
 
   useFocusEffect(useCallback(() => { load(); }, [load]));
 
@@ -123,12 +131,12 @@ export default function PagesScreen() {
       {loadError ? (
         <View style={{ flex: 1, alignItems: "center", justifyContent: "center", gap: 14 }}>
           <Text style={{ color: "rgba(255,255,255,0.5)", fontSize: 15 }}>Couldn't load pages.</Text>
-          <Pressable style={{ paddingHorizontal: 24, paddingVertical: 10, borderRadius: 14, borderWidth: 1, borderColor: "rgba(220,38,38,0.5)", backgroundColor: "rgba(220,38,38,0.1)" }} onPress={load}>
+          <Pressable style={{ paddingHorizontal: 24, paddingVertical: 10, borderRadius: 14, borderWidth: 1, borderColor: "rgba(220,38,38,0.5)", backgroundColor: "rgba(220,38,38,0.1)" }} onPress={() => load()}>
             <Text style={{ color: "#dc2626", fontWeight: "700" }}>Try Again</Text>
           </Pressable>
         </View>
       ) : loading ? (
-        <ScrollView contentContainerStyle={s.list} showsVerticalScrollIndicator={false}>
+        <ScrollView contentContainerStyle={s.list} showsVerticalScrollIndicator={false} refreshControl={<RefreshControl refreshing={refreshing} onRefresh={handleRefresh} tintColor="#dc2626" colors={["#dc2626"]} />}>
           {[0,1,2,3].map((i) => (
             <View key={i} style={s.card}>
               <View style={s.cardTop}>
@@ -144,7 +152,7 @@ export default function PagesScreen() {
           ))}
         </ScrollView>
       ) : (
-        <ScrollView contentContainerStyle={s.list} showsVerticalScrollIndicator={false}>
+        <ScrollView contentContainerStyle={s.list} showsVerticalScrollIndicator={false} refreshControl={<RefreshControl refreshing={refreshing} onRefresh={handleRefresh} tintColor="#dc2626" colors={["#dc2626"]} />}>
           {filtered.length === 0 ? (
             <View style={s.empty}>
               <Text style={s.emptyText}>No pages found.</Text>

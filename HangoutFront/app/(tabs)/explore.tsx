@@ -1,6 +1,6 @@
 import React, { useState, useCallback } from "react";
 import {
-  View, Text, StyleSheet, ScrollView, Pressable, StatusBar,
+  View, Text, StyleSheet, ScrollView, Pressable, StatusBar, RefreshControl,
 } from "react-native";
 import { useFocusEffect } from "@react-navigation/native";
 import { useRouter } from "expo-router";
@@ -30,10 +30,11 @@ export default function MyHangoutsScreen() {
   const [myEvents, setMyEvents] = useState<Event[]>([]);
   const [loading, setLoading] = useState(true);
   const [loadError, setLoadError] = useState(false);
+  const [refreshing, setRefreshing] = useState(false);
 
-  const load = useCallback(async () => {
-    if (!user) { setLoading(false); return; }
-    setLoading(true);
+  const load = useCallback(async (silent = false) => {
+    if (!user) { if (!silent) setLoading(false); return; }
+    if (!silent) setLoading(true);
     setLoadError(false);
     try {
       const [allBubbles, events] = await Promise.all([
@@ -45,9 +46,15 @@ export default function MyHangoutsScreen() {
     } catch {
       setLoadError(true);
     } finally {
-      setLoading(false);
+      if (!silent) setLoading(false);
     }
   }, [user]);
+
+  const handleRefresh = useCallback(async () => {
+    setRefreshing(true);
+    await load(true);
+    setRefreshing(false);
+  }, [load]);
 
   useFocusEffect(useCallback(() => { load(); }, [load]));
 
@@ -75,7 +82,11 @@ export default function MyHangoutsScreen() {
           </Pressable>
         </View>
       ) : (
-        <ScrollView contentContainerStyle={s.list} showsVerticalScrollIndicator={false}>
+        <ScrollView
+          contentContainerStyle={s.list}
+          showsVerticalScrollIndicator={false}
+          refreshControl={<RefreshControl refreshing={refreshing} onRefresh={handleRefresh} tintColor="#dc2626" colors={["#dc2626"]} />}
+        >
 
           {/* ── Bubbles ── */}
           <Text style={s.sectionLabel}>Bubbles</Text>
