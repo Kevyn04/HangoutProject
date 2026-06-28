@@ -11,6 +11,7 @@ import { getProfile, updateProfile, getUserBubbles, getUserRatings } from "@/ser
 import { ColorWheelPicker } from "@/components/ColorWheelPicker";
 import { SkeletonBox } from "@/components/SkeletonBox";
 import { ErrorScreen } from "@/components/ErrorScreen";
+import { EmptyState } from "@/components/EmptyState";
 import { useToast } from "@/context/ToastContext";
 import { ScreenBackground } from "@/components/ScreenBackground";
 
@@ -343,7 +344,12 @@ export default function ProfileScreen() {
         <View style={s.section}>
           <Text style={s.sectionTitle}>Created ({createdBubbles.length})</Text>
           {createdBubbles.length === 0 ? (
-            <Text style={s.emptyText}>No bubbles created yet.</Text>
+            <EmptyState
+              icon="add-circle-outline"
+              title="No bubbles created"
+              subtitle="Drop your first bubble and invite people to hang out."
+              action={{ label: "Create Bubble", onPress: () => router.push("/create-bubble") }}
+            />
           ) : createdBubbles.map((b) => (
             <Pressable
               key={b.id} style={s.bubbleRow}
@@ -364,7 +370,11 @@ export default function ProfileScreen() {
         <View style={s.section}>
           <Text style={s.sectionTitle}>Joined ({joinedBubbles.length})</Text>
           {joinedBubbles.length === 0 ? (
-            <Text style={s.emptyText}>No bubbles joined yet.</Text>
+            <EmptyState
+              icon="people-circle-outline"
+              title="No bubbles joined"
+              subtitle="Find bubbles on the Map or Discover tab and jump in."
+            />
           ) : joinedBubbles.map((b) => (
             <Pressable
               key={b.id} style={s.bubbleRow}

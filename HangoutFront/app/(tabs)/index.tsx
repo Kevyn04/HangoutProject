@@ -12,6 +12,7 @@ import {
   getSuggestedUsers, toggleUserFollow, getUnreadNotificationCount, getUnreadInviteCount,
 } from "@/services/api";
 import { SkeletonBox } from "@/components/SkeletonBox";
+import { EmptyState } from "@/components/EmptyState";
 import { ScreenBackground } from "@/components/ScreenBackground";
 
 type Suggestion = { username: string; mutualBubbles: number };
@@ -299,9 +300,12 @@ export default function FeedScreen() {
             {loading ? (
               <FeedSkeleton />
             ) : followingFeed.length === 0 ? (
-              <View style={s.emptySection}>
-                <Text style={s.emptySectionText}>Follow people to see their activity here.</Text>
-              </View>
+              <EmptyState
+                icon="person-add-outline"
+                title="No activity yet"
+                subtitle="Follow people to see what they're up to here."
+                action={{ label: "Find People", onPress: () => router.push("/search" as any) }}
+              />
             ) : (
               followingFeed.map((item) => (
                 <ActivityCard key={item.id} item={item} onPress={() => handleActivityPress(item)} />
@@ -329,9 +333,11 @@ export default function FeedScreen() {
                 <FeedSkeleton />
               </>
             ) : suggestions.length === 0 ? (
-              <View style={s.emptySection}>
-                <Text style={s.emptySectionText}>Join bubbles to find people with shared interests.</Text>
-              </View>
+              <EmptyState
+                icon="people-outline"
+                title="No suggestions yet"
+                subtitle="Join bubbles to find people with shared interests."
+              />
             ) : (
               <>
                 <FlatList
@@ -361,9 +367,12 @@ export default function FeedScreen() {
         {loading ? (
           <FeedSkeleton />
         ) : discoverFeed.length === 0 ? (
-          <View style={s.emptySection}>
-            <Text style={s.emptySectionText}>No activity yet — create the first bubble or event!</Text>
-          </View>
+          <EmptyState
+            icon="compass-outline"
+            title="Nothing here yet"
+            subtitle="Be the first to drop a bubble or create an event in your area."
+            action={{ label: "Create Bubble", onPress: () => router.push("/create-bubble" as any) }}
+          />
         ) : (
           discoverFeed.map((item) => (
             <ActivityCard key={item.id} item={item} onPress={() => handleActivityPress(item)} />
