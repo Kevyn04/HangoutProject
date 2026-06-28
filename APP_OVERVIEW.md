@@ -42,11 +42,26 @@ Core loop:
 - `ActivityCard` for bubbles and events
 - `PersonCard` for suggested users with a Follow button
 - Error banner with retry on load failure
+- **Search icon** in header → opens global search screen
+- **Bell icon** in header → opens notifications inbox with live unread badge
+
+### Search (`search.tsx`) ✅ NEW
+- Global search across Users, Events, and Bubbles
+- Three tabs with result counts
+- Debounced 350ms input, autofocus
+- Tap results to navigate directly to profile / event / bubble
+
+### Notifications Inbox (`notifications.tsx`) ✅ NEW
+- Lists all notifications (bubble joins, event joins, invites, messages)
+- Type icons with unread dot indicator
+- Tap to navigate to the relevant content
+- Mark all as read button
+- **Inline invite Accept / Decline** — accepting auto-joins the bubble or event
 
 ### Events
 - Create events with title, location, time, type, and map pin
 - Event types: Hangout, Munchies, Secret Location, Sports, Games
-- Join / Leave RSVP with persistence via AsyncStorage (source of truth)
+- Join / Leave RSVP — **now trusts DB as source of truth** (AsyncStorage removed)
 - Attendee count + expandable attendee list modal
 - "Remind Me 1 Hr Before" local push notification
 - **Event Chat** — real-time chat for attendees (`event-chat.tsx`) via Supabase Realtime
@@ -58,6 +73,7 @@ Core loop:
 - Join / Leave, End Hangout (host only)
 - Purple markers on map (removed from map view — events only shown now)
 - Max member cap
+- **Invite User button** in header → opens invite screen to search + invite a friend directly
 
 ### Bubble Detail (`bubble-detail.tsx`)
 - **Members tab** — live distance + ETA, per-member location sharing toggle
@@ -65,6 +81,17 @@ Core loop:
 - **Discussion Mode** — activates automatically when 10+ members, replaces chat tab (`discussion-detail.tsx`)
 - Long-press any message → Report Message modal with reason selection
 - Blocked users are filtered from members list and chat
+- **Bubble existence** — Realtime DELETE subscription replaces 5s poll
+- **Member joins/leaves** — Realtime INSERT/DELETE replaces 8s poll
+- Location coordinates refresh every 20s (down from 8s)
+- Typing indicator poll removed (was a no-op)
+
+### Group Invites (`invite-user.tsx`) ✅ NEW
+- Search for any user by username
+- Send bubble or event invites directly
+- "Invited ✓" state after sending — prevents double-inviting
+- Invitee gets a push notification immediately
+- Invites appear in the notifications inbox with Accept / Decline
 
 ### Map (`map.tsx`)
 - Real MapView with event markers only (bubbles removed for clarity)
@@ -97,17 +124,73 @@ Core loop:
 - `blocked_users` table — blocked users hidden from bubble members and chat
 - Admin reviews reports in Supabase dashboard
 
-### Push Notifications
+### Push Notifications ✅ LIVE
 - Expo push token saved to `profiles.push_token`
+- **`send-notification` Edge Function deployed** — sends via Expo Push API + writes to `notifications` table
+- Fires when someone joins your bubble (`bubble_join`)
+- Fires when someone RSVPs to your event (`event_join`)
+- Fires when you receive an invite (`invite`)
 - Apple Developer account active (purchased + activated 2026-05-28)
 - EAS credentials configured — Distribution Certificate + Provisioning Profile valid until May 2027
 - iPhone + iPad registered as provisioned devices
+
+### Database — Tables
+| Table | Purpose |
+|---|---|
+| `profiles` | User profiles, push tokens |
+| `bubbles` | Bubble records |
+| `bubble_member_detail` | Members, location, channel |
+| `chat_messages` | Bubble chat (Realtime) |
+| `events` | Event records |
+| `event_attendees` | RSVP list |
+| `event_messages` | Event chat (Realtime) |
+| `pages` | Community/brand pages |
+| `page_followers` | Page follow relationships |
+| `user_follows` | User follow relationships |
+| `user_ratings` | Anonymous ratings |
+| `reports` | User + message reports |
+| `blocked_users` | Block relationships |
+| `notifications` | In-app notification inbox ✅ NEW |
+| `invites` | Bubble/event invites ✅ NEW |
+| `discussions` | Bubble discussion threads |
+| `discussion_replies` | Replies to discussions |
+
+### Database — Indexes ✅ NEW
+All performance indexes applied:
+- `chat_messages(bubble_id, channel_id, created_at desc)` — critical, fastest-growing table
+- `bubble_member_detail(username)`
+- `user_follows(followee)`
+- `user_ratings(rated_username)`
+- `events(created_by)`
+- `bubbles(created_by)`
+- `event_attendees(username)`
+- `notifications(recipient_username, created_at desc)`
+- `invites(invitee_username, created_at desc)`
+
+### Security ✅ HARDENED
+All RLS policies audited and tightened:
+- `push_token` column revoked from `authenticated` and `anon` roles — only Edge Function (service_role) can read it
+- `chat_insert` — now requires `username = my_username()` (was any authenticated user)
+- `bmd_insert` — now requires `username = my_username()`
+- `attendees_insert` — now requires `username = my_username()`
+- `bubbles_insert` — now requires `created_by = my_username()`
+- `events_insert` — now requires `created_by = my_username()`
+- `pages_insert` — now requires `created_by = my_username()`
+- `page_followers_insert` — now requires `username = my_username()`
+- `chat_messages` — max 2,000 characters per message constraint
 
 ### Branding & UI
 - Custom app icon — white H with location pin on red background (1024x1024)
 - Custom splash screen — same icon, red `#dc2626` background
 - Animated loading screen — "Loading" text + fluid white wave on red bar (`LoadingScreen.tsx`)
 - App name: **Hangout** (renamed from "The Hangout")
+
+### Polish ✅ (2026-06-28)
+- **Pull-to-refresh** on all 7 scrollable screens — Discover, My Hangouts, Profile, Pages, Notifications, User Profile, Page Detail
+  - Uses `load(silent=true)` pattern: existing content stays visible during refresh (no skeleton flash)
+  - Red tint color matches brand on all platforms
+- **Error states hardened** — `search.tsx` and `notifications.tsx` previously swallowed errors silently; both now show an offline icon + "Try Again" prompt
+- **Skeleton loaders** — consistent across all main screens; all screens use `SkeletonBox` shimmer on first load
 
 ### Legal / Store Prep
 - Privacy Policy hosted at `docs/privacy.html`
@@ -120,18 +203,14 @@ Core loop:
 ## Missing / Not Yet Built
 
 ### Core Functionality
-- [ ] **Real-time location sharing on map** — users in the same bubble can't see each other's live pins on the map yet; the distance/ETA in the Members tab uses stored coordinates, not true live tracking
-- [ ] **Push notifications delivery** — token saving is wired up but actual notification sending (new message, someone joined your bubble, event reminder server-side) is not implemented; Expo Push API calls need to be made from a Supabase Edge Function
-- [ ] **Server-side event reminders** — current "Remind Me" uses local notifications only; if the app is killed it may not fire
-- [ ] **Bubble expiry / auto-end** — bubbles don't auto-close after a set time; only the host can end manually
+- [ ] **Real-time location sharing on map** — distance/ETA in Members tab uses stored coordinates, not true live tracking
+- [ ] **Server-side event reminders** — "Remind Me" uses local notifications only; won't fire if app is killed
+- [ ] **Bubble expiry / auto-end** — bubbles don't auto-close after a set time; only host can end manually
 - [ ] **Image uploads** — no profile photos, event cover images, or in-chat media sharing
-- [ ] **Search** — no global search for users, events, or bubbles by keyword
-- [ ] **Notifications inbox** — no in-app notification center; users have no way to see past alerts
 
 ### Social Layer
 - [ ] **Direct messages (DMs)** — no 1-on-1 private messaging between users
 - [ ] **Stories / status** — no ephemeral content layer
-- [ ] **Group invites** — no way to explicitly invite a friend to a bubble or event; currently discovery-only
 - [ ] **Friend/contact suggestions based on location** — "People Nearby" is not location-aware
 
 ### Pages / Communities
@@ -155,10 +234,11 @@ Core loop:
 
 ### Polish
 - [ ] Onboarding flow — new users land on the Discover tab with no guidance
-- [ ] Empty states — many screens have no empty-state illustration or helpful prompt
-- [ ] Skeleton loaders are partially implemented; not consistent across all screens
+- [ ] Empty states — most screens have text empty states; no illustrations or CTAs yet
+- [x] Skeleton loaders — consistent `SkeletonBox` shimmer on all main screens ✅
+- [x] Pull-to-refresh — all 7 scrollable screens ✅
+- [x] Silent error states — search + notifications now surface errors properly ✅
 - [ ] Dark mode is hardcoded — no system theme toggle
-- [ ] Splash screen background color update (`#dc2626`) pending next rebuild
 
 ---
 

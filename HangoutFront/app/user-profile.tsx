@@ -1,7 +1,7 @@
 import React, { useState, useCallback } from "react";
 import {
   View, Text, StyleSheet, ScrollView, Pressable,
-  Modal, Alert,
+  Modal, Alert, RefreshControl,
 } from "react-native";
 import { useLocalSearchParams, useRouter } from "expo-router";
 import { useFocusEffect } from "@react-navigation/native";
@@ -75,6 +75,7 @@ export default function UserProfileScreen() {
   const [joinedBubbles, setJoinedBubbles] = useState<any[]>([]);
   const [reasons, setReasons] = useState<any[]>([]);
   const [loading, setLoading] = useState(true);
+  const [refreshing, setRefreshing] = useState(false);
   const [followLoading, setFollowLoading] = useState(false);
 
   // Rating modal
@@ -91,9 +92,9 @@ export default function UserProfileScreen() {
   const [reportReason, setReportReason] = useState<string | null>(null);
   const [reportSubmitting, setReportSubmitting] = useState(false);
 
-  const load = useCallback(async () => {
+  const load = useCallback(async (silent = false) => {
     if (!username) return;
-    setLoading(true);
+    if (!silent) setLoading(true);
     setLoadError(false);
     try {
       const [p, b, r] = await Promise.all([
@@ -116,9 +117,16 @@ export default function UserProfileScreen() {
       }
     } catch {
       setLoadError(true);
+    } finally {
+      if (!silent) setLoading(false);
     }
-    finally { setLoading(false); }
   }, [username, user]);
+
+  const handleRefresh = useCallback(async () => {
+    setRefreshing(true);
+    await load(true);
+    setRefreshing(false);
+  }, [load]);
 
   useFocusEffect(useCallback(() => { load(); }, [load]));
 
@@ -245,7 +253,11 @@ export default function UserProfileScreen() {
 
   return (
     <ScreenBackground style={s.container}>
-      <ScrollView contentContainerStyle={s.scroll} showsVerticalScrollIndicator={false}>
+      <ScrollView
+        contentContainerStyle={s.scroll}
+        showsVerticalScrollIndicator={false}
+        refreshControl={<RefreshControl refreshing={refreshing} onRefresh={handleRefresh} tintColor="#dc2626" colors={["#dc2626"]} />}
+      >
 
         {/* Hero */}
         <View style={s.hero}>
