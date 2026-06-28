@@ -8,6 +8,7 @@ import * as Haptics from "expo-haptics";
 import { useAuth } from "@/services/auth-context";
 import { getPages, toggleFollow } from "@/services/api";
 import { SkeletonBox } from "@/components/SkeletonBox";
+import { EmptyState } from "@/components/EmptyState";
 import { useToast } from "@/context/ToastContext";
 import { ScreenBackground } from "@/components/ScreenBackground";
 
@@ -154,10 +155,16 @@ export default function PagesScreen() {
       ) : (
         <ScrollView contentContainerStyle={s.list} showsVerticalScrollIndicator={false} refreshControl={<RefreshControl refreshing={refreshing} onRefresh={handleRefresh} tintColor="#dc2626" colors={["#dc2626"]} />}>
           {filtered.length === 0 ? (
-            <View style={s.empty}>
-              <Text style={s.emptyText}>No pages found.</Text>
-              {user && <Text style={s.emptySub}>Be the first — tap + Create.</Text>}
-            </View>
+            <EmptyState
+              icon="megaphone-outline"
+              title={search ? "No results" : "No communities yet"}
+              subtitle={
+                search
+                  ? `Nothing matched "${search}". Try a different term.`
+                  : "Pages are hubs for communities and event hosts. Create one to get started."
+              }
+              action={!search && user ? { label: "Create a Page", onPress: () => router.push("/create-page") } : undefined}
+            />
           ) : (
             filtered.map((page) => (
               <Pressable

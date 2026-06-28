@@ -45,18 +45,20 @@ Core loop:
 - **Search icon** in header → opens global search screen
 - **Bell icon** in header → opens notifications inbox with live unread badge
 
-### Search (`search.tsx`) ✅ NEW
+### Search (`search.tsx`)
 - Global search across Users, Events, and Bubbles
 - Three tabs with result counts
 - Debounced 350ms input, autofocus
 - Tap results to navigate directly to profile / event / bubble
+- Error state shown on network failure (previously swallowed silently)
 
-### Notifications Inbox (`notifications.tsx`) ✅ NEW
+### Notifications Inbox (`notifications.tsx`)
 - Lists all notifications (bubble joins, event joins, invites, messages)
 - Type icons with unread dot indicator
 - Tap to navigate to the relevant content
 - Mark all as read button
 - **Inline invite Accept / Decline** — accepting auto-joins the bubble or event
+- Error state + retry on load failure
 
 ### Events
 - Create events with title, location, time, type, and map pin
@@ -86,7 +88,7 @@ Core loop:
 - Location coordinates refresh every 20s (down from 8s)
 - Typing indicator poll removed (was a no-op)
 
-### Group Invites (`invite-user.tsx`) ✅ NEW
+### Group Invites (`invite-user.tsx`)
 - Search for any user by username
 - Send bubble or event invites directly
 - "Invited ✓" state after sending — prevents double-inviting
@@ -124,7 +126,7 @@ Core loop:
 - `blocked_users` table — blocked users hidden from bubble members and chat
 - Admin reviews reports in Supabase dashboard
 
-### Push Notifications ✅ LIVE
+### Push Notifications
 - Expo push token saved to `profiles.push_token`
 - **`send-notification` Edge Function deployed** — sends via Expo Push API + writes to `notifications` table
 - Fires when someone joins your bubble (`bubble_join`)
@@ -150,12 +152,12 @@ Core loop:
 | `user_ratings` | Anonymous ratings |
 | `reports` | User + message reports |
 | `blocked_users` | Block relationships |
-| `notifications` | In-app notification inbox ✅ NEW |
-| `invites` | Bubble/event invites ✅ NEW |
+| `notifications` | In-app notification inbox |
+| `invites` | Bubble/event invites |
 | `discussions` | Bubble discussion threads |
 | `discussion_replies` | Replies to discussions |
 
-### Database — Indexes ✅ NEW
+### Database — Indexes
 All performance indexes applied:
 - `chat_messages(bubble_id, channel_id, created_at desc)` — critical, fastest-growing table
 - `bubble_member_detail(username)`
@@ -167,7 +169,7 @@ All performance indexes applied:
 - `notifications(recipient_username, created_at desc)`
 - `invites(invitee_username, created_at desc)`
 
-### Security ✅ HARDENED
+### Security
 All RLS policies audited and tightened:
 - `push_token` column revoked from `authenticated` and `anon` roles — only Edge Function (service_role) can read it
 - `chat_insert` — now requires `username = my_username()` (was any authenticated user)
@@ -191,6 +193,8 @@ All RLS policies audited and tightened:
   - Red tint color matches brand on all platforms
 - **Error states hardened** — `search.tsx` and `notifications.tsx` previously swallowed errors silently; both now show an offline icon + "Try Again" prompt
 - **Skeleton loaders** — consistent across all main screens; all screens use `SkeletonBox` shimmer on first load
+- **Onboarding overlay** — shown once on first launch via AsyncStorage (`@hangout/onboarding_done`); 3 slides (Drop a Bubble / Join Events / Find Your Vibe) with Skip + Next/Get Started; `components/OnboardingOverlay.tsx`, wired in `_layout.tsx`
+- **Empty states** — reusable `EmptyState` component (`components/EmptyState.tsx`) with icon circle + title + subtitle + optional CTA button; replaces all grey italic text on: Discover (3 sections), My Hangouts (bubbles + events), Pages, Profile (created + joined), Notifications, Page Detail (events + bubbles tabs)
 
 ### Legal / Store Prep
 - Privacy Policy hosted at `docs/privacy.html`
@@ -233,8 +237,8 @@ All RLS policies audited and tightened:
 - [ ] TestFlight beta distribution
 
 ### Polish
-- [ ] Onboarding flow — new users land on the Discover tab with no guidance
-- [ ] Empty states — most screens have text empty states; no illustrations or CTAs yet
+- [x] Onboarding flow — 3-slide overlay on first launch ✅
+- [x] Empty states — `EmptyState` component with icon + CTA on all major screens ✅
 - [x] Skeleton loaders — consistent `SkeletonBox` shimmer on all main screens ✅
 - [x] Pull-to-refresh — all 7 scrollable screens ✅
 - [x] Silent error states — search + notifications now surface errors properly ✅

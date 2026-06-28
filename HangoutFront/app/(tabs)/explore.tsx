@@ -10,6 +10,7 @@ import { getBubbles, getMyEvents } from "@/services/api";
 import { useAuth } from "@/services/auth-context";
 import { SkeletonBox } from "@/components/SkeletonBox";
 import { ErrorScreen } from "@/components/ErrorScreen";
+import { EmptyState } from "@/components/EmptyState";
 import { ScreenBackground } from "@/components/ScreenBackground";
 
 type Bubble = {
@@ -103,9 +104,12 @@ export default function MyHangoutsScreen() {
               </View>
             ))
           ) : myBubbles.length === 0 ? (
-            <View style={s.emptySection}>
-              <Text style={s.emptySectionText}>No bubbles yet. Join one from the Map tab.</Text>
-            </View>
+            <EmptyState
+              icon="people-circle-outline"
+              title="No bubbles yet"
+              subtitle="Join a bubble from the Map or Discover tab to see it here."
+              action={{ label: "Browse Map", onPress: () => router.push("/(tabs)/map" as any) }}
+            />
           ) : (
             myBubbles.map((bubble) => (
               <Pressable
@@ -157,9 +161,12 @@ export default function MyHangoutsScreen() {
               </View>
             ))
           ) : myEvents.length === 0 ? (
-            <View style={s.emptySection}>
-              <Text style={s.emptySectionText}>No events yet. Join one from the Map tab.</Text>
-            </View>
+            <EmptyState
+              icon="calendar-outline"
+              title="No events yet"
+              subtitle="Find events on the Map and RSVP to see them here."
+              action={{ label: "Browse Map", onPress: () => router.push("/(tabs)/map" as any) }}
+            />
           ) : (
             myEvents.map((event) => (
               <Pressable

@@ -9,6 +9,7 @@ import { useAuth } from "@/services/auth-context";
 import { getPage, getPageContent, toggleFollow } from "@/services/api";
 import { ErrorScreen } from "@/components/ErrorScreen";
 import { SkeletonBox } from "@/components/SkeletonBox";
+import { EmptyState } from "@/components/EmptyState";
 import { useToast } from "@/context/ToastContext";
 import * as Haptics from "expo-haptics";
 import { ScreenBackground } from "@/components/ScreenBackground";
@@ -164,7 +165,7 @@ export default function PageDetailScreen() {
         {tab === "events" && (
           <View style={s.contentList}>
             {events.length === 0 ? (
-              <Text style={s.emptyText}>No events posted yet.</Text>
+              <EmptyState icon="calendar-outline" title="No events yet" subtitle="This page hasn't posted any events." />
             ) : (
               events.map((e) => (
                 <Pressable
@@ -189,7 +190,7 @@ export default function PageDetailScreen() {
         {tab === "bubbles" && (
           <View style={s.contentList}>
             {bubbles.length === 0 ? (
-              <Text style={s.emptyText}>No active bubbles.</Text>
+              <EmptyState icon="people-circle-outline" title="No active bubbles" subtitle="No bubbles are running under this page right now." />
             ) : (
               bubbles.map((b) => (
                 <Pressable

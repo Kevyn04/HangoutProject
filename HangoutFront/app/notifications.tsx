@@ -13,6 +13,7 @@ import {
 } from "@/services/api";
 import { ScreenBackground } from "@/components/ScreenBackground";
 import { SkeletonBox } from "@/components/SkeletonBox";
+import { EmptyState } from "@/components/EmptyState";
 
 type Notification = {
   id: number;
@@ -197,13 +198,11 @@ export default function NotificationsScreen() {
           contentContainerStyle={s.list}
           refreshControl={<RefreshControl refreshing={refreshing} onRefresh={handleRefresh} tintColor="#dc2626" colors={["#dc2626"]} />}
           ListEmptyComponent={
-            <View style={s.empty}>
-              <Ionicons name="notifications-off-outline" size={48} color="rgba(255,255,255,0.15)" />
-              <Text style={s.emptyText}>No notifications yet.</Text>
-              <Text style={s.emptySubText}>
-                Join bubbles and events to start getting updates.
-              </Text>
-            </View>
+            <EmptyState
+              icon="notifications-outline"
+              title="All caught up"
+              subtitle="You'll be notified when someone joins your bubble, RSVPs to your event, or sends you an invite."
+            />
           }
           renderItem={({ item }) => {
             if (item._type === "invite") {
