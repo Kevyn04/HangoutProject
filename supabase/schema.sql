@@ -157,13 +157,13 @@ create policy "profiles_update" on public.profiles for update using (id = auth.u
 
 -- Bubbles
 create policy "bubbles_select" on public.bubbles for select using (true);
-create policy "bubbles_insert" on public.bubbles for insert with check (auth.uid() is not null);
+create policy "bubbles_insert" on public.bubbles for insert with check (created_by = my_username());
 create policy "bubbles_update" on public.bubbles for update using (created_by = my_username());
 create policy "bubbles_delete" on public.bubbles for delete using (created_by = my_username());
 
 -- Bubble member detail
 create policy "bmd_select" on public.bubble_member_detail for select using (auth.uid() is not null);
-create policy "bmd_insert" on public.bubble_member_detail for insert with check (auth.uid() is not null);
+create policy "bmd_insert" on public.bubble_member_detail for insert with check (username = my_username());
 create policy "bmd_update" on public.bubble_member_detail for update using (username = my_username());
 create policy "bmd_delete" on public.bubble_member_detail for delete using (
   username = my_username() or
@@ -172,22 +172,22 @@ create policy "bmd_delete" on public.bubble_member_detail for delete using (
 
 -- Chat messages
 create policy "chat_select" on public.chat_messages for select using (auth.uid() is not null);
-create policy "chat_insert" on public.chat_messages for insert with check (auth.uid() is not null);
+create policy "chat_insert" on public.chat_messages for insert with check (username = my_username());
 
 -- Events
 create policy "events_select" on public.events for select using (true);
-create policy "events_insert" on public.events for insert with check (auth.uid() is not null);
+create policy "events_insert" on public.events for insert with check (created_by = my_username());
 create policy "events_update" on public.events for update using (created_by = my_username());
 create policy "events_delete" on public.events for delete using (created_by = my_username());
 
 -- Event attendees
 create policy "attendees_select" on public.event_attendees for select using (true);
-create policy "attendees_insert" on public.event_attendees for insert with check (auth.uid() is not null);
+create policy "attendees_insert" on public.event_attendees for insert with check (username = my_username());
 create policy "attendees_delete" on public.event_attendees for delete using (username = my_username());
 
 -- Pages
 create policy "pages_select" on public.pages for select using (true);
-create policy "pages_insert" on public.pages for insert with check (auth.uid() is not null);
+create policy "pages_insert" on public.pages for insert with check (created_by = my_username());
 create policy "pages_update" on public.pages for update using (created_by = my_username());
 create policy "pages_delete" on public.pages for delete using (created_by = my_username());
 
