@@ -108,6 +108,7 @@ Core loop:
 - Page detail: **Events** tab + **Bubbles** tab (populated via `getPageContent`)
 
 ### Profile (`profile.tsx`)
+- **Profile photo upload** — tap avatar to pick from camera roll; photo stored in Supabase Storage (`avatars` bucket); falls back to color+initial if no photo set
 - Avatar color picker — presets + custom color wheel (`ColorWheelPicker`)
 - Profile emoji picker (Bubble Pop style)
 - Editable bio
@@ -116,6 +117,7 @@ Core loop:
 - Lists of created and joined bubbles
 
 ### User Profiles (`user-profile.tsx`)
+- Shows profile photo if set, falls back to color+initial
 - View another user's stats, bubbles, events
 - Follow / Unfollow
 - Anonymous rating with reason
@@ -140,7 +142,7 @@ Core loop:
 ### Database — Tables
 | Table | Purpose |
 |---|---|
-| `profiles` | User profiles, push tokens |
+| `profiles` | User profiles, push tokens, `avatar_url` for photo storage |
 | `bubbles` | Bubble records |
 | `bubble_member_detail` | Members, location, channel |
 | `chat_messages` | Bubble chat (Realtime) |
@@ -181,6 +183,10 @@ All RLS policies audited and tightened:
 - `pages_insert` — now requires `created_by = my_username()`
 - `page_followers_insert` — now requires `username = my_username()`
 - `chat_messages` — max 2,000 characters per message constraint
+- **`send-notification` Edge Function** — now requires valid Supabase JWT; unauthenticated callers get 401
+- **Search filter injection** — user input sanitized before PostgREST `.or()` string interpolation
+- **Avatar uploads** — extension whitelist + 5 MB cap client-side; `avatars` bucket enforces same MIME types + size server-side; images re-encoded via `expo-image-manipulator` before upload to strip EXIF and any embedded payloads
+- **`UserAvatar` component** — reusable avatar renderer used in profile, user-profile, search, invite screens
 
 ### Branding & UI
 - Custom app icon — white H with location pin on red background (1024x1024)
@@ -212,7 +218,8 @@ All RLS policies audited and tightened:
 - [ ] **Server-side event reminders** — "Remind Me" uses local notifications only; won't fire if app is killed
 - [x] **Event auto-conclude** — events disappear from feeds/map/search after `event_date` passes; event details shows concluded state ✅
 - [ ] **Bubble expiry / auto-end** — bubbles don't auto-close after a set time; only host can end manually
-- [ ] **Image uploads** — no profile photos, event cover images, or in-chat media sharing
+- [x] **Profile photo uploads** — camera roll picker, Supabase Storage, re-encoded before upload ✅
+- [ ] **Event cover images / in-chat media** — no event cover images or media sharing in chat
 
 ### Social Layer
 - [ ] **Direct messages (DMs)** — no 1-on-1 private messaging between users
