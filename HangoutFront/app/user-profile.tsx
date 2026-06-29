@@ -13,6 +13,7 @@ import {
 } from "@/services/api";
 import { SkeletonBox } from "@/components/SkeletonBox";
 import { ErrorScreen } from "@/components/ErrorScreen";
+import { UserAvatar } from "@/components/UserAvatar";
 import { useToast } from "@/context/ToastContext";
 import { Ionicons } from "@expo/vector-icons";
 import * as Haptics from "expo-haptics";
@@ -58,7 +59,7 @@ function StarPicker({ value, onChange }: { value: number; onChange: (v: number) 
 }
 
 type ProfileData = {
-  username: string; bio: string; avatarColor: string;
+  username: string; bio: string; avatarColor: string; avatarUrl?: string | null;
   followerCount: number; followingCount: number;
   avgRating: number; ratingCount: number; isFollowing: boolean;
 };
@@ -261,9 +262,7 @@ export default function UserProfileScreen() {
 
         {/* Hero */}
         <View style={s.hero}>
-          <View style={[s.avatar, { backgroundColor: profile.avatarColor }]}>
-            <Text style={s.avatarText}>{username.charAt(0).toUpperCase()}</Text>
-          </View>
+          <UserAvatar username={username as string} avatarColor={profile.avatarColor} avatarUrl={profile.avatarUrl} size={90} />
           <Text style={s.name}>@{username}</Text>
 
           {/* Stats */}

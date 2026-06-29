@@ -9,10 +9,11 @@ import * as Haptics from "expo-haptics";
 import { searchUsers, searchEvents, searchBubbles } from "@/services/api";
 import { ScreenBackground } from "@/components/ScreenBackground";
 import { useAuth } from "@/services/auth-context";
+import { UserAvatar } from "@/components/UserAvatar";
 
 type SearchTab = "users" | "events" | "bubbles";
 
-type UserResult   = { username: string; bio: string; avatarColor: string; profileEmoji: string };
+type UserResult   = { username: string; bio: string; avatarColor: string; profileEmoji: string; avatarUrl?: string | null };
 type EventResult  = { id: number; title: string; location: string; time: string; createdBy: string; type?: string };
 type BubbleResult = { id: number; name: string; description?: string; type?: string; members: string[]; createdBy: string };
 
@@ -145,12 +146,7 @@ export default function SearchScreen() {
                 router.push({ pathname: "/user-profile", params: { username: item.username } });
               }}
             >
-              <View style={[s.avatar, { backgroundColor: item.avatarColor }]}>
-                {item.profileEmoji
-                  ? <Text style={s.avatarEmoji}>{item.profileEmoji}</Text>
-                  : <Text style={s.avatarLetter}>{item.username.charAt(0).toUpperCase()}</Text>
-                }
-              </View>
+              <UserAvatar username={item.username} avatarColor={item.avatarColor} avatarUrl={item.avatarUrl} size={44} />
               <View style={{ flex: 1 }}>
                 <Text style={s.cardTitle}>{item.username}</Text>
                 {item.bio ? (
