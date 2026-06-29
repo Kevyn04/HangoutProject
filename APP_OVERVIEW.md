@@ -120,9 +120,17 @@ Core loop:
 - Shows profile photo if set, falls back to color+initial
 - View another user's stats, bubbles, events
 - Follow / Unfollow
+- **Message button** — opens DM chat directly with that user
 - Anonymous rating with reason
 - **Block / Unblock** with confirmation dialog
 - **Report user** modal — reasons: Spam, Harassment, Inappropriate Behavior, Fake Profile, Other
+
+### Direct Messages (`dms.tsx`, `dm-chat.tsx`)
+- **DM inbox** (`/dms`) — conversation list with last message preview, timestamp, and unread count badge
+- **DM chat** (`/dm-chat`) — 1-on-1 private chat with Realtime updates; auto-marks messages read on open
+- Chat icon in Discover header turns red with unread badge when new DMs arrive
+- RLS — users can only read/send messages involving themselves; sender spoofing blocked at DB level
+- Messages capped at 1,000 characters
 
 ### Moderation
 - `reports` table — stores all user and message reports
@@ -159,6 +167,7 @@ Core loop:
 | `invites` | Bubble/event invites |
 | `discussions` | Bubble discussion threads |
 | `discussion_replies` | Replies to discussions |
+| `direct_messages` | 1-on-1 DMs between users (Realtime, RLS, read receipts) |
 
 ### Database — Indexes
 All performance indexes applied:
@@ -171,6 +180,8 @@ All performance indexes applied:
 - `event_attendees(username)`
 - `notifications(recipient_username, created_at desc)`
 - `invites(invitee_username, created_at desc)`
+- `direct_messages(sender_username, created_at desc)`
+- `direct_messages(recipient_username, created_at desc)`
 
 ### Security
 All RLS policies audited and tightened:
@@ -222,7 +233,7 @@ All RLS policies audited and tightened:
 - [ ] **Event cover images / in-chat media** — no event cover images or media sharing in chat
 
 ### Social Layer
-- [ ] **Direct messages (DMs)** — no 1-on-1 private messaging between users
+- [x] **Direct messages (DMs)** — inbox + real-time 1-on-1 chat; unread badge in Discover header; Message button on profiles ✅
 - [ ] **Stories / status** — no ephemeral content layer
 - [ ] **Friend/contact suggestions based on location** — "People Nearby" is not location-aware
 
