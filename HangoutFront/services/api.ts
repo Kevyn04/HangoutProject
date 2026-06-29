@@ -1266,3 +1266,105 @@ export async function getUnreadInviteCount(username: string): Promise<number> {
     .eq('status', 'pending');
   return count ?? 0;
 }
+
+// ── Direct Messages ───────────────────────────────────────────────────────────
+
+export type DmConversation = {
+  partner: string;
+  lastMessage: string;
+  lastMessageAt: string;
+  unreadCount: number;
+};
+
+export type DmMessage = {
+  id: number;
+  senderUsername: string;
+  recipientUsername: string;
+  content: string;
+  read: boolean;
+  createdAt: string;
+};
+
+export async function getDMConversations(myUsername: string): Promise<DmConversation[]> {
+  const { data, error } = await supabase
+    .from('direct_messages')
+    .select('*')
+    .or(`sender_username.eq.${myUsername},recipient_username.eq.${myUsername}`)
+    .order('created_at', { ascending: false });
+
+  if (error) throw new Error(error.message);
+
+  const convMap = new Map<string, DmConversation>();
+  for (const row of data ?? []) {
+    const partner = row.sender_username === myUsername ? row.recipient_username : row.sender_username;
+    if (!convMap.has(partner)) {
+      convMap.set(partner, {
+        partner,
+        lastMessage: row.content,
+        lastMessageAt: row.created_at,
+        unreadCount: (!row.read && row.recipient_username === myUsername) ? 1 : 0,
+      });
+    } else if (!row.read && row.recipient_username === myUsername) {
+      convMap.get(partner)!.unreadCount++;
+    }
+  }
+
+  return Array.from(convMap.values());
+}
+
+export async function getDMMessages(myUsername: string, partner: string): Promise<DmMessage[]> {
+  const { data, error } = await supabase
+    .from('direct_messages')
+    .select('*')
+    .or(
+      `and(sender_username.eq.${myUsername},recipient_username.eq.${partner}),` +
+      `and(sender_username.eq.${partner},recipient_username.eq.${myUsername})`
+    )
+    .order('created_at', { ascending: true });
+
+  if (error) throw new Error(error.message);
+  return (data ?? []).map((r) => ({
+    id: r.id,
+    senderUsername: r.sender_username,
+    recipientUsername: r.recipient_username,
+    content: r.content,
+    read: r.read,
+    createdAt: r.created_at,
+  }));
+}
+
+export async function sendDM(senderUsername: string, recipientUsername: string, content: string): Promise<DmMessage> {
+  const { data, error } = await supabase
+    .from('direct_messages')
+    .insert({ sender_username: senderUsername, recipient_username: recipientUsername, content })
+    .select()
+    .single();
+
+  if (error) throw new Error(error.message);
+  return {
+    id: data.id,
+    senderUsername: data.sender_username,
+    recipientUsername: data.recipient_username,
+    content: data.content,
+    read: data.read,
+    createdAt: data.created_at,
+  };
+}
+
+export async function markDMsRead(myUsername: string, partnerUsername: string): Promise<void> {
+  await supabase
+    .from('direct_messages')
+    .update({ read: true })
+    .eq('recipient_username', myUsername)
+    .eq('sender_username', partnerUsername)
+    .eq('read', false);
+}
+
+export async function getUnreadDMCount(myUsername: string): Promise<number> {
+  const { count } = await supabase
+    .from('direct_messages')
+    .select('*', { count: 'exact', head: true })
+    .eq('recipient_username', myUsername)
+    .eq('read', false);
+  return count ?? 0;
+}

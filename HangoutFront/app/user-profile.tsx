@@ -301,6 +301,17 @@ export default function UserProfileScreen() {
                   </Text>
                 </Pressable>
 
+                <Pressable
+                  style={s.messageBtn}
+                  onPress={() => {
+                    Haptics.impactAsync(Haptics.ImpactFeedbackStyle.Light);
+                    router.push({ pathname: "/dm-chat", params: { partner: username } });
+                  }}
+                >
+                  <Ionicons name="chatbubble-outline" size={15} color="#fff" />
+                  <Text style={s.messageBtnText}>Message</Text>
+                </Pressable>
+
                 {canRate && (
                   <Pressable style={s.rateBtn} onPress={() => { Haptics.impactAsync(Haptics.ImpactFeedbackStyle.Light); setRateModal(true); }}>
                     <View style={{ flexDirection: "row", alignItems: "center", gap: 6 }}>
@@ -476,12 +487,18 @@ const s = StyleSheet.create({
   },
   modBtnText: { color: "rgba(255,255,255,0.4)", fontSize: 13, fontWeight: "600" },
   followBtn: {
-    paddingHorizontal: 28, paddingVertical: 10, borderRadius: 24,
+    paddingHorizontal: 20, paddingVertical: 10, borderRadius: 24,
     borderWidth: 1.5, borderColor: "#dc2626",
   },
   followBtnText: { color: "#dc2626", fontSize: 14, fontWeight: "700" },
   followingBtn: { backgroundColor: "rgba(220,38,38,0.12)" },
   followingBtnText: { color: "rgba(220,38,38,0.8)" },
+  messageBtn: {
+    flexDirection: "row", alignItems: "center", gap: 6,
+    paddingHorizontal: 16, paddingVertical: 10, borderRadius: 24,
+    backgroundColor: "rgba(255,255,255,0.1)", borderWidth: 1.5, borderColor: "rgba(255,255,255,0.2)",
+  },
+  messageBtnText: { color: "#fff", fontSize: 14, fontWeight: "700" },
   rateBtn: {
     paddingHorizontal: 20, paddingVertical: 10, borderRadius: 24,
     backgroundColor: "rgba(251,191,36,0.15)",
