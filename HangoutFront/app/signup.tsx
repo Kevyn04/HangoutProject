@@ -9,6 +9,7 @@ import { useRouter } from "expo-router";
 import * as AppleAuthentication from "expo-apple-authentication";
 import { signUp, signInWithApple, signInWithGoogle } from "@/services/api";
 import { AppColors } from "@/constants/theme";
+import { PrivacyPolicyModal } from "@/components/PrivacyPolicyModal";
 
 export default function SignUpScreen() {
   const router = useRouter();
@@ -18,6 +19,7 @@ export default function SignUpScreen() {
   const [submitting, setSubmitting] = useState(false);
   const [oauthLoading, setOauthLoading] = useState<"apple" | "google" | null>(null);
   const [error, setError] = useState("");
+  const [showPrivacy, setShowPrivacy] = useState(false);
 
   const passwordRef = useRef<TextInput>(null);
   const [fontsLoaded] = useFonts({ Cinzel_700Bold });
@@ -30,12 +32,17 @@ export default function SignUpScreen() {
     );
   }
 
-  const handleSignUp = async () => {
+  const handleSignUpPress = () => {
     setError("");
     if (!username.trim() || !password.trim()) {
       setError("Please enter both username and password.");
       return;
     }
+    setShowPrivacy(true);
+  };
+
+  const handlePrivacyAgree = async () => {
+    setShowPrivacy(false);
     setSubmitting(true);
     try {
       await signUp(username.trim(), password);
@@ -148,7 +155,7 @@ export default function SignUpScreen() {
               autoComplete="new-password"
               textContentType="newPassword"
               returnKeyType="done"
-              onSubmitEditing={handleSignUp}
+              onSubmitEditing={handleSignUpPress}
               value={password}
               onChangeText={(v) => { setPassword(v); setError(""); }}
             />
@@ -165,7 +172,7 @@ export default function SignUpScreen() {
 
           <Pressable
             style={[styles.submitBtn, (submitting || !!oauthLoading) && styles.disabled]}
-            onPress={handleSignUp}
+            onPress={handleSignUpPress}
             disabled={submitting || !!oauthLoading}
           >
             {submitting
@@ -178,13 +185,19 @@ export default function SignUpScreen() {
             By creating an account, you agree to our{" "}
             <Text
               style={styles.privacyLink}
-              onPress={() => Linking.openURL("https://kevyn04.github.io/HangoutProject/privacy.html")}
+              onPress={() => setShowPrivacy(true)}
             >
               Privacy Policy
             </Text>
           </Text>
         </ScrollView>
       </KeyboardAvoidingView>
+
+      <PrivacyPolicyModal
+        visible={showPrivacy}
+        onAgree={handlePrivacyAgree}
+        onDecline={() => setShowPrivacy(false)}
+      />
     </View>
   );
 }
