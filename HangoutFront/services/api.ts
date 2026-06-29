@@ -230,16 +230,28 @@ export async function getBubbles(): Promise<any[]> {
   const { data, error } = await supabase
     .from('bubbles')
     .select(`*, bubble_member_detail(username)`)
+    .or(futureBubblesFilter())
     .order('created_at', { ascending: false });
 
   if (error) throw new Error(error.message);
   return (data ?? []).map(mapBubble);
 }
 
+export async function getBubbleById(id: number): Promise<any | null> {
+  const { data, error } = await supabase
+    .from('bubbles')
+    .select(`*, bubble_member_detail(username)`)
+    .eq('id', id)
+    .single();
+
+  if (error) return null;
+  return mapBubble(data);
+}
+
 export async function createBubble(bubble: {
   name: string; description?: string; createdBy: string; type?: string;
   meetTime?: string; maxMembers?: number; latitude?: number; longitude?: number;
-  isSecret?: boolean; revealAt?: string;
+  isSecret?: boolean; revealAt?: string; endsAt?: string;
 }): Promise<any> {
   const { data, error } = await supabase
     .from('bubbles')
@@ -254,6 +266,7 @@ export async function createBubble(bubble: {
       lng: bubble.longitude,
       is_secret: bubble.isSecret ?? false,
       reveal_at: bubble.revealAt,
+      ends_at: bubble.endsAt,
     })
     .select()
     .single();
@@ -767,6 +780,7 @@ export async function getTrendingBubbles(): Promise<any[]> {
   const { data, error } = await supabase
     .from('bubbles')
     .select('*, bubble_member_detail(username)')
+    .or(futureBubblesFilter())
     .order('created_at', { ascending: false })
     .limit(30);
 
@@ -810,6 +824,7 @@ export async function getFollowingFeed(username: string): Promise<ActivityItem[]
       .from('bubbles')
       .select('*, bubble_member_detail(username)')
       .in('created_by', followed)
+      .or(futureBubblesFilter())
       .order('created_at', { ascending: false })
       .limit(20),
     supabase
@@ -887,6 +902,7 @@ export async function getSuggestedFeed(username: string): Promise<ActivityItem[]
       .from('bubbles')
       .select('*, bubble_member_detail(username)')
       .in('created_by', suggested)
+      .or(futureBubblesFilter())
       .order('created_at', { ascending: false })
       .limit(20),
     supabase
@@ -925,6 +941,7 @@ export async function getDiscoverFeed(excludeUsername?: string): Promise<Activit
     supabase
       .from('bubbles')
       .select('*, bubble_member_detail(username)')
+      .or(futureBubblesFilter())
       .order('created_at', { ascending: false })
       .limit(25),
     supabase
@@ -1081,8 +1098,14 @@ function mapBubble(r: any) {
     createdBy: r.created_by, type: r.type, meetTime: r.meet_time,
     maxMembers: r.max_members, latitude: r.lat, longitude: r.lng,
     isSecret: r.is_secret, revealAt: r.reveal_at, createdAt: r.created_at,
+    endsAt: r.ends_at ?? null,
     members: (r.bubble_member_detail ?? []).map((m: any) => m.username),
   };
+}
+
+function futureBubblesFilter() {
+  const now = new Date().toISOString();
+  return `ends_at.is.null,ends_at.gt.${now}`;
 }
 
 function mapPage(r: any) {
@@ -1192,6 +1215,7 @@ export async function searchBubbles(query: string): Promise<any[]> {
     .from('bubbles')
     .select('*, bubble_member_detail(username)')
     .or(`name.ilike.%${safe}%,description.ilike.%${safe}%`)
+    .or(futureBubblesFilter())
     .order('created_at', { ascending: false })
     .limit(20);
   if (error) throw new Error(error.message);
