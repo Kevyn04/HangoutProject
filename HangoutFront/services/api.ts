@@ -532,16 +532,31 @@ export async function getFollowingPages(username: string): Promise<any[]> {
 
 // ── Profile ───────────────────────────────────────────────────────────────────
 
+const AVATAR_ALLOWED_MIME: Record<string, string> = {
+  jpg: 'image/jpeg',
+  jpeg: 'image/jpeg',
+  png: 'image/png',
+  webp: 'image/webp',
+  heic: 'image/heic',
+  heif: 'image/heif',
+};
+const AVATAR_MAX_BYTES = 5 * 1024 * 1024; // 5 MB
+
 export async function uploadAvatar(localUri: string): Promise<string> {
   const { data: { user } } = await supabase.auth.getUser();
   if (!user) throw new Error('Not authenticated');
 
-  const ext = localUri.split('.').pop()?.toLowerCase().replace('jpeg', 'jpg') ?? 'jpg';
-  const mime = ext === 'jpg' ? 'image/jpeg' : `image/${ext}`;
-  const path = `${user.id}/avatar.${ext}`;
+  const rawExt = localUri.split('.').pop()?.toLowerCase() ?? '';
+  const mime = AVATAR_ALLOWED_MIME[rawExt];
+  if (!mime) throw new Error('Only JPG, PNG, WebP, or HEIC images are allowed.');
 
   const response = await fetch(localUri);
   const blob = await response.blob();
+
+  if (blob.size > AVATAR_MAX_BYTES) throw new Error('Image must be under 5 MB.');
+
+  // Always store as a fixed filename — no extension games, one file per user
+  const path = `${user.id}/avatar`;
 
   const { error } = await supabase.storage
     .from('avatars')
