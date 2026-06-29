@@ -1,7 +1,7 @@
 import React, { useState, useRef } from "react";
 import {
   View, Text, TextInput, StyleSheet, Pressable, Alert,
-  ActivityIndicator, KeyboardAvoidingView, Platform, ScrollView,
+  ActivityIndicator, KeyboardAvoidingView, Platform, ScrollView, Linking,
 } from "react-native";
 import { LinearGradient } from "expo-linear-gradient";
 import { useFonts, Cinzel_700Bold } from "@expo-google-fonts/cinzel";
@@ -173,6 +173,16 @@ export default function SignUpScreen() {
               : <Text style={styles.submitBtnText}>Sign Up</Text>
             }
           </Pressable>
+
+          <Text style={styles.privacyNote}>
+            By creating an account, you agree to our{" "}
+            <Text
+              style={styles.privacyLink}
+              onPress={() => Linking.openURL("https://kevyn04.github.io/HangoutProject/privacy.html")}
+            >
+              Privacy Policy
+            </Text>
+          </Text>
         </ScrollView>
       </KeyboardAvoidingView>
     </View>
@@ -227,4 +237,6 @@ const styles = StyleSheet.create({
   },
   submitBtnText: { fontSize: 14, letterSpacing: 1.5, color: AppColors.btnLightText, fontFamily: "Cinzel_700Bold" },
   disabled: { opacity: 0.6 },
+  privacyNote: { color: "rgba(255,255,255,0.35)", fontSize: 12, textAlign: "center", marginTop: 16, lineHeight: 18 },
+  privacyLink: { color: "rgba(255,255,255,0.6)", textDecorationLine: "underline" },
 });
