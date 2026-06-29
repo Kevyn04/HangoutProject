@@ -101,6 +101,7 @@ export default function CreateScreen() {
         time: formatEventDate(eventDate),
         createdBy: user!,
         type: eventType,
+        eventDateISO: eventDate.toISOString(),
         ...(pinCoords && { latitude: pinCoords.latitude, longitude: pinCoords.longitude }),
       });
       router.back();

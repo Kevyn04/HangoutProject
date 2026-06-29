@@ -5,21 +5,9 @@ import * as Haptics from "expo-haptics";
 import * as Notifications from "expo-notifications";
 import { useFonts, Cinzel_700Bold } from "@expo-google-fonts/cinzel";
 import { useLocalSearchParams, useRouter } from "expo-router";
-import AsyncStorage from "@react-native-async-storage/async-storage";
 import { useAuth } from "@/services/auth-context";
 import { useToast } from "@/context/ToastContext";
-import { deleteEvent, getEventAttendees, joinEvent, leaveEvent } from "@/services/api";
-
-async function loadJoined(username: string): Promise<number[]> {
-  try {
-    const v = await AsyncStorage.getItem(`joined_events_${username}`);
-    return v ? JSON.parse(v) : [];
-  } catch { return []; }
-}
-
-async function saveJoined(username: string, ids: number[]): Promise<void> {
-  try { await AsyncStorage.setItem(`joined_events_${username}`, JSON.stringify(ids)); } catch {}
-}
+import { deleteEvent, getEventAttendees, getEventById, joinEvent, leaveEvent } from "@/services/api";
 
 export default function EventDetailsScreen() {
   const router = useRouter();
@@ -38,19 +26,21 @@ export default function EventDetailsScreen() {
   const [attendees, setAttendees] = useState<string[]>([]);
   const [showAttendees, setShowAttendees] = useState(false);
   const [reminded, setReminded] = useState(false);
+  const [concluded, setConcluded] = useState(false);
 
   useEffect(() => {
     if (!user) return;
     const nid = Number(id);
-    // Restore isAttending from local cache immediately
-    loadJoined(user).then((ids) => setIsAttending(ids.includes(nid)));
-    // Fetch count + attendee list from DB (display only)
     setDataLoading(true);
     setDataError(false);
-    getEventAttendees(nid)
-      .then((list) => {
+    Promise.all([getEventAttendees(nid), getEventById(nid)])
+      .then(([list, eventData]) => {
         setAttendees(list);
         setAttendeeCount(list.length);
+        setIsAttending(list.includes(user));
+        if (eventData.eventDate) {
+          setConcluded(new Date(eventData.eventDate) < new Date());
+        }
       })
       .catch(() => setDataError(true))
       .finally(() => setDataLoading(false));
@@ -91,17 +81,15 @@ export default function EventDetailsScreen() {
     try {
       if (isAttending) {
         await leaveEvent(nid, user);
-        const ids = await loadJoined(user);
-        await saveJoined(user, ids.filter((eid) => eid !== nid));
         setIsAttending(false);
         setAttendeeCount((c) => Math.max(0, c - 1));
         setAttendees((prev) => prev.filter((u) => u !== user));
       } else {
         await joinEvent(nid, user);
-        const ids = await loadJoined(user);
-        if (!ids.includes(nid)) await saveJoined(user, [...ids, nid]);
-        showToast(`Joined ${title}!`);
-        router.back();
+        setIsAttending(true);
+        setAttendeeCount((c) => c + 1);
+        setAttendees((prev) => [...prev, user]);
+        showToast(`Joined ${title}!`, "success");
       }
     } catch {
       Alert.alert("Error", "Could not update attendance.");
@@ -135,6 +123,11 @@ export default function EventDetailsScreen() {
 
       <View style={styles.content}>
         <Text style={styles.title}>{title}</Text>
+        {concluded && (
+          <View style={styles.concludedBanner}>
+            <Text style={styles.concludedBannerText}>This event has ended</Text>
+          </View>
+        )}
         {!!type && (
           <View style={styles.typeBadge}>
             <Text style={styles.typeBadgeText}>{type}</Text>
@@ -170,8 +163,8 @@ export default function EventDetailsScreen() {
           </Pressable>
         </View>
 
-        {/* Join / Leave — only for non-creators */}
-        {!isCreator && (
+        {/* Join / Leave — only for non-creators and active events */}
+        {!isCreator && !concluded && (
           <Pressable
             style={({ pressed }) => [
               styles.attendBtn,
@@ -190,8 +183,8 @@ export default function EventDetailsScreen() {
           </Pressable>
         )}
 
-        {/* Remind Me */}
-        {!isCreator && (
+        {/* Remind Me — only for active events */}
+        {!isCreator && !concluded && (
           <Pressable
             style={({ pressed }) => [styles.remindBtn, reminded && styles.remindBtnDone, pressed && styles.pressed]}
             onPress={handleRemind}
@@ -207,7 +200,7 @@ export default function EventDetailsScreen() {
             style={({ pressed }) => [styles.chatBtn, pressed && styles.pressed]}
             onPress={() => router.push({ pathname: "/event-chat", params: { eventId: id, title } })}
           >
-            <Text style={styles.chatBtnText}>Open Event Chat</Text>
+            <Text style={styles.chatBtnText}>{concluded ? "View Event Chat" : "Open Event Chat"}</Text>
           </Pressable>
         )}
 
@@ -303,6 +296,14 @@ const styles = StyleSheet.create({
   },
   deleteBtnText: { fontSize: 14, letterSpacing: 1.5, color: "#dc2626", fontFamily: "Cinzel_700Bold" },
   pressed: { transform: [{ scale: 0.98 }], opacity: 0.9 },
+
+  concludedBanner: {
+    backgroundColor: "rgba(255,255,255,0.08)", borderRadius: 10,
+    borderWidth: 1, borderColor: "rgba(255,255,255,0.15)",
+    paddingVertical: 10, paddingHorizontal: 16, marginBottom: 16,
+    alignItems: "center",
+  },
+  concludedBannerText: { color: "rgba(255,255,255,0.55)", fontSize: 14, fontWeight: "600", letterSpacing: 0.3 },
 
   typeBadge: {
     alignSelf: "flex-start", backgroundColor: "rgba(220,38,38,0.15)",

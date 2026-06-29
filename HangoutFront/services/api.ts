@@ -104,15 +104,28 @@ export async function getEvents(): Promise<any[]> {
   const { data, error } = await supabase
     .from('events')
     .select('*')
+    .or(futureEventsFilter())
     .order('created_at', { ascending: false });
 
   if (error) throw new Error(error.message);
   return (data ?? []).map(mapEvent);
 }
 
+export async function getEventById(id: number): Promise<any> {
+  const { data, error } = await supabase
+    .from('events')
+    .select('*')
+    .eq('id', id)
+    .single();
+
+  if (error) throw new Error(error.message);
+  return mapEvent(data);
+}
+
 export async function createEvent(event: {
   title: string; location: string; time: string;
   createdBy: string; latitude?: number; longitude?: number; type?: string;
+  eventDateISO?: string;
 }): Promise<any> {
   const { data, error } = await supabase
     .from('events')
@@ -124,6 +137,7 @@ export async function createEvent(event: {
       lat: event.latitude,
       lng: event.longitude,
       type: event.type ?? null,
+      event_date: event.eventDateISO ?? null,
     })
     .select()
     .single();
@@ -186,6 +200,19 @@ export async function joinEvent(
     .from('event_attendees')
     .upsert({ event_id: id, username }, { onConflict: 'event_id,username', ignoreDuplicates: true });
   if (error) throw new Error(error.message);
+
+  // Notify event creator (fire-and-forget)
+  const { data: event } = await supabase
+    .from('events').select('created_by, title').eq('id', id).single();
+  if (event && event.created_by !== username) {
+    sendPushNotification(
+      event.created_by, 'event_join',
+      "Someone RSVP'd to your event!",
+      `${username} is going to "${event.title}"`,
+      { eventId: id },
+    );
+  }
+
   return getEventAttendance(id, username);
 }
 
@@ -261,6 +288,19 @@ export async function joinBubble(id: number, username: string): Promise<any> {
     .from('bubble_member_detail')
     .insert({ bubble_id: id, username });
   if (error) throw new Error(error.message);
+
+  // Notify bubble creator (fire-and-forget)
+  const { data: bubble } = await supabase
+    .from('bubbles').select('created_by, name').eq('id', id).single();
+  if (bubble && bubble.created_by !== username) {
+    sendPushNotification(
+      bubble.created_by, 'bubble_join',
+      'Someone joined your bubble!',
+      `${username} just joined "${bubble.name}"`,
+      { bubbleId: id },
+    );
+  }
+
   return { bubbleId: id, username };
 }
 
@@ -465,6 +505,7 @@ export async function getPageContent(pageId: number): Promise<{ events: any[]; b
       .from('events')
       .select('*')
       .eq('created_by', page.created_by)
+      .or(futureEventsFilter())
       .order('created_at', { ascending: false }),
     supabase
       .from('bubbles')
@@ -695,23 +736,18 @@ export async function getTrendingBubbles(): Promise<any[]> {
 }
 
 export async function getPopularEvents(): Promise<any[]> {
-  const { data: events, error } = await supabase
+  const { data, error } = await supabase
     .from('events')
-    .select('*')
+    .select('*, event_attendees(count)')
+    .or(futureEventsFilter())
     .order('created_at', { ascending: false })
     .limit(30);
 
   if (error) throw new Error(error.message);
-  if (!events?.length) return [];
+  if (!data?.length) return [];
 
-  const { data: attendees } = await supabase.from('event_attendees').select('event_id');
-  const countMap: Record<number, number> = {};
-  for (const { event_id } of attendees ?? []) {
-    countMap[event_id] = (countMap[event_id] ?? 0) + 1;
-  }
-
-  return events
-    .map((e: any) => ({ ...mapEvent(e), attendeeCount: countMap[e.id] ?? 0 }))
+  return data
+    .map((e: any) => ({ ...mapEvent(e), attendeeCount: e.event_attendees?.[0]?.count ?? 0 }))
     .sort((a: any, b: any) => b.attendeeCount - a.attendeeCount)
     .slice(0, 6);
 }
@@ -738,6 +774,7 @@ export async function getFollowingFeed(username: string): Promise<ActivityItem[]
       .from('events')
       .select('*')
       .in('created_by', followed)
+      .or(futureEventsFilter())
       .order('created_at', { ascending: false })
       .limit(20),
     supabase
@@ -814,6 +851,7 @@ export async function getSuggestedFeed(username: string): Promise<ActivityItem[]
       .from('events')
       .select('*')
       .in('created_by', suggested)
+      .or(futureEventsFilter())
       .order('created_at', { ascending: false })
       .limit(20),
   ]);
@@ -850,6 +888,7 @@ export async function getDiscoverFeed(excludeUsername?: string): Promise<Activit
     supabase
       .from('events')
       .select('*')
+      .or(futureEventsFilter())
       .order('created_at', { ascending: false })
       .limit(25),
   ]);
@@ -986,7 +1025,12 @@ function mapEvent(r: any) {
     id: r.id, title: r.title, location: r.location, time: r.time,
     createdBy: r.created_by, latitude: r.lat, longitude: r.lng,
     createdAt: r.created_at, type: r.type ?? null,
+    eventDate: r.event_date ?? null,
   };
+}
+
+function futureEventsFilter() {
+  return `event_date.is.null,event_date.gt.${new Date().toISOString()}`;
 }
 
 function mapBubble(r: any) {
@@ -1006,4 +1050,164 @@ function mapPage(r: any) {
     category: r.category, createdBy: r.created_by,
     avatarColor: r.avatar_color, createdAt: r.created_at,
   };
+}
+
+// ── Push Notifications ────────────────────────────────────────────────────────
+
+export function sendPushNotification(
+  recipientUsername: string,
+  type: string,
+  title: string,
+  body: string,
+  data?: Record<string, any>,
+): void {
+  supabase.functions.invoke('send-notification', {
+    body: { recipient_username: recipientUsername, type, title, body, data },
+  }).catch(() => {});
+}
+
+// ── Notifications ─────────────────────────────────────────────────────────────
+
+export async function getNotifications(username: string): Promise<any[]> {
+  const { data, error } = await supabase
+    .from('notifications')
+    .select('*')
+    .eq('recipient_username', username)
+    .order('created_at', { ascending: false })
+    .limit(50);
+  if (error) throw new Error(error.message);
+  return (data ?? []).map((n) => ({
+    id: n.id, type: n.type, title: n.title, body: n.body,
+    data: n.data, read: n.read, createdAt: n.created_at,
+  }));
+}
+
+export async function markNotificationRead(id: number): Promise<void> {
+  await supabase.from('notifications').update({ read: true }).eq('id', id);
+}
+
+export async function markAllNotificationsRead(username: string): Promise<void> {
+  await supabase
+    .from('notifications')
+    .update({ read: true })
+    .eq('recipient_username', username)
+    .eq('read', false);
+}
+
+export async function getUnreadNotificationCount(username: string): Promise<number> {
+  const { count } = await supabase
+    .from('notifications')
+    .select('*', { count: 'exact', head: true })
+    .eq('recipient_username', username)
+    .eq('read', false);
+  return count ?? 0;
+}
+
+// ── Search ────────────────────────────────────────────────────────────────────
+
+export async function searchUsers(query: string, _viewer?: string): Promise<any[]> {
+  const { data, error } = await supabase
+    .from('profiles')
+    .select('username, bio, avatar_color, profile_emoji')
+    .ilike('username', `%${query}%`)
+    .limit(20);
+  if (error) throw new Error(error.message);
+  return (data ?? []).map((u) => ({
+    username: u.username,
+    bio: u.bio ?? '',
+    avatarColor: u.avatar_color ?? '#7c3aed',
+    profileEmoji: u.profile_emoji ?? '',
+  }));
+}
+
+export async function searchEvents(query: string): Promise<any[]> {
+  const { data, error } = await supabase
+    .from('events')
+    .select('*')
+    .or(`title.ilike.%${query}%,location.ilike.%${query}%`)
+    .or(futureEventsFilter())
+    .order('created_at', { ascending: false })
+    .limit(20);
+  if (error) throw new Error(error.message);
+  return (data ?? []).map(mapEvent);
+}
+
+export async function searchBubbles(query: string): Promise<any[]> {
+  const { data, error } = await supabase
+    .from('bubbles')
+    .select('*, bubble_member_detail(username)')
+    .or(`name.ilike.%${query}%,description.ilike.%${query}%`)
+    .order('created_at', { ascending: false })
+    .limit(20);
+  if (error) throw new Error(error.message);
+  return (data ?? []).map(mapBubble);
+}
+
+// ── Invites ───────────────────────────────────────────────────────────────────
+
+export async function sendInvite(
+  inviterUsername: string,
+  inviteeUsername: string,
+  bubbleId?: number,
+  eventId?: number,
+): Promise<void> {
+  const { error } = await supabase.from('invites').insert({
+    inviter_username: inviterUsername,
+    invitee_username: inviteeUsername,
+    bubble_id: bubbleId ?? null,
+    event_id:  eventId  ?? null,
+  });
+  if (error) throw new Error(error.message);
+
+  // Build notification content
+  let title = `${inviterUsername} invited you!`;
+  let body  = 'You have a new invite.';
+  let data: Record<string, any> = {};
+
+  if (bubbleId) {
+    const { data: bubble } = await supabase
+      .from('bubbles').select('name').eq('id', bubbleId).single();
+    if (bubble) { title = `${inviterUsername} invited you to a bubble!`; body = `Join "${bubble.name}"`; data = { bubbleId }; }
+  } else if (eventId) {
+    const { data: event } = await supabase
+      .from('events').select('title').eq('id', eventId).single();
+    if (event) { title = `${inviterUsername} invited you to an event!`; body = `Join "${event.title}"`; data = { eventId }; }
+  }
+
+  sendPushNotification(inviteeUsername, 'invite', title, body, data);
+}
+
+export async function getMyInvites(username: string): Promise<any[]> {
+  const { data, error } = await supabase
+    .from('invites')
+    .select('*, bubbles(name), events(title)')
+    .eq('invitee_username', username)
+    .eq('status', 'pending')
+    .order('created_at', { ascending: false });
+  if (error) throw new Error(error.message);
+  return (data ?? []).map((r) => ({
+    id: r.id,
+    inviterUsername: r.inviter_username,
+    inviteeUsername: r.invitee_username,
+    bubbleId:   r.bubble_id,
+    eventId:    r.event_id,
+    bubbleName: r.bubbles?.name  ?? null,
+    eventTitle: r.events?.title  ?? null,
+    status:     r.status,
+    createdAt:  r.created_at,
+  }));
+}
+
+export async function respondToInvite(id: number, status: 'accepted' | 'declined'): Promise<void> {
+  const { error } = await supabase.from('invites').update({ status }).eq('id', id);
+  if (error) throw new Error(error.message);
+}
+
+export async function getUnreadInviteCount(username: string): Promise<number> {
+  const { count } = await supabase
+    .from('invites')
+    .select('*', { count: 'exact', head: true })
+    .eq('invitee_username', username)
+    .eq('status', 'pending');
+  return count ?? 0;
 }
