@@ -5,9 +5,11 @@ import {
 } from "react-native";
 import { Ionicons } from "@expo/vector-icons";
 import * as Haptics from "expo-haptics";
+import * as ImagePicker from "expo-image-picker";
 import { useFocusEffect, useRouter } from "expo-router";
 import { useAuth } from "@/services/auth-context";
-import { getProfile, updateProfile, getUserBubbles, getUserRatings } from "@/services/api";
+import { getProfile, updateProfile, uploadAvatar, getUserBubbles, getUserRatings } from "@/services/api";
+import { UserAvatar } from "@/components/UserAvatar";
 import { ColorWheelPicker } from "@/components/ColorWheelPicker";
 import { SkeletonBox } from "@/components/SkeletonBox";
 import { ErrorScreen } from "@/components/ErrorScreen";
@@ -54,6 +56,8 @@ export default function ProfileScreen() {
   const [profile, setProfile] = useState<Profile | null>(null);
   const [loadError, setLoadError] = useState(false);
   const [avatarColor, setAvatarColor] = useState<string>("#7c3aed");
+  const [avatarUrl, setAvatarUrl] = useState<string | null>(null);
+  const [avatarUploading, setAvatarUploading] = useState(false);
   const [profileEmoji, setProfileEmoji] = useState<string>("");
   const [createdBubbles, setCreatedBubbles] = useState<BubbleItem[]>([]);
   const [joinedBubbles, setJoinedBubbles] = useState<BubbleItem[]>([]);
@@ -77,6 +81,7 @@ export default function ProfileScreen() {
       ]);
       setProfile(p);
       setAvatarColor(p.avatarColor || "#7c3aed");
+      setAvatarUrl(p.avatarUrl || null);
       setProfileEmoji(p.profileEmoji || "");
       setBioInput(p.bio || "");
       setCreatedBubbles(b.created || []);
@@ -124,6 +129,33 @@ export default function ProfileScreen() {
     updateProfile(user, { avatarColor: color }).catch(() => {
       showToast("Could not save color.");
     });
+  };
+
+  const handlePickPhoto = async () => {
+    const { status } = await ImagePicker.requestMediaLibraryPermissionsAsync();
+    if (status !== "granted") {
+      Alert.alert("Permission needed", "Allow photo access in Settings to change your profile photo.");
+      return;
+    }
+    const result = await ImagePicker.launchImageLibraryAsync({
+      mediaTypes: ImagePicker.MediaTypeOptions.Images,
+      allowsEditing: true,
+      aspect: [1, 1],
+      quality: 0.7,
+    });
+    if (result.canceled || !result.assets[0]) return;
+
+    setAvatarUploading(true);
+    try {
+      const url = await uploadAvatar(result.assets[0].uri);
+      await updateProfile(user!, { avatarUrl: url });
+      setAvatarUrl(url);
+      showToast("Photo updated!", "success");
+    } catch {
+      Alert.alert("Upload failed", "Couldn't save your photo. Try again.");
+    } finally {
+      setAvatarUploading(false);
+    }
   };
 
   if (!user) {
@@ -199,9 +231,15 @@ export default function ProfileScreen() {
           {/* Profile + Bubble Pop side by side */}
           <View style={s.avatarsRow}>
             <View style={s.avatarCol}>
-              <View style={[s.avatar, { backgroundColor: avatarColor }]}>
-                <Text style={s.avatarText}>{initial}</Text>
-              </View>
+              <Pressable onPress={handlePickPhoto} disabled={avatarUploading} style={s.avatarWrapper}>
+                <UserAvatar username={user} avatarColor={avatarColor} avatarUrl={avatarUrl} size={88} />
+                <View style={s.cameraBtn}>
+                  {avatarUploading
+                    ? <ActivityIndicator size="small" color="#fff" />
+                    : <Ionicons name="camera" size={14} color="#fff" />
+                  }
+                </View>
+              </Pressable>
               <Text style={s.avatarColLabel}>Profile</Text>
             </View>
 
@@ -415,8 +453,13 @@ const s = StyleSheet.create({
   avatarSection: { alignItems: "center", paddingVertical: 24, gap: 10 },
   avatarsRow: { flexDirection: "row", alignItems: "flex-start", gap: 20 },
   avatarCol: { alignItems: "center", gap: 6 },
-  avatar: { width: 88, height: 88, borderRadius: 44, alignItems: "center", justifyContent: "center" },
-  avatarText: { color: "#fff", fontSize: 36, fontWeight: "700" },
+  avatarWrapper: { position: "relative" },
+  cameraBtn: {
+    position: "absolute", bottom: 0, right: 0,
+    width: 28, height: 28, borderRadius: 14,
+    backgroundColor: "#dc2626", alignItems: "center", justifyContent: "center",
+    borderWidth: 2, borderColor: "#0f0305",
+  },
   avatarColLabel: { color: "rgba(255,255,255,0.35)", fontSize: 11, letterSpacing: 0.5 },
 
   bubblePopCircle: {

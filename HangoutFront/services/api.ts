@@ -532,9 +532,30 @@ export async function getFollowingPages(username: string): Promise<any[]> {
 
 // ── Profile ───────────────────────────────────────────────────────────────────
 
+export async function uploadAvatar(localUri: string): Promise<string> {
+  const { data: { user } } = await supabase.auth.getUser();
+  if (!user) throw new Error('Not authenticated');
+
+  const ext = localUri.split('.').pop()?.toLowerCase().replace('jpeg', 'jpg') ?? 'jpg';
+  const mime = ext === 'jpg' ? 'image/jpeg' : `image/${ext}`;
+  const path = `${user.id}/avatar.${ext}`;
+
+  const response = await fetch(localUri);
+  const blob = await response.blob();
+
+  const { error } = await supabase.storage
+    .from('avatars')
+    .upload(path, blob, { upsert: true, contentType: mime });
+
+  if (error) throw new Error(error.message);
+
+  const { data } = supabase.storage.from('avatars').getPublicUrl(path);
+  return `${data.publicUrl}?t=${Date.now()}`;
+}
+
 export async function getProfile(username: string, viewer?: string): Promise<any> {
   const [profileRes, followerRes, followingRes, ratingsRes] = await Promise.all([
-    supabase.from('profiles').select('username, bio, avatar_color, profile_emoji').eq('username', username).single(),
+    supabase.from('profiles').select('username, bio, avatar_color, profile_emoji, avatar_url').eq('username', username).single(),
     supabase.from('user_follows').select('*', { count: 'exact', head: true }).eq('followee', username),
     supabase.from('user_follows').select('*', { count: 'exact', head: true }).eq('follower', username),
     supabase.from('user_ratings').select('rating').eq('rated_username', username),
@@ -559,6 +580,7 @@ export async function getProfile(username: string, viewer?: string): Promise<any
     bio: profileRes.data.bio ?? '',
     avatarColor: profileRes.data.avatar_color ?? '#7c3aed',
     profileEmoji: profileRes.data.profile_emoji ?? '',
+    avatarUrl: profileRes.data.avatar_url ?? null,
     followerCount: followerRes.count ?? 0,
     followingCount: followingRes.count ?? 0,
     isFollowing,
@@ -569,12 +591,13 @@ export async function getProfile(username: string, viewer?: string): Promise<any
 
 export async function updateProfile(
   username: string,
-  data: { bio?: string; avatarColor?: string; profileEmoji?: string }
+  data: { bio?: string; avatarColor?: string; profileEmoji?: string; avatarUrl?: string }
 ): Promise<any> {
   const update: Record<string, any> = {};
   if (data.bio !== undefined) update.bio = data.bio;
   if (data.avatarColor !== undefined) update.avatar_color = data.avatarColor;
   if (data.profileEmoji !== undefined) update.profile_emoji = data.profileEmoji;
+  if (data.avatarUrl !== undefined) update.avatar_url = data.avatarUrl;
 
   const { error } = await supabase.from('profiles').update(update).eq('username', username);
   if (error) throw new Error(error.message);
@@ -1116,7 +1139,7 @@ export async function searchUsers(query: string, _viewer?: string): Promise<any[
   if (!safe) return [];
   const { data, error } = await supabase
     .from('profiles')
-    .select('username, bio, avatar_color, profile_emoji')
+    .select('username, bio, avatar_color, profile_emoji, avatar_url')
     .ilike('username', `%${safe}%`)
     .limit(20);
   if (error) throw new Error(error.message);
@@ -1125,6 +1148,7 @@ export async function searchUsers(query: string, _viewer?: string): Promise<any[
     bio: u.bio ?? '',
     avatarColor: u.avatar_color ?? '#7c3aed',
     profileEmoji: u.profile_emoji ?? '',
+    avatarUrl: u.avatar_url ?? null,
   }));
 }
 
