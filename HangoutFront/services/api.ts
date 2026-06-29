@@ -533,12 +533,9 @@ export async function getFollowingPages(username: string): Promise<any[]> {
 // ── Profile ───────────────────────────────────────────────────────────────────
 
 const AVATAR_ALLOWED_MIME: Record<string, string> = {
-  jpg: 'image/jpeg',
-  jpeg: 'image/jpeg',
-  png: 'image/png',
-  webp: 'image/webp',
-  heic: 'image/heic',
-  heif: 'image/heif',
+  jpg: 'image/jpeg', jpeg: 'image/jpeg',
+  png: 'image/png', webp: 'image/webp',
+  heic: 'image/heic', heif: 'image/heif',
 };
 const AVATAR_MAX_BYTES = 5 * 1024 * 1024; // 5 MB
 
@@ -547,20 +544,27 @@ export async function uploadAvatar(localUri: string): Promise<string> {
   if (!user) throw new Error('Not authenticated');
 
   const rawExt = localUri.split('.').pop()?.toLowerCase() ?? '';
-  const mime = AVATAR_ALLOWED_MIME[rawExt];
-  if (!mime) throw new Error('Only JPG, PNG, WebP, or HEIC images are allowed.');
+  if (!AVATAR_ALLOWED_MIME[rawExt]) throw new Error('Only JPG, PNG, WebP, or HEIC images are allowed.');
 
-  const response = await fetch(localUri);
+  // Re-encode through the pixel pipeline — strips EXIF, embedded scripts,
+  // polyglot payloads, and any hidden data. Result is pure pixel data as JPEG.
+  const { manipulateAsync, SaveFormat } = await import('expo-image-manipulator');
+  const clean = await manipulateAsync(
+    localUri,
+    [{ resize: { width: 400, height: 400 } }],
+    { compress: 0.85, format: SaveFormat.JPEG }
+  );
+
+  const response = await fetch(clean.uri);
   const blob = await response.blob();
 
   if (blob.size > AVATAR_MAX_BYTES) throw new Error('Image must be under 5 MB.');
 
-  // Always store as a fixed filename — no extension games, one file per user
   const path = `${user.id}/avatar`;
 
   const { error } = await supabase.storage
     .from('avatars')
-    .upload(path, blob, { upsert: true, contentType: mime });
+    .upload(path, blob, { upsert: true, contentType: 'image/jpeg' });
 
   if (error) throw new Error(error.message);
 
