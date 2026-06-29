@@ -10,6 +10,7 @@ import { useAuth } from "@/services/auth-context";
 import {
   ActivityItem, getFollowingFeed, getDiscoverFeed, getSuggestedFeed,
   getSuggestedUsers, toggleUserFollow, getUnreadNotificationCount, getUnreadInviteCount,
+  getUnreadDMCount,
 } from "@/services/api";
 import { SkeletonBox } from "@/components/SkeletonBox";
 import { EmptyState } from "@/components/EmptyState";
@@ -164,6 +165,7 @@ export default function FeedScreen() {
   const [loadError, setLoadError]           = useState(false);
   const [following, setFollowing]           = useState<Set<string>>(new Set());
   const [bellCount, setBellCount]           = useState(0);
+  const [dmCount, setDmCount]               = useState(0);
   const [refreshing, setRefreshing]         = useState(false);
 
   const load = useCallback(async (silent = false) => {
@@ -173,17 +175,19 @@ export default function FeedScreen() {
       const [discover] = await Promise.all([getDiscoverFeed(user ?? undefined)]);
       setDiscoverFeed(discover);
       if (user) {
-        const [feed, suggested, sugg, notifCount, inviteCount] = await Promise.all([
+        const [feed, suggested, sugg, notifCount, inviteCount, dmUnread] = await Promise.all([
           getFollowingFeed(user),
           getSuggestedFeed(user),
           getSuggestedUsers(user),
           getUnreadNotificationCount(user),
           getUnreadInviteCount(user),
+          getUnreadDMCount(user),
         ]);
         setFollowingFeed(feed);
         setSuggestedFeed(suggested);
         setSuggestions(sugg);
         setBellCount(notifCount + inviteCount);
+        setDmCount(dmUnread);
       }
     } catch {
       setLoadError(true);
@@ -265,6 +269,17 @@ export default function FeedScreen() {
             onPress={() => { Haptics.impactAsync(Haptics.ImpactFeedbackStyle.Light); router.push("/search" as any); }}
           >
             <Ionicons name="search" size={22} color="rgba(255,255,255,0.75)" />
+          </Pressable>
+          <Pressable
+            style={s.headerIconBtn}
+            onPress={() => { Haptics.impactAsync(Haptics.ImpactFeedbackStyle.Light); router.push("/dms" as any); }}
+          >
+            <Ionicons name={dmCount > 0 ? "chatbubble" : "chatbubble-outline"} size={22} color={dmCount > 0 ? "#dc2626" : "rgba(255,255,255,0.75)"} />
+            {dmCount > 0 && (
+              <View style={s.bellBadge}>
+                <Text style={s.bellBadgeText}>{dmCount > 9 ? "9+" : dmCount}</Text>
+              </View>
+            )}
           </Pressable>
           <Pressable
             style={s.headerIconBtn}
