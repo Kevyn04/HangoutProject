@@ -27,6 +27,12 @@ Thumbs.db
 *.suo
 *.user
 
+# ── Supabase ───────────────────────────────────────────────
+supabase/.temp/
+node_modules/
+package-lock.json
+package.json
+
 # ── Misc ───────────────────────────────────────────────────
 *.log
 HangoutBack/untitled/

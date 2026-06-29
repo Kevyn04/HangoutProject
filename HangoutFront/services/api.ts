@@ -1105,11 +1105,19 @@ export async function getUnreadNotificationCount(username: string): Promise<numb
 
 // ── Search ────────────────────────────────────────────────────────────────────
 
+// Strip characters that break PostgREST .or() filter string parsing.
+// % and _ are ILIKE wildcards; , . ( ) are PostgREST syntax characters.
+function sanitizeSearchQuery(q: string): string {
+  return q.replace(/[%_,().]/g, '').trim();
+}
+
 export async function searchUsers(query: string, _viewer?: string): Promise<any[]> {
+  const safe = sanitizeSearchQuery(query);
+  if (!safe) return [];
   const { data, error } = await supabase
     .from('profiles')
     .select('username, bio, avatar_color, profile_emoji')
-    .ilike('username', `%${query}%`)
+    .ilike('username', `%${safe}%`)
     .limit(20);
   if (error) throw new Error(error.message);
   return (data ?? []).map((u) => ({
@@ -1121,10 +1129,12 @@ export async function searchUsers(query: string, _viewer?: string): Promise<any[
 }
 
 export async function searchEvents(query: string): Promise<any[]> {
+  const safe = sanitizeSearchQuery(query);
+  if (!safe) return [];
   const { data, error } = await supabase
     .from('events')
     .select('*')
-    .or(`title.ilike.%${query}%,location.ilike.%${query}%`)
+    .or(`title.ilike.%${safe}%,location.ilike.%${safe}%`)
     .or(futureEventsFilter())
     .order('created_at', { ascending: false })
     .limit(20);
@@ -1133,10 +1143,12 @@ export async function searchEvents(query: string): Promise<any[]> {
 }
 
 export async function searchBubbles(query: string): Promise<any[]> {
+  const safe = sanitizeSearchQuery(query);
+  if (!safe) return [];
   const { data, error } = await supabase
     .from('bubbles')
     .select('*, bubble_member_detail(username)')
-    .or(`name.ilike.%${query}%,description.ilike.%${query}%`)
+    .or(`name.ilike.%${safe}%,description.ilike.%${safe}%`)
     .order('created_at', { ascending: false })
     .limit(20);
   if (error) throw new Error(error.message);
