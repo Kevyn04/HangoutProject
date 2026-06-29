@@ -73,6 +73,7 @@ Core loop:
 
 ### Bubbles
 - Create a Bubble with name, description, type, optional secret location + reveal timer
+- **Auto-end duration picker** — No limit / 1hr / 2hr / 4hr / 8hr / 24hr; stores `ends_at timestamptz`; concluded bubbles disappear from all feeds and search automatically
 - Join / Leave, End Hangout (host only)
 - Purple markers on map (removed from map view — events only shown now)
 - Max member cap
@@ -88,6 +89,7 @@ Core loop:
 - **Member joins/leaves** — Realtime INSERT/DELETE replaces 8s poll
 - Location coordinates refresh every 20s (down from 8s)
 - Typing indicator poll removed (was a no-op)
+- **Auto-conclude** — shows "This bubble has ended" yellow banner when `ends_at` has passed; chat replaced with read-only notice
 
 ### Group Invites (`invite-user.tsx`)
 - Search for any user by username
@@ -228,7 +230,7 @@ All RLS policies audited and tightened:
 - [ ] **Real-time location sharing on map** — distance/ETA in Members tab uses stored coordinates, not true live tracking
 - [ ] **Server-side event reminders** — "Remind Me" uses local notifications only; won't fire if app is killed
 - [x] **Event auto-conclude** — events disappear from feeds/map/search after `event_date` passes; event details shows concluded state ✅
-- [ ] **Bubble expiry / auto-end** — bubbles don't auto-close after a set time; only host can end manually
+- [x] **Bubble auto-end** — duration picker on create (No limit → 24hr); concluded bubbles filtered from feeds/search; detail shows concluded banner + read-only chat ✅
 - [x] **Profile photo uploads** — camera roll picker, Supabase Storage, re-encoded before upload ✅
 - [ ] **Event cover images / in-chat media** — no event cover images or media sharing in chat
 
