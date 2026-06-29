@@ -69,6 +69,7 @@ Core loop:
 - **Event Chat** — real-time chat for attendees (`event-chat.tsx`) via Supabase Realtime
 - Edit and delete own events
 - Red markers on map
+- **Auto-conclude** — `event_date timestamptz` stored alongside human-readable `time`; past events are filtered from all discovery feeds, map, search, and pages automatically; event details shows "This event has ended" banner and disables join/remind once the time passes
 
 ### Bubbles
 - Create a Bubble with name, description, type, optional secret location + reveal timer
@@ -143,7 +144,7 @@ Core loop:
 | `bubbles` | Bubble records |
 | `bubble_member_detail` | Members, location, channel |
 | `chat_messages` | Bubble chat (Realtime) |
-| `events` | Event records |
+| `events` | Event records — `event_date timestamptz` for auto-expiry filtering |
 | `event_attendees` | RSVP list |
 | `event_messages` | Event chat (Realtime) |
 | `pages` | Community/brand pages |
@@ -209,6 +210,7 @@ All RLS policies audited and tightened:
 ### Core Functionality
 - [ ] **Real-time location sharing on map** — distance/ETA in Members tab uses stored coordinates, not true live tracking
 - [ ] **Server-side event reminders** — "Remind Me" uses local notifications only; won't fire if app is killed
+- [x] **Event auto-conclude** — events disappear from feeds/map/search after `event_date` passes; event details shows concluded state ✅
 - [ ] **Bubble expiry / auto-end** — bubbles don't auto-close after a set time; only host can end manually
 - [ ] **Image uploads** — no profile photos, event cover images, or in-chat media sharing
 
