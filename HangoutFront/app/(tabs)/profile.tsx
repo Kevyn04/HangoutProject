@@ -1,7 +1,7 @@
 import React, { useState, useCallback } from "react";
 import {
   View, Text, StyleSheet, ScrollView, Pressable,
-  TextInput, ActivityIndicator, StatusBar, Alert, RefreshControl,
+  TextInput, ActivityIndicator, StatusBar, Alert, RefreshControl, Linking,
 } from "react-native";
 import { Ionicons } from "@expo/vector-icons";
 import * as Haptics from "expo-haptics";
@@ -395,6 +395,13 @@ export default function ProfileScreen() {
           <Text style={s.signOutText}>Sign Out</Text>
         </Pressable>
 
+        <Pressable
+          onPress={() => Linking.openURL("https://kevyn04.github.io/HangoutProject/privacy.html")}
+          style={({ pressed }) => [{ opacity: pressed ? 0.6 : 1 }]}
+        >
+          <Text style={s.privacyLink}>Privacy Policy</Text>
+        </Pressable>
+
       </ScrollView>
     </ScreenBackground>
   );
@@ -512,4 +519,5 @@ const s = StyleSheet.create({
   guestText: { color: "rgba(255,255,255,0.5)", fontSize: 15 },
   signInBtn: { paddingHorizontal: 28, paddingVertical: 12, borderRadius: 14, backgroundColor: "#dc2626" },
   signInBtnText: { color: "#fff", fontWeight: "700", fontSize: 14 },
+  privacyLink: { color: "rgba(255,255,255,0.3)", fontSize: 12, textAlign: "center", textDecorationLine: "underline", marginTop: 16, paddingBottom: 8 },
 });
