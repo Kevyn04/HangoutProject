@@ -42,6 +42,15 @@ const REVEAL_OPTIONS: { label: string; ms: number }[] = [
   { label: "24 hr", ms: 24 * 60 * 60_000 },
 ];
 
+const DURATION_OPTIONS: { label: string; ms: number | null }[] = [
+  { label: "No limit", ms: null },
+  { label: "1 hr",  ms: 60 * 60_000 },
+  { label: "2 hr",  ms: 2 * 60 * 60_000 },
+  { label: "4 hr",  ms: 4 * 60 * 60_000 },
+  { label: "8 hr",  ms: 8 * 60 * 60_000 },
+  { label: "24 hr", ms: 24 * 60 * 60_000 },
+];
+
 type LocationMode = "none" | "gps" | "address" | "map";
 
 // ── Time picker ──────────────────────────────────────────────────────
@@ -211,6 +220,9 @@ export default function CreateBubbleScreen() {
   const [isSecret, setIsSecret]         = useState(false);
   const [revealIndex, setRevealIndex]   = useState(1); // default "1 hr"
 
+  // Auto-end
+  const [durationIndex, setDurationIndex] = useState(0); // default "No limit"
+
   const [saving, setSaving] = useState(false);
 
   // ── Handlers ─────────────────────────────────────────────────────
@@ -293,6 +305,9 @@ export default function CreateBubbleScreen() {
       if (isSecret) {
         revealAt = new Date(Date.now() + REVEAL_OPTIONS[revealIndex].ms).toISOString();
       }
+      const durationMs = DURATION_OPTIONS[durationIndex].ms;
+      const endsAt = durationMs ? new Date(Date.now() + durationMs).toISOString() : undefined;
+
       await createBubble({
         name: name.trim(),
         type,
@@ -304,6 +319,7 @@ export default function CreateBubbleScreen() {
         longitude: longitude ?? undefined,
         isSecret: isSecret || undefined,
         revealAt,
+        endsAt,
       });
       router.back();
     } catch (e: any) { Alert.alert("Error", e?.message ?? "Failed to create bubble."); }
@@ -472,6 +488,20 @@ export default function CreateBubbleScreen() {
             </ScrollView>
           </>
         )}
+
+        {/* Auto-end */}
+        <Text style={s.label}>Auto-end After</Text>
+        <ScrollView horizontal showsHorizontalScrollIndicator={false} contentContainerStyle={s.chipRow}>
+          {DURATION_OPTIONS.map((opt, i) => (
+            <Pressable
+              key={opt.label}
+              style={[s.chip, durationIndex === i && s.chipActive]}
+              onPress={() => setDurationIndex(i)}
+            >
+              <Text style={[s.chipText, durationIndex === i && s.chipTextActive]}>{opt.label}</Text>
+            </Pressable>
+          ))}
+        </ScrollView>
 
         {/* Max members */}
         <Text style={s.label}>Max Members (optional)</Text>

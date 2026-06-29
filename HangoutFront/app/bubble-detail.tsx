@@ -8,7 +8,7 @@ import { useLocalSearchParams, useRouter } from "expo-router";
 import { useFocusEffect } from "@react-navigation/native";
 import * as Location from "expo-location";
 import {
-  getBubbles, getBubbleMembers, updateMemberLocation,
+  getBubbleById, getBubbleMembers, updateMemberLocation,
   getBubbleChannels, switchChannel, getMessages, sendMessage,
   deleteBubble, leaveBubble, notifyTyping, getTypingUsers,
   getBlockedUsers, reportMessage, getDiscussions, createDiscussion,
@@ -196,7 +196,7 @@ type ChatMsg = {
 type Bubble = {
   id: number; name: string; type?: string; meetTime?: string;
   description?: string; members: string[]; createdBy?: string;
-  maxMembers?: number; isSecret?: boolean; revealAt?: string;
+  maxMembers?: number; isSecret?: boolean; revealAt?: string; endsAt?: string | null;
 };
 
 // ── Screen ───────────────────────────────────────────────────────────
@@ -259,8 +259,7 @@ export default function BubbleDetailScreen() {
   // ── Data loading ────────────────────────────────────────────────
   const loadBubble = useCallback(async (): Promise<boolean> => {
     try {
-      const all = await getBubbles();
-      const found = all.find((b: Bubble) => b.id === bubbleId);
+      const found = await getBubbleById(bubbleId);
       if (found) {
         setBubble(found);
         return true;
@@ -333,25 +332,46 @@ export default function BubbleDetailScreen() {
     getBlockedUsers(user).then((list) => setBlockedUsers(new Set(list))).catch(() => {});
   }, [user]);
 
-  // Poll bubble existence
+  // Realtime: bubble deleted → navigate back
   useEffect(() => {
-    const p = setInterval(loadBubble, 5000);
-    return () => clearInterval(p);
-  }, [loadBubble]);
+    const ch = supabase
+      .channel(`bubble-${bubbleId}-existence`)
+      .on(
+        'postgres_changes',
+        { event: 'DELETE', schema: 'public', table: 'bubbles', filter: `id=eq.${bubbleId}` },
+        () => {
+          Alert.alert('Hangout Ended', 'The host has ended this hangout.', [
+            { text: 'OK', onPress: () => router.back() },
+          ]);
+        }
+      )
+      .subscribe();
+    return () => { supabase.removeChannel(ch); };
+  }, [bubbleId, router]);
 
-  // Poll members so new joiners pop into the visual container
+  // Realtime: member joined or left → refresh members list
   useEffect(() => {
-    const p = setInterval(loadMembers, 8000);
+    const ch = supabase
+      .channel(`bubble-${bubbleId}-members`)
+      .on(
+        'postgres_changes',
+        { event: 'INSERT', schema: 'public', table: 'bubble_member_detail', filter: `bubble_id=eq.${bubbleId}` },
+        () => { loadMembers(); }
+      )
+      .on(
+        'postgres_changes',
+        { event: 'DELETE', schema: 'public', table: 'bubble_member_detail', filter: `bubble_id=eq.${bubbleId}` },
+        () => { loadMembers(); }
+      )
+      .subscribe();
+    return () => { supabase.removeChannel(ch); };
+  }, [bubbleId, loadMembers]);
+
+  // Poll member locations every 20s (location updates only, not joins/leaves)
+  useEffect(() => {
+    const p = setInterval(loadMembers, 20000);
     return () => clearInterval(p);
   }, [loadMembers]);
-
-  // Poll typing users continuously regardless of active tab
-  useEffect(() => {
-    const p = setInterval(() => {
-      getTypingUsers(bubbleId).then(setTypingUsers).catch(() => {});
-    }, 2500);
-    return () => clearInterval(p);
-  }, [bubbleId]);
 
   // Realtime chat subscription
   useEffect(() => {
@@ -482,7 +502,14 @@ export default function BubbleDetailScreen() {
   };
 
   // ── Invite ──────────────────────────────────────────────────────
-  const handleInvite = async () => {
+  const handleInvite = () => {
+    router.push({
+      pathname: "/invite-user" as any,
+      params: { bubbleId: String(bubbleId), name: bubble?.name ?? "" },
+    });
+  };
+
+  const handleShare = async () => {
     try {
       await Share.share({
         message: `Join my bubble "${bubble?.name}" on The Hangout!\nthehangout://bubble-detail?id=${bubbleId}`,
@@ -562,6 +589,7 @@ export default function BubbleDetailScreen() {
   const visibleMessages = messages.filter((m) => m.username === user || !blockedUsers.has(m.username));
   const membersInChannel = visibleMembers.filter((m) => (m.channelId ?? 1) === channelId);
   const isHost = bubble?.createdBy === user;
+  const concluded = !!(bubble?.endsAt && new Date(bubble.endsAt) < new Date());
 
   if (!loading && loadError) {
     return <ErrorScreen message="Couldn't load this hangout." onRetry={load} />;
@@ -611,8 +639,11 @@ export default function BubbleDetailScreen() {
         <View style={s.headerTop}>
           <Text style={s.headerName}>{bubble.name}</Text>
           <View style={{ flexDirection: "row", alignItems: "center", gap: 8 }}>
-            <Pressable style={s.inviteBtn} onPress={handleInvite}>
+            <Pressable style={s.inviteBtn} onPress={handleShare}>
               <Ionicons name="share-outline" size={16} color="rgba(255,255,255,0.7)" />
+            </Pressable>
+            <Pressable style={[s.inviteBtn, { paddingHorizontal: 10 }]} onPress={handleInvite}>
+              <Ionicons name="person-add-outline" size={16} color="rgba(255,255,255,0.7)" />
             </Pressable>
             {isHost ? (
               <Pressable style={s.endBtn} onPress={handleEndHangout}>
@@ -637,6 +668,14 @@ export default function BubbleDetailScreen() {
         </View>
         {bubble.description ? <Text style={s.headerDesc} numberOfLines={2}>{bubble.description}</Text> : null}
       </View>
+
+      {/* Concluded banner */}
+      {concluded && (
+        <View style={s.concludedBanner}>
+          <Ionicons name="time-outline" size={14} color="#fbbf24" />
+          <Text style={s.concludedBannerText}>This bubble has ended</Text>
+        </View>
+      )}
 
       {/* ── Bubble Visual Container ──────────────────────────────── */}
       <View style={vs.container}>
@@ -786,6 +825,11 @@ export default function BubbleDetailScreen() {
           />
 
           {/* Input */}
+          {concluded ? (
+            <View style={s.concludedInput}>
+              <Text style={s.concludedInputText}>This bubble has ended — chat is read-only</Text>
+            </View>
+          ) : (
           <View style={s.inputRow}>
             <TextInput
               style={s.msgInput}
@@ -808,6 +852,7 @@ export default function BubbleDetailScreen() {
               }
             </Pressable>
           </View>
+          )}
         </View>
       )}
 
@@ -1156,6 +1201,19 @@ const s = StyleSheet.create({
   },
   sendBtnDisabled: { opacity: 0.35 },
   sendBtnText: { color: "#fff", fontSize: 20, fontWeight: "700", lineHeight: 22 },
+
+  concludedBanner: {
+    flexDirection: "row", alignItems: "center", gap: 6,
+    backgroundColor: "rgba(251,191,36,0.12)", borderBottomWidth: 1,
+    borderColor: "rgba(251,191,36,0.25)", paddingHorizontal: 16, paddingVertical: 8,
+  },
+  concludedBannerText: { color: "#fbbf24", fontSize: 13, fontWeight: "600" },
+  concludedInput: {
+    paddingHorizontal: 16, paddingVertical: 12,
+    borderTopWidth: 1, borderColor: "rgba(255,255,255,0.08)",
+    backgroundColor: "rgba(0,0,0,0.3)", alignItems: "center",
+  },
+  concludedInputText: { color: "rgba(255,255,255,0.35)", fontSize: 13, fontStyle: "italic" },
 
   // Report modal
   reportSheet: {
