@@ -224,6 +224,54 @@ export async function leaveEvent(
   return getEventAttendance(id, username);
 }
 
+// ── Privacy Consent ───────────────────────────────────────────────────────────
+
+// Fire-and-forget: stamps the profile with when the user accepted the privacy
+// policy. Only sets it once — keeps the original acceptance time.
+export function recordPrivacyConsent(username: string, acceptedAtISO: string): void {
+  supabase
+    .from('profiles')
+    .update({ privacy_accepted_at: acceptedAtISO })
+    .eq('username', username)
+    .is('privacy_accepted_at', null)
+    .then(() => {}, () => {});
+}
+
+// ── Event Reminders (server-side, delivered by send-event-reminders cron) ────
+
+export async function setEventReminder(
+  eventId: number, username: string, remindAtISO: string
+): Promise<void> {
+  const { error } = await supabase
+    .from('event_reminders')
+    .upsert(
+      { event_id: eventId, username, remind_at: remindAtISO },
+      { onConflict: 'event_id,username', ignoreDuplicates: true },
+    );
+  if (error) throw new Error(error.message);
+}
+
+export async function cancelEventReminder(eventId: number, username: string): Promise<void> {
+  const { error } = await supabase
+    .from('event_reminders')
+    .delete()
+    .eq('event_id', eventId)
+    .eq('username', username);
+  if (error) throw new Error(error.message);
+}
+
+export async function hasEventReminder(eventId: number, username: string): Promise<boolean> {
+  const { data, error } = await supabase
+    .from('event_reminders')
+    .select('id')
+    .eq('event_id', eventId)
+    .eq('username', username)
+    .eq('sent', false)
+    .maybeSingle();
+  if (error) throw new Error(error.message);
+  return !!data;
+}
+
 // ── Bubbles ───────────────────────────────────────────────────────────────────
 
 export async function getBubbles(): Promise<any[]> {

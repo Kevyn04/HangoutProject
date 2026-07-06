@@ -7,7 +7,7 @@ import { useFonts, Cinzel_700Bold } from "@expo-google-fonts/cinzel";
 import { useLocalSearchParams, useRouter } from "expo-router";
 import { useAuth } from "@/services/auth-context";
 import { useToast } from "@/context/ToastContext";
-import { deleteEvent, getEventAttendees, getEventById, joinEvent, leaveEvent } from "@/services/api";
+import { cancelEventReminder, deleteEvent, getEventAttendees, getEventById, hasEventReminder, joinEvent, leaveEvent, setEventReminder } from "@/services/api";
 
 export default function EventDetailsScreen() {
   const router = useRouter();
@@ -26,6 +26,8 @@ export default function EventDetailsScreen() {
   const [attendees, setAttendees] = useState<string[]>([]);
   const [showAttendees, setShowAttendees] = useState(false);
   const [reminded, setReminded] = useState(false);
+  const [remindLoading, setRemindLoading] = useState(false);
+  const [eventDate, setEventDate] = useState<string | null>(null);
   const [concluded, setConcluded] = useState(false);
 
   useEffect(() => {
@@ -33,11 +35,17 @@ export default function EventDetailsScreen() {
     const nid = Number(id);
     setDataLoading(true);
     setDataError(false);
-    Promise.all([getEventAttendees(nid), getEventById(nid)])
-      .then(([list, eventData]) => {
+    Promise.all([
+      getEventAttendees(nid),
+      getEventById(nid),
+      hasEventReminder(nid, user).catch(() => false),
+    ])
+      .then(([list, eventData, hasReminder]) => {
         setAttendees(list);
         setAttendeeCount(list.length);
         setIsAttending(list.includes(user));
+        setReminded(hasReminder);
+        setEventDate(eventData.eventDate ?? null);
         if (eventData.eventDate) {
           setConcluded(new Date(eventData.eventDate) < new Date());
         }
@@ -47,31 +55,67 @@ export default function EventDetailsScreen() {
   }, [id, user]);
 
   const handleRemind = async () => {
+    if (!user || remindLoading) return;
+    const nid = Number(id);
+
+    if (reminded) {
+      setRemindLoading(true);
+      try {
+        await cancelEventReminder(nid, user);
+        setReminded(false);
+        showToast("Reminder cancelled", "success");
+      } catch {
+        Alert.alert("Error", "Couldn't cancel the reminder. Try again.");
+      } finally { setRemindLoading(false); }
+      return;
+    }
+
     const { status } = await Notifications.requestPermissionsAsync();
     if (status !== "granted") {
       Alert.alert("Notifications Disabled", "Enable notifications in Settings to get reminders.");
       return;
     }
-    const eventTime = new Date(time ?? "");
-    const fireDate = isNaN(eventTime.getTime())
-      ? new Date(Date.now() + 60 * 60 * 1000)
-      : new Date(eventTime.getTime() - 60 * 60 * 1000);
 
-    if (fireDate <= new Date()) {
+    // Legacy events without event_date can't be scheduled server-side —
+    // fall back to a local notification (only fires while the app is alive)
+    if (!eventDate) {
+      const eventTime = new Date(time ?? "");
+      const fireDate = isNaN(eventTime.getTime())
+        ? new Date(Date.now() + 60 * 60 * 1000)
+        : new Date(eventTime.getTime() - 60 * 60 * 1000);
+
+      if (fireDate <= new Date()) {
+        Alert.alert("Can't Set Reminder", "This event is in the past or too soon.");
+        return;
+      }
+
+      await Notifications.scheduleNotificationAsync({
+        content: {
+          title: `Hangout starting soon: ${title}`,
+          body: `${location} · ${time}`,
+          sound: true,
+        },
+        trigger: { type: Notifications.SchedulableTriggerInputTypes.DATE, date: fireDate },
+      });
+      setReminded(true);
+      Alert.alert("Reminder Set", `You'll be reminded 1 hour before: ${title}`);
+      return;
+    }
+
+    const remindAt = new Date(new Date(eventDate).getTime() - 60 * 60 * 1000);
+    if (remindAt <= new Date()) {
       Alert.alert("Can't Set Reminder", "This event is in the past or too soon.");
       return;
     }
 
-    await Notifications.scheduleNotificationAsync({
-      content: {
-        title: `Hangout starting soon: ${title}`,
-        body: `${location} · ${time}`,
-        sound: true,
-      },
-      trigger: { type: Notifications.SchedulableTriggerInputTypes.DATE, date: fireDate },
-    });
-    setReminded(true);
-    Alert.alert("Reminder Set", `You'll be reminded 1 hour before: ${title}`);
+    setRemindLoading(true);
+    try {
+      await setEventReminder(nid, user, remindAt.toISOString());
+      setReminded(true);
+      Alert.alert("Reminder Set", `You'll be reminded 1 hour before: ${title}`);
+    } catch {
+      Alert.alert("Error", "Couldn't set the reminder. Try again.");
+    } finally { setRemindLoading(false); }
   };
 
   const handleAttend = async () => {
@@ -188,9 +232,9 @@ export default function EventDetailsScreen() {
           <Pressable
             style={({ pressed }) => [styles.remindBtn, reminded && styles.remindBtnDone, pressed && styles.pressed]}
             onPress={handleRemind}
-            disabled={reminded}
+            disabled={remindLoading}
           >
-            <Text style={styles.remindBtnText}>{reminded ? "Reminder Set ✓" : "Remind Me 1 Hr Before"}</Text>
+            <Text style={styles.remindBtnText}>{reminded ? "Reminder Set ✓ (Tap to Cancel)" : "Remind Me 1 Hr Before"}</Text>
           </Pressable>
         )}
 

@@ -52,6 +52,7 @@ function typeIcon(type: string): { name: string; color: string; bg: string } {
     case "event_join":  return { name: "calendar", color: "#dc2626", bg: "rgba(220,38,38,0.15)" };
     case "invite":      return { name: "mail", color: "#f59e0b", bg: "rgba(245,158,11,0.15)" };
     case "message":     return { name: "chatbubble", color: "#22c55e", bg: "rgba(34,197,94,0.15)" };
+    case "event_reminder": return { name: "alarm", color: "#fbbf24", bg: "rgba(251,191,36,0.15)" };
     default:            return { name: "notifications", color: "#fff", bg: "rgba(255,255,255,0.1)" };
   }
 }
