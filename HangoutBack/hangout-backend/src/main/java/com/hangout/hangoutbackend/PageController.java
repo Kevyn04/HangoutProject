@@ -7,7 +7,8 @@ import java.util.*;
 
 @RestController
 @RequestMapping("/pages")
-public class PageController {
+public class
+PageController {
 
     private final PageRepository pageRepository;
     private final PageFollowerRepository followerRepository;

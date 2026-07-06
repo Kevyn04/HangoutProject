@@ -9,6 +9,7 @@ import { usePushNotifications } from '@/hooks/use-push-notifications';
 import { ToastProvider } from '@/context/ToastContext';
 import LoadingScreen from '@/components/LoadingScreen';
 import { OnboardingOverlay } from '@/components/OnboardingOverlay';
+import { recordPrivacyConsent } from '@/services/api';
 import AsyncStorage from '@react-native-async-storage/async-storage';
 
 export const unstable_settings = {
@@ -39,21 +40,33 @@ function UsernameGate() {
 }
 
 const ONBOARDING_KEY = "@hangout/onboarding_done";
+const PRIVACY_KEY = "@hangout/privacy_accepted_v1";
 
 function AppContent() {
-  const { loading } = useAuth();
-  const [showOnboarding, setShowOnboarding] = useState(false);
+  const { user, loading } = useAuth();
+  const [overlayMode, setOverlayMode] = useState<"full" | "consent" | null>(null);
 
   useEffect(() => {
     if (loading) return;
-    AsyncStorage.getItem(ONBOARDING_KEY).then((val) => {
-      if (!val) setShowOnboarding(true);
+    AsyncStorage.multiGet([ONBOARDING_KEY, PRIVACY_KEY]).then(([[, onboarded], [, privacyAccepted]]) => {
+      if (!onboarded) setOverlayMode("full");
+      else if (!privacyAccepted) setOverlayMode("consent"); // existing users who onboarded before the consent step
     });
   }, [loading]);
 
-  const handleOnboardingDone = () => {
-    setShowOnboarding(false);
-    AsyncStorage.setItem(ONBOARDING_KEY, "1");
+  // Record consent on the profile once a user exists (covers accept-before-signup)
+  useEffect(() => {
+    if (!user) return;
+    AsyncStorage.getItem(PRIVACY_KEY).then((acceptedAt) => {
+      if (acceptedAt) recordPrivacyConsent(user, acceptedAt);
+    });
+  }, [user]);
+
+  const handleAccept = () => {
+    setOverlayMode(null);
+    const acceptedAt = new Date().toISOString();
+    AsyncStorage.multiSet([[ONBOARDING_KEY, "1"], [PRIVACY_KEY, acceptedAt]]);
+    if (user) recordPrivacyConsent(user, acceptedAt);
   };
 
   if (loading) return <LoadingScreen />;
@@ -61,7 +74,7 @@ function AppContent() {
     <>
       <NotificationRegistrar />
       <UsernameGate />
-      <OnboardingOverlay visible={showOnboarding} onDone={handleOnboardingDone} />
+      <OnboardingOverlay visible={overlayMode !== null} mode={overlayMode ?? "full"} onAccept={handleAccept} />
       <ThemeProvider value={DarkTheme}>
         <Stack>
           <Stack.Screen name="(tabs)" options={{ headerShown: false }} />

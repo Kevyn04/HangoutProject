@@ -65,7 +65,7 @@ Core loop:
 - Event types: Hangout, Munchies, Secret Location, Sports, Games
 - Join / Leave RSVP — **now trusts DB as source of truth** (AsyncStorage removed)
 - Attendee count + expandable attendee list modal
-- "Remind Me 1 Hr Before" local push notification
+- "Remind Me 1 Hr Before" — **server-side reminder** stored in `event_reminders`, delivered by the `send-event-reminders` Edge Function (pg_cron, every minute) even if the app is killed; persists across visits, tap again to cancel; legacy events without `event_date` fall back to a local notification
 - **Event Chat** — real-time chat for attendees (`event-chat.tsx`) via Supabase Realtime
 - Edit and delete own events
 - Red markers on map
@@ -170,6 +170,7 @@ Core loop:
 | `discussions` | Bubble discussion threads |
 | `discussion_replies` | Replies to discussions |
 | `direct_messages` | 1-on-1 DMs between users (Realtime, RLS, read receipts) |
+| `event_reminders` | Server-side "Remind Me" rows — scanned every minute by `send-event-reminders` cron |
 
 ### Database — Indexes
 All performance indexes applied:
@@ -201,6 +202,17 @@ All RLS policies audited and tightened:
 - **Avatar uploads** — extension whitelist + 5 MB cap client-side; `avatars` bucket enforces same MIME types + size server-side; images re-encoded via `expo-image-manipulator` before upload to strip EXIF and any embedded payloads
 - **`UserAvatar` component** — reusable avatar renderer used in profile, user-profile, search, invite screens
 
+### Security — 2026-07-05 adversarial audit (migrations 013 + 014)
+Live black-box testing with throwaway attacker/victim accounts found and **fixed** several holes. Root cause of most: repo migrations were never actually applied (created via dashboard), so live RLS had drifted — several tables carried leftover permissive policies under unknown names that OR'd past the intended strict ones.
+- **push_token no longer client-readable** — table-level SELECT on `profiles` revoked and re-granted per-column (all columns except `push_token`); previously any logged-in user could read every user's Expo token and push to their device directly. Column-level UPDATE of `push_token` retained so `registerPushToken` still works.
+- **Identity-spoofing closed** on `event_attendees`, `event_messages`, `discussions`, `discussion_replies`, `reports`, `blocked_users` — all INSERT policies now require the acting username to equal `my_username()`. Migration 014 drops *all* policies on these tables dynamically then recreates the correct set (defeats the drifted duplicates).
+- **`reports` and `blocked_users` no longer world-readable** — SELECT restricted to your own rows (`reporter_username`/`blocker` = `my_username()`); admin review uses the service role, which bypasses RLS.
+- **`send-notification` Edge Function rewritten** — no longer trusts client `recipient`/`title`/`body` (was an open phishing/spam channel to any user). It now derives the actor from the JWT, whitelists `type ∈ {bubble_join, event_join, invite}`, verifies the actor's real relationship to the target, generates the message text server-side, and rate-limits to 20 notifications/actor/minute (`notifications.actor_username`).
+- **Length caps added** (anti-bloat) — `event_messages` 2000, `discussions` title 200 / body 5000, `discussion_replies` 2000, `profiles.bio` 500, `user_ratings.reason` 500 (chat already capped).
+- **Username squatting closed (migration 015)** — `username` is now immutable once set (BEFORE UPDATE trigger `prevent_username_change`); the OAuth NULL→value first-set is still allowed so `choose-username` works.
+- **Per-account rate limits (migration 016)** — TestFlight stopgap for open signup. Generic `enforce_rate_limit()` BEFORE INSERT trigger caps: bubbles 10/hr, events 20/hr, DMs 30/min, invites 30/hr, reports 20/hr, follows 60/hr. Generous enough that humans never hit them; makes bot/mass accounts far less useful for spam. Verified: 11th bubble in an hour is rejected.
+- **Known residual — open signup:** sign-up still has no CAPTCHA / email-phone verification, so accounts can be created programmatically; the rate limits above blunt the *impact*, which is sufficient for a closed TestFlight beta. Before a public launch, add Cloudflare Turnstile (free) — needs a provider secret + an EAS rebuild (deferred by choice, 2026-07-05).
+
 ### Branding & UI
 - Custom app icon — white H with location pin on red background (1024x1024)
 - Custom splash screen — same icon, red `#dc2626` background
@@ -213,7 +225,8 @@ All RLS policies audited and tightened:
   - Red tint color matches brand on all platforms
 - **Error states hardened** — `search.tsx` and `notifications.tsx` previously swallowed errors silently; both now show an offline icon + "Try Again" prompt
 - **Skeleton loaders** — consistent across all main screens; all screens use `SkeletonBox` shimmer on first load
-- **Onboarding overlay** — shown once on first launch via AsyncStorage (`@hangout/onboarding_done`); 3 slides (Drop a Bubble / Join Events / Find Your Vibe) with Skip + Next/Get Started; `components/OnboardingOverlay.tsx`, wired in `_layout.tsx`
+- **Onboarding overlay** — shown once on first launch via AsyncStorage (`@hangout/onboarding_done`); 3 swipeable feature slides (Drop a Bubble / Join Events / Find Your Vibe) with scroll-linked animated dots + icon scaling; `components/OnboardingOverlay.tsx`, wired in `_layout.tsx`
+- **Privacy consent gate** — mandatory 4th onboarding slide: lists collected data (location, profile, messages) with plain-language explanations, link to hosted Privacy Policy, "Accept & Continue" required to proceed ("Skip" jumps to it, never past it); existing users who onboarded earlier get a consent-only screen on next launch; acceptance timestamp stored in AsyncStorage (`@hangout/privacy_accepted_v1`) and synced to `profiles.privacy_accepted_at` for compliance evidence
 - **Empty states** — reusable `EmptyState` component (`components/EmptyState.tsx`) with icon circle + title + subtitle + optional CTA button; replaces all grey italic text on: Discover (3 sections), My Hangouts (bubbles + events), Pages, Profile (created + joined), Notifications, Page Detail (events + bubbles tabs)
 
 ### Legal / Store Prep
@@ -228,7 +241,7 @@ All RLS policies audited and tightened:
 
 ### Core Functionality
 - [ ] **Real-time location sharing on map** — distance/ETA in Members tab uses stored coordinates, not true live tracking
-- [ ] **Server-side event reminders** — "Remind Me" uses local notifications only; won't fire if app is killed
+- [x] **Server-side event reminders** — `event_reminders` table + `send-event-reminders` Edge Function on a pg_cron every-minute schedule; push fires even if app is killed; tap-to-cancel; state persists ✅
 - [x] **Event auto-conclude** — events disappear from feeds/map/search after `event_date` passes; event details shows concluded state ✅
 - [x] **Bubble auto-end** — duration picker on create (No limit → 24hr); concluded bubbles filtered from feeds/search; detail shows concluded banner + read-only chat ✅
 - [x] **Profile photo uploads** — camera roll picker, Supabase Storage, re-encoded before upload ✅
