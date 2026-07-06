@@ -45,3 +45,7 @@ app-example
 # generated native folders
 /ios
 /android
+
+# scratch / template icon assets (Expo design guides, not used by the app)
+assets/images/nope.png
+assets/images/splash-icon2.png
