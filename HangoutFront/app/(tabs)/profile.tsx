@@ -8,7 +8,7 @@ import * as Haptics from "expo-haptics";
 import * as ImagePicker from "expo-image-picker";
 import { useFocusEffect, useRouter } from "expo-router";
 import { useAuth } from "@/services/auth-context";
-import { getProfile, updateProfile, uploadAvatar, getUserBubbles, getUserRatings } from "@/services/api";
+import { getProfile, updateProfile, uploadAvatar, getUserBubbles, getUserRatings, deleteMyAccount } from "@/services/api";
 import { UserAvatar } from "@/components/UserAvatar";
 import { ColorWheelPicker } from "@/components/ColorWheelPicker";
 import { SkeletonBox } from "@/components/SkeletonBox";
@@ -68,6 +68,7 @@ export default function ProfileScreen() {
   const [saving, setSaving] = useState(false);
   const [colorPickerOpen, setColorPickerOpen] = useState(false);
   const [refreshing, setRefreshing] = useState(false);
+  const [deleting, setDeleting] = useState(false);
 
   const load = useCallback(async (silent = false) => {
     if (!user) { if (!silent) setLoading(false); return; }
@@ -129,6 +130,43 @@ export default function ProfileScreen() {
     updateProfile(user, { avatarColor: color }).catch(() => {
       showToast("Could not save color.");
     });
+  };
+
+  const handleDeleteAccount = () => {
+    Alert.alert(
+      "Delete Account?",
+      "This permanently deletes your profile, bubbles, events, messages, photos, and all other data. This cannot be undone.",
+      [
+        { text: "Cancel", style: "cancel" },
+        {
+          text: "Delete",
+          style: "destructive",
+          onPress: () =>
+            Alert.alert(
+              "Are you absolutely sure?",
+              "Your account and everything you've created will be gone forever.",
+              [
+                { text: "Keep My Account", style: "cancel" },
+                {
+                  text: "Delete Forever",
+                  style: "destructive",
+                  onPress: async () => {
+                    setDeleting(true);
+                    try {
+                      await deleteMyAccount();
+                      // Local sign-out fires SIGNED_OUT → auth context resets
+                    } catch {
+                      Alert.alert("Error", "Couldn't delete your account. Check your connection and try again.");
+                    } finally {
+                      setDeleting(false);
+                    }
+                  },
+                },
+              ],
+            ),
+        },
+      ],
+    );
   };
 
   const handlePickPhoto = async () => {
@@ -440,6 +478,16 @@ export default function ProfileScreen() {
           <Text style={s.privacyLink}>Privacy Policy</Text>
         </Pressable>
 
+        <Pressable
+          style={({ pressed }) => [s.deleteBtn, pressed && { opacity: 0.7 }]}
+          onPress={handleDeleteAccount}
+          disabled={deleting}
+        >
+          {deleting
+            ? <ActivityIndicator size="small" color="rgba(239,68,68,0.8)" />
+            : <Text style={s.deleteText}>Delete Account</Text>}
+        </Pressable>
+
       </ScrollView>
     </ScreenBackground>
   );
@@ -563,4 +611,6 @@ const s = StyleSheet.create({
   signInBtn: { paddingHorizontal: 28, paddingVertical: 12, borderRadius: 14, backgroundColor: "#dc2626" },
   signInBtnText: { color: "#fff", fontWeight: "700", fontSize: 14 },
   privacyLink: { color: "rgba(255,255,255,0.3)", fontSize: 12, textAlign: "center", textDecorationLine: "underline", marginTop: 16, paddingBottom: 8 },
+  deleteBtn: { marginTop: 12, height: 40, alignItems: "center", justifyContent: "center", paddingBottom: 4 },
+  deleteText: { color: "rgba(239,68,68,0.7)", fontSize: 13, fontWeight: "600" },
 });

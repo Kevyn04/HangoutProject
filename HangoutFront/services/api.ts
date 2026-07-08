@@ -684,6 +684,16 @@ export async function updateProfile(
   return { username, ...data };
 }
 
+// Permanently deletes the account server-side (delete-account Edge Function
+// wipes all rows + avatar + auth user), then clears the local session.
+export async function deleteMyAccount(): Promise<void> {
+  const { error } = await supabase.functions.invoke('delete-account');
+  if (error) throw new Error('Account deletion failed. Please try again.');
+  // The auth user no longer exists — a server sign-out would 401, so only
+  // clear the session stored on this device.
+  await supabase.auth.signOut({ scope: 'local' });
+}
+
 export async function getUserBubbles(username: string): Promise<{ created: any[]; joined: any[] }> {
   const { data: createdRaw } = await supabase
     .from('bubbles')
