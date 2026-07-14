@@ -211,9 +211,11 @@ export function OnboardingOverlay({ visible, mode = "full", onAccept }: Props) {
         {slides.length > 1 && (
           <View style={s.dots}>
             {slides.map((_, i) => {
-              const dotWidth = scrollX.interpolate({
+              // Scale (not width) so this stays on the native driver like scrollX —
+              // width/height aren't supported there and log a warning every frame.
+              const dotScaleX = scrollX.interpolate({
                 inputRange: [(i - 1) * width, i * width, (i + 1) * width],
-                outputRange: [6, 24, 6],
+                outputRange: [0.25, 1, 0.25],
                 extrapolate: "clamp",
               });
               const dotOpacity = scrollX.interpolate({
@@ -224,7 +226,7 @@ export function OnboardingOverlay({ visible, mode = "full", onAccept }: Props) {
               return (
                 <Animated.View
                   key={i}
-                  style={[s.dot, { width: dotWidth, opacity: dotOpacity }]}
+                  style={[s.dot, { opacity: dotOpacity, transform: [{ scaleX: dotScaleX }] }]}
                 />
               );
             })}
@@ -373,6 +375,7 @@ const s = StyleSheet.create({
     marginBottom: 28,
   },
   dot: {
+    width: 24,
     height: 6,
     borderRadius: 3,
     backgroundColor: "#dc2626",
