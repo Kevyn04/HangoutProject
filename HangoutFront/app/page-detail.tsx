@@ -1,12 +1,18 @@
 import React, { useState, useCallback } from "react";
 import {
-  View, Text, StyleSheet, ScrollView, Pressable,
-  ActivityIndicator, StatusBar, RefreshControl,
+  View, Text, StyleSheet, ScrollView, Pressable, TextInput,
+  ActivityIndicator, StatusBar, RefreshControl, Modal, Alert,
 } from "react-native";
 import { useLocalSearchParams, useRouter } from "expo-router";
 import { useFocusEffect } from "@react-navigation/native";
+import { Ionicons } from "@expo/vector-icons";
 import { useAuth } from "@/services/auth-context";
-import { getPage, getPageContent, toggleFollow } from "@/services/api";
+import {
+  getPage, getPageContent, toggleFollow,
+  getPagePosts, createPagePost, deletePagePost, PagePost,
+  getPageModerators, addPageModerator, removePageModerator,
+  getPageAnalytics, PageAnalytics,
+} from "@/services/api";
 import { ErrorScreen } from "@/components/ErrorScreen";
 import { SkeletonBox } from "@/components/SkeletonBox";
 import { EmptyState } from "@/components/EmptyState";
@@ -24,6 +30,15 @@ type PageData = {
   createdBy: string; avatarColor: string; followerCount: number; following: boolean;
 };
 
+function timeAgo(dateStr: string): string {
+  const mins = Math.floor((Date.now() - new Date(dateStr).getTime()) / 60000);
+  if (mins < 1) return "just now";
+  if (mins < 60) return `${mins}m`;
+  const hrs = Math.floor(mins / 60);
+  if (hrs < 24) return `${hrs}h`;
+  return `${Math.floor(hrs / 24)}d`;
+}
+
 export default function PageDetailScreen() {
   const { id } = useLocalSearchParams<{ id: string }>();
   const pageId = parseInt(id, 10);
@@ -34,23 +49,45 @@ export default function PageDetailScreen() {
   const [page, setPage] = useState<PageData | null>(null);
   const [events, setEvents] = useState<any[]>([]);
   const [bubbles, setBubbles] = useState<any[]>([]);
+  const [posts, setPosts] = useState<PagePost[]>([]);
+  const [moderators, setModerators] = useState<string[]>([]);
+  const [analytics, setAnalytics] = useState<PageAnalytics | null>(null);
   const [loading, setLoading] = useState(true);
   const [loadError, setLoadError] = useState(false);
-  const [tab, setTab] = useState<"events" | "bubbles">("events");
+  const [tab, setTab] = useState<"posts" | "events" | "bubbles">("posts");
   const [followLoading, setFollowLoading] = useState(false);
   const [refreshing, setRefreshing] = useState(false);
+
+  // Composer
+  const [postInput, setPostInput] = useState("");
+  const [posting, setPosting] = useState(false);
+
+  // Moderator modal
+  const [showMods, setShowMods] = useState(false);
+  const [modInput, setModInput] = useState("");
+  const [modBusy, setModBusy] = useState(false);
+
+  const isOwner = !!page && user === page.createdBy;
+  const canPost = !!user && (isOwner || moderators.includes(user));
 
   const load = useCallback(async (silent = false) => {
     if (!silent) setLoading(true);
     setLoadError(false);
     try {
-      const [p, content] = await Promise.all([
+      const [p, content, pagePosts, mods] = await Promise.all([
         getPage(pageId, user ?? undefined),
         getPageContent(pageId),
+        getPagePosts(pageId).catch(() => [] as PagePost[]),
+        getPageModerators(pageId).catch(() => [] as string[]),
       ]);
       setPage(p);
       setEvents(content.events || []);
       setBubbles(content.bubbles || []);
+      setPosts(pagePosts);
+      setModerators(mods);
+      if (user === p.createdBy) {
+        getPageAnalytics(pageId).then(setAnalytics).catch(() => {});
+      }
     } catch {
       setLoadError(true);
     } finally {
@@ -77,6 +114,61 @@ export default function PageDetailScreen() {
       showToast("Couldn't update follow. Try again.");
     }
     finally { setFollowLoading(false); }
+  };
+
+  const handlePost = async () => {
+    const content = postInput.trim();
+    if (!content || !user || posting) return;
+    setPosting(true);
+    try {
+      await createPagePost(pageId, user, content);
+      setPostInput("");
+      setPosts(await getPagePosts(pageId));
+    } catch {
+      showToast("Couldn't publish post. Try again.");
+    } finally { setPosting(false); }
+  };
+
+  const handleDeletePost = (post: PagePost) => {
+    Alert.alert("Delete Post", "Remove this post?", [
+      { text: "Cancel", style: "cancel" },
+      {
+        text: "Delete", style: "destructive",
+        onPress: async () => {
+          try {
+            await deletePagePost(post.id);
+            setPosts((prev) => prev.filter((p) => p.id !== post.id));
+          } catch {
+            showToast("Couldn't delete post.");
+          }
+        },
+      },
+    ]);
+  };
+
+  const handleAddModerator = async () => {
+    const name = modInput.trim();
+    if (!name || !user || modBusy) return;
+    if (name === user) { showToast("You already manage this page."); return; }
+    setModBusy(true);
+    try {
+      await addPageModerator(pageId, name, user);
+      setModInput("");
+      setModerators(await getPageModerators(pageId));
+      showToast(`@${name} is now a moderator`, "success");
+    } catch {
+      showToast("Couldn't add moderator. Check the username.");
+    } finally { setModBusy(false); }
+  };
+
+  const handleRemoveModerator = async (name: string) => {
+    setModBusy(true);
+    try {
+      await removePageModerator(pageId, name);
+      setModerators((prev) => prev.filter((m) => m !== name));
+    } catch {
+      showToast("Couldn't remove moderator.");
+    } finally { setModBusy(false); }
   };
 
   if (loadError) {
@@ -145,10 +237,51 @@ export default function PageDetailScreen() {
           )}
 
           {page.description ? <Text style={s.description}>{page.description}</Text> : null}
+
+          {/* Owner: analytics + moderator management */}
+          {isOwner && (
+            <>
+              {analytics && (
+                <View style={s.analyticsRow}>
+                  <View style={s.analyticsCell}>
+                    <Text style={s.analyticsNum}>{analytics.followerCount}</Text>
+                    <Text style={s.analyticsLabel}>Followers</Text>
+                  </View>
+                  <View style={s.analyticsCell}>
+                    <Text style={[s.analyticsNum, analytics.gained7d > 0 && { color: "#22c55e" }]}>
+                      {analytics.gained7d > 0 ? `+${analytics.gained7d}` : analytics.gained7d}
+                    </Text>
+                    <Text style={s.analyticsLabel}>Last 7d</Text>
+                  </View>
+                  <View style={s.analyticsCell}>
+                    <Text style={[s.analyticsNum, analytics.gained30d > 0 && { color: "#22c55e" }]}>
+                      {analytics.gained30d > 0 ? `+${analytics.gained30d}` : analytics.gained30d}
+                    </Text>
+                    <Text style={s.analyticsLabel}>Last 30d</Text>
+                  </View>
+                  <View style={s.analyticsCell}>
+                    <Text style={s.analyticsNum}>{analytics.postCount}</Text>
+                    <Text style={s.analyticsLabel}>Posts</Text>
+                  </View>
+                </View>
+              )}
+              <Pressable style={s.modsBtn} onPress={() => setShowMods(true)}>
+                <Ionicons name="shield-checkmark-outline" size={15} color="rgba(255,255,255,0.7)" />
+                <Text style={s.modsBtnText}>
+                  Moderators ({moderators.length})
+                </Text>
+              </Pressable>
+            </>
+          )}
         </View>
 
         {/* Tabs */}
         <View style={s.tabs}>
+          <Pressable style={[s.tab, tab === "posts" && s.tabActive]} onPress={() => setTab("posts")}>
+            <Text style={[s.tabText, tab === "posts" && s.tabTextActive]}>
+              Posts ({posts.length})
+            </Text>
+          </Pressable>
           <Pressable style={[s.tab, tab === "events" && s.tabActive]} onPress={() => setTab("events")}>
             <Text style={[s.tabText, tab === "events" && s.tabTextActive]}>
               Events ({events.length})
@@ -160,6 +293,61 @@ export default function PageDetailScreen() {
             </Text>
           </Pressable>
         </View>
+
+        {/* Posts */}
+        {tab === "posts" && (
+          <View style={s.contentList}>
+            {canPost && (
+              <View style={s.composer}>
+                <TextInput
+                  style={s.composerInput}
+                  placeholder="Share an update with your followers…"
+                  placeholderTextColor="rgba(255,255,255,0.3)"
+                  value={postInput}
+                  onChangeText={setPostInput}
+                  multiline
+                  maxLength={2000}
+                />
+                <Pressable
+                  style={[s.composerBtn, (!postInput.trim() || posting) && { opacity: 0.4 }]}
+                  onPress={handlePost}
+                  disabled={!postInput.trim() || posting}
+                >
+                  {posting
+                    ? <ActivityIndicator color="#fff" size="small" />
+                    : <Text style={s.composerBtnText}>Post</Text>}
+                </Pressable>
+              </View>
+            )}
+            {posts.length === 0 ? (
+              <EmptyState
+                icon="megaphone-outline"
+                title="No posts yet"
+                subtitle={canPost ? "Post your first update for followers." : "This page hasn't posted any updates."}
+              />
+            ) : (
+              posts.map((p) => {
+                const canDelete = user === p.username || canPost;
+                return (
+                  <View key={p.id} style={s.postCard}>
+                    <View style={s.postHeader}>
+                      <Text style={s.postAuthor}>@{p.username}</Text>
+                      <View style={{ flexDirection: "row", alignItems: "center", gap: 10 }}>
+                        <Text style={s.postTime}>{timeAgo(p.createdAt)}</Text>
+                        {canDelete && (
+                          <Pressable onPress={() => handleDeletePost(p)} hitSlop={8}>
+                            <Ionicons name="trash-outline" size={14} color="rgba(255,255,255,0.4)" />
+                          </Pressable>
+                        )}
+                      </View>
+                    </View>
+                    <Text style={s.postContent}>{p.content}</Text>
+                  </View>
+                );
+              })
+            )}
+          </View>
+        )}
 
         {/* Events */}
         {tab === "events" && (
@@ -214,6 +402,49 @@ export default function PageDetailScreen() {
         )}
 
       </ScrollView>
+
+      {/* Moderator management (owner only) */}
+      <Modal visible={showMods} transparent animationType="slide" onRequestClose={() => setShowMods(false)}>
+        <Pressable style={s.modalBackdrop} onPress={() => setShowMods(false)} />
+        <View style={s.modSheet}>
+          <View style={s.modHandle} />
+          <Text style={s.modTitle}>Moderators</Text>
+          <Text style={s.modSub}>Moderators can post updates and remove posts on this page.</Text>
+
+          <View style={s.modInputRow}>
+            <TextInput
+              style={s.modInput}
+              placeholder="Add by username"
+              placeholderTextColor="rgba(255,255,255,0.3)"
+              autoCapitalize="none"
+              value={modInput}
+              onChangeText={setModInput}
+              onSubmitEditing={handleAddModerator}
+              returnKeyType="done"
+            />
+            <Pressable
+              style={[s.modAddBtn, (!modInput.trim() || modBusy) && { opacity: 0.4 }]}
+              onPress={handleAddModerator}
+              disabled={!modInput.trim() || modBusy}
+            >
+              <Text style={s.modAddBtnText}>Add</Text>
+            </Pressable>
+          </View>
+
+          {moderators.length === 0 ? (
+            <Text style={s.modEmpty}>No moderators yet.</Text>
+          ) : (
+            moderators.map((m) => (
+              <View key={m} style={s.modRow}>
+                <Text style={s.modName}>@{m}</Text>
+                <Pressable onPress={() => handleRemoveModerator(m)} disabled={modBusy} hitSlop={8}>
+                  <Ionicons name="close-circle-outline" size={20} color="rgba(220,38,38,0.8)" />
+                </Pressable>
+              </View>
+            ))
+          )}
+        </View>
+      </Modal>
     </ScreenBackground>
   );
 }
@@ -242,6 +473,22 @@ const s = StyleSheet.create({
   followingBtn: { backgroundColor: "rgba(220,38,38,0.12)" },
   followingBtnText: { color: "rgba(220,38,38,0.8)" },
 
+  analyticsRow: {
+    flexDirection: "row", width: "100%", marginTop: 8,
+    backgroundColor: "rgba(255,255,255,0.05)", borderRadius: 14,
+    borderWidth: 1, borderColor: "rgba(255,255,255,0.1)", paddingVertical: 12,
+  },
+  analyticsCell: { flex: 1, alignItems: "center", gap: 2 },
+  analyticsNum: { color: "#fff", fontSize: 17, fontWeight: "800" },
+  analyticsLabel: { color: "rgba(255,255,255,0.4)", fontSize: 10, letterSpacing: 0.6, textTransform: "uppercase" },
+
+  modsBtn: {
+    flexDirection: "row", alignItems: "center", gap: 6,
+    borderWidth: 1, borderColor: "rgba(255,255,255,0.2)",
+    borderRadius: 20, paddingHorizontal: 14, paddingVertical: 7, marginTop: 2,
+  },
+  modsBtnText: { color: "rgba(255,255,255,0.7)", fontSize: 13, fontWeight: "600" },
+
   tabs: { flexDirection: "row", borderBottomWidth: 1, borderColor: "rgba(255,255,255,0.08)" },
   tab: { flex: 1, paddingVertical: 14, alignItems: "center" },
   tabActive: { borderBottomWidth: 2, borderColor: "#dc2626" },
@@ -249,7 +496,6 @@ const s = StyleSheet.create({
   tabTextActive: { color: "#fff" },
 
   contentList: { padding: 20, gap: 12 },
-  emptyText: { color: "rgba(255,255,255,0.35)", fontSize: 14, textAlign: "center", marginTop: 20 },
   contentCard: {
     flexDirection: "row", alignItems: "center", gap: 12,
     backgroundColor: "rgba(255,255,255,0.05)", borderRadius: 12,
@@ -260,4 +506,52 @@ const s = StyleSheet.create({
   contentInfo: { flex: 1 },
   contentName: { color: "#fff", fontSize: 14, fontWeight: "700" },
   contentMeta: { color: "rgba(255,255,255,0.4)", fontSize: 12, marginTop: 2 },
+
+  // Posts
+  composer: {
+    backgroundColor: "rgba(255,255,255,0.05)", borderRadius: 14,
+    borderWidth: 1, borderColor: "rgba(255,255,255,0.1)", padding: 12, gap: 10,
+  },
+  composerInput: { color: "#fff", fontSize: 14, minHeight: 44, maxHeight: 120, textAlignVertical: "top" },
+  composerBtn: {
+    alignSelf: "flex-end", backgroundColor: "#dc2626", borderRadius: 18,
+    paddingHorizontal: 20, paddingVertical: 8,
+  },
+  composerBtnText: { color: "#fff", fontWeight: "700", fontSize: 13 },
+  postCard: {
+    backgroundColor: "rgba(255,255,255,0.05)", borderRadius: 14,
+    borderWidth: 1, borderColor: "rgba(255,255,255,0.09)", padding: 14, gap: 8,
+  },
+  postHeader: { flexDirection: "row", alignItems: "center", justifyContent: "space-between" },
+  postAuthor: { color: "#c4b5fd", fontSize: 13, fontWeight: "700" },
+  postTime: { color: "rgba(255,255,255,0.3)", fontSize: 11 },
+  postContent: { color: "rgba(255,255,255,0.85)", fontSize: 14, lineHeight: 20 },
+
+  // Moderator modal
+  modalBackdrop: { flex: 1, backgroundColor: "rgba(0,0,0,0.5)" },
+  modSheet: {
+    backgroundColor: "#1a0808", borderTopLeftRadius: 24, borderTopRightRadius: 24,
+    borderTopWidth: 1, borderColor: "rgba(255,255,255,0.08)",
+    padding: 20, paddingBottom: 40, maxHeight: "70%",
+  },
+  modHandle: { width: 40, height: 5, borderRadius: 3, backgroundColor: "rgba(255,255,255,0.3)", alignSelf: "center", marginBottom: 16 },
+  modTitle: { color: "#fff", fontSize: 18, fontWeight: "800", marginBottom: 4 },
+  modSub: { color: "rgba(255,255,255,0.4)", fontSize: 12, marginBottom: 16 },
+  modInputRow: { flexDirection: "row", gap: 8, marginBottom: 16 },
+  modInput: {
+    flex: 1, backgroundColor: "rgba(255,255,255,0.07)", borderRadius: 12,
+    borderWidth: 1, borderColor: "rgba(255,255,255,0.12)",
+    paddingHorizontal: 14, paddingVertical: 10, color: "#fff", fontSize: 15,
+  },
+  modAddBtn: {
+    backgroundColor: "#dc2626", borderRadius: 12,
+    paddingHorizontal: 18, alignItems: "center", justifyContent: "center",
+  },
+  modAddBtnText: { color: "#fff", fontWeight: "700", fontSize: 14 },
+  modEmpty: { color: "rgba(255,255,255,0.35)", fontSize: 13, fontStyle: "italic", textAlign: "center", paddingVertical: 10 },
+  modRow: {
+    flexDirection: "row", alignItems: "center", justifyContent: "space-between",
+    paddingVertical: 12, borderBottomWidth: 1, borderColor: "rgba(255,255,255,0.06)",
+  },
+  modName: { color: "#fff", fontSize: 15, fontWeight: "600" },
 });
