@@ -3,10 +3,12 @@ import {
   View, Text, TextInput, StyleSheet, Pressable,
   ActivityIndicator, KeyboardAvoidingView, Platform, ScrollView, Modal,
 } from "react-native";
+import { Image } from "expo-image";
+import * as ImagePicker from "expo-image-picker";
 import { LinearGradient } from "expo-linear-gradient";
 import { useFonts, Cinzel_700Bold } from "@expo-google-fonts/cinzel";
 import { useLocalSearchParams, useRouter } from "expo-router";
-import { updateEvent } from "@/services/api";
+import { updateEvent, uploadEventCover } from "@/services/api";
 import { AppColors } from "@/constants/theme";
 import DateTimePicker from "@react-native-community/datetimepicker";
 
@@ -19,10 +21,11 @@ function formatEventDate(d: Date): string {
 
 export default function EditEventScreen() {
   const router = useRouter();
-  const params = useLocalSearchParams<{ id: string; title: string; location: string; time: string; createdBy: string }>();
+  const params = useLocalSearchParams<{ id: string; title: string; location: string; time: string; createdBy: string; coverUrl?: string }>();
 
   const [title, setTitle]       = useState(params.title ?? "");
   const [location, setLocation] = useState(params.location ?? "");
+  const [coverUri, setCoverUri] = useState<string | null>(null);
   const [eventDate, setEventDate] = useState(() => {
     const parsed = new Date(params.time ?? "");
     if (isNaN(parsed.getTime())) {
@@ -66,6 +69,16 @@ export default function EditEventScreen() {
     }
   };
 
+  const pickCover = async () => {
+    const result = await ImagePicker.launchImageLibraryAsync({
+      mediaTypes: ["images"],
+      allowsEditing: true,
+      aspect: [16, 9],
+      quality: 0.9,
+    });
+    if (!result.canceled && result.assets[0]) setCoverUri(result.assets[0].uri);
+  };
+
   const handleSubmit = async () => {
     setError("");
     if (!title.trim() || !location.trim()) {
@@ -74,11 +87,13 @@ export default function EditEventScreen() {
     }
     setSubmitting(true);
     try {
+      const coverUrl = coverUri ? await uploadEventCover(coverUri) : undefined;
       await updateEvent(Number(params.id), {
         title: title.trim(),
         location: location.trim(),
         time: formatEventDate(eventDate),
         createdBy: params.createdBy ?? "",
+        coverUrl,
       });
       router.dismissAll();
     } catch {
@@ -126,6 +141,22 @@ export default function EditEventScreen() {
           {Platform.OS === "android" && showDatePicker && (
             <DateTimePicker value={eventDate} mode={androidStep} onChange={onDateChange} />
           )}
+
+          <Text style={s.label}>Cover Photo</Text>
+          <Pressable style={s.coverPicker} onPress={pickCover}>
+            {(coverUri || params.coverUrl) ? (
+              <>
+                <Image source={{ uri: coverUri ?? params.coverUrl! }} style={StyleSheet.absoluteFill} contentFit="cover" />
+                <View style={s.coverOverlay}>
+                  <Text style={s.coverOverlayText}>Tap to change</Text>
+                </View>
+              </>
+            ) : (
+              <View style={s.coverEmpty}>
+                <Text style={s.coverEmptyText}>+ Add a cover photo</Text>
+              </View>
+            )}
+          </Pressable>
 
           {!!error && <Text style={s.errorText}>{error}</Text>}
 
@@ -175,6 +206,14 @@ const s = StyleSheet.create({
     paddingHorizontal: 16, fontSize: 16, color: AppColors.text, marginBottom: 20,
   },
   inputPressable: { justifyContent: "center" },
+  coverPicker: { height: 150, borderRadius: 14, overflow: "hidden", marginBottom: 20, borderWidth: 1, borderColor: AppColors.border },
+  coverEmpty: { flex: 1, alignItems: "center", justifyContent: "center", backgroundColor: AppColors.card },
+  coverEmptyText: { color: "rgba(255,255,255,0.4)", fontSize: 13 },
+  coverOverlay: {
+    position: "absolute", bottom: 0, left: 0, right: 0,
+    backgroundColor: "rgba(0,0,0,0.45)", paddingVertical: 5, alignItems: "center",
+  },
+  coverOverlayText: { color: "rgba(255,255,255,0.8)", fontSize: 12, fontWeight: "600" },
   errorText: { color: AppColors.red, fontSize: 13, marginBottom: 16, lineHeight: 18 },
   submitBtn: { height: 48, borderRadius: 14, alignItems: "center", justifyContent: "center", backgroundColor: AppColors.btnLight, marginTop: 10 },
   submitBtnText: { fontSize: 14, letterSpacing: 1.5, color: AppColors.btnLightText, fontFamily: "Cinzel_700Bold" },

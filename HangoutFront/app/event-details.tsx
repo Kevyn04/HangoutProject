@@ -1,5 +1,6 @@
 import React, { useState, useEffect } from "react";
 import { View, Text, StyleSheet, Pressable, Alert, ActivityIndicator, Modal, FlatList } from "react-native";
+import { Image } from "expo-image";
 import { LinearGradient } from "expo-linear-gradient";
 import * as Haptics from "expo-haptics";
 import * as Notifications from "expo-notifications";
@@ -29,6 +30,7 @@ export default function EventDetailsScreen() {
   const [remindLoading, setRemindLoading] = useState(false);
   const [eventDate, setEventDate] = useState<string | null>(null);
   const [concluded, setConcluded] = useState(false);
+  const [coverUrl, setCoverUrl] = useState<string | null>(null);
 
   useEffect(() => {
     if (!user) return;
@@ -46,6 +48,7 @@ export default function EventDetailsScreen() {
         setIsAttending(list.includes(user));
         setReminded(hasReminder);
         setEventDate(eventData.eventDate ?? null);
+        setCoverUrl(eventData.coverUrl ?? null);
         if (eventData.eventDate) {
           setConcluded(new Date(eventData.eventDate) < new Date());
         }
@@ -166,6 +169,9 @@ export default function EventDetailsScreen() {
       <LinearGradient colors={["#0f0305", "#1a0505", "#2d0808"]} locations={[0, 0.5, 1]} style={StyleSheet.absoluteFill} />
 
       <View style={styles.content}>
+        {!!coverUrl && (
+          <Image source={{ uri: coverUrl }} style={styles.cover} contentFit="cover" transition={150} />
+        )}
         <Text style={styles.title}>{title}</Text>
         {concluded && (
           <View style={styles.concludedBanner}>
@@ -253,7 +259,7 @@ export default function EventDetailsScreen() {
           <View style={styles.actions}>
             <Pressable
               style={({ pressed }) => [styles.editBtn, pressed && styles.pressed]}
-              onPress={() => router.push({ pathname: "/edit-event", params: { id, title, location, time, createdBy } })}
+              onPress={() => router.push({ pathname: "/edit-event", params: { id, title, location, time, createdBy, coverUrl: coverUrl ?? "" } })}
             >
               <Text style={styles.editBtnText}>Edit</Text>
             </Pressable>
@@ -300,6 +306,7 @@ export default function EventDetailsScreen() {
 const styles = StyleSheet.create({
   container: { flex: 1 },
   content: { flex: 1, padding: 24, paddingTop: 20 },
+  cover: { height: 170, borderRadius: 16, marginBottom: 18 },
   title: { fontSize: 28, fontWeight: "700", color: "#fff", marginBottom: 24 },
 
   card: {

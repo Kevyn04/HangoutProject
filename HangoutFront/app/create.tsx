@@ -3,10 +3,12 @@ import {
   View, Text, TextInput, StyleSheet, Pressable, ActivityIndicator,
   KeyboardAvoidingView, Platform, ScrollView, Modal, FlatList,
 } from "react-native";
+import { Image } from "expo-image";
+import * as ImagePicker from "expo-image-picker";
 import { LinearGradient } from "expo-linear-gradient";
 import { useFonts, Cinzel_700Bold } from "@expo-google-fonts/cinzel";
 import { useRouter } from "expo-router";
-import { createEvent } from "@/services/api";
+import { createEvent, uploadEventCover } from "@/services/api";
 import { useAuth } from "@/services/auth-context";
 import * as Location from "expo-location";
 import { AppColors } from "@/constants/theme";
@@ -47,6 +49,7 @@ export default function CreateScreen() {
 
   const [showMapPicker, setShowMapPicker] = useState(false);
   const [pinCoords, setPinCoords] = useState<{ latitude: number; longitude: number } | null>(null);
+  const [coverUri, setCoverUri] = useState<string | null>(null);
 
   const locationRef = useRef<TextInput>(null);
 
@@ -87,6 +90,16 @@ export default function CreateScreen() {
     }
   };
 
+  const pickCover = async () => {
+    const result = await ImagePicker.launchImageLibraryAsync({
+      mediaTypes: ["images"],
+      allowsEditing: true,
+      aspect: [16, 9],
+      quality: 0.9,
+    });
+    if (!result.canceled && result.assets[0]) setCoverUri(result.assets[0].uri);
+  };
+
   const handleSubmit = async () => {
     setError("");
     if (!title.trim() || !location.trim()) {
@@ -95,7 +108,9 @@ export default function CreateScreen() {
     }
     setSubmitting(true);
     try {
+      const coverUrl = coverUri ? await uploadEventCover(coverUri) : undefined;
       await createEvent({
+        coverUrl,
         title: title.trim(),
         location: location.trim(),
         time: formatEventDate(eventDate),
@@ -165,6 +180,22 @@ export default function CreateScreen() {
           {Platform.OS === "android" && showDatePicker && (
             <DateTimePicker value={eventDate} mode={androidStep} onChange={onDateChange} />
           )}
+
+          <Text style={s.label}>Cover Photo (optional)</Text>
+          <Pressable style={s.coverPicker} onPress={pickCover}>
+            {coverUri ? (
+              <>
+                <Image source={{ uri: coverUri }} style={StyleSheet.absoluteFill} contentFit="cover" />
+                <View style={s.mapOverlay}>
+                  <Text style={s.mapOverlayText}>Tap to change</Text>
+                </View>
+              </>
+            ) : (
+              <View style={s.mapEmpty}>
+                <Text style={s.mapEmptyText}>+ Add a cover photo</Text>
+              </View>
+            )}
+          </Pressable>
 
           <Text style={s.label}>Pin on Map</Text>
           <Pressable style={s.mapPreview} onPress={() => setShowMapPicker(true)}>
@@ -266,6 +297,7 @@ const s = StyleSheet.create({
   disabled: { opacity: 0.6 },
 
   mapPreview: { height: 130, borderRadius: 14, overflow: "hidden", marginBottom: 20, borderWidth: 1, borderColor: AppColors.border },
+  coverPicker: { height: 150, borderRadius: 14, overflow: "hidden", marginBottom: 20, borderWidth: 1, borderColor: AppColors.border },
   mapEmpty: { flex: 1, alignItems: "center", justifyContent: "center", backgroundColor: AppColors.card },
   mapEmptyText: { color: "rgba(255,255,255,0.4)", fontSize: 13 },
   mapOverlay: {

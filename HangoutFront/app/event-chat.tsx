@@ -4,13 +4,16 @@ import {
   KeyboardAvoidingView, Platform, ActivityIndicator,
 } from "react-native";
 import { useLocalSearchParams } from "expo-router";
+import { Image } from "expo-image";
+import * as ImagePicker from "expo-image-picker";
+import { Ionicons } from "@expo/vector-icons";
 import { useAuth } from "@/services/auth-context";
 import { useToast } from "@/context/ToastContext";
-import { getEventMessages, sendEventMessage } from "@/services/api";
+import { getEventMessages, sendEventMessage, uploadChatImage } from "@/services/api";
 import { supabase } from "@/services/supabase";
 import { ScreenBackground } from "@/components/ScreenBackground";
 
-type Msg = { id: number; username: string; message: string; createdAt: string };
+type Msg = { id: number; username: string; message: string; imageUrl?: string | null; createdAt: string };
 
 function fmtTime(iso: string) {
   try { return new Date(iso).toLocaleTimeString([], { hour: "2-digit", minute: "2-digit" }); }
@@ -48,7 +51,7 @@ export default function EventChatScreen() {
         { event: "INSERT", schema: "public", table: "event_messages", filter: `event_id=eq.${eid}` },
         (payload) => {
           const row = payload.new as any;
-          const msg: Msg = { id: row.id, username: row.username, message: row.message, createdAt: row.created_at };
+          const msg: Msg = { id: row.id, username: row.username, message: row.message, imageUrl: row.image_url ?? null, createdAt: row.created_at };
           setMessages((prev) => prev.some((m) => m.id === msg.id) ? prev : [...prev, msg]);
           setTimeout(() => listRef.current?.scrollToEnd({ animated: true }), 50);
         }
@@ -73,6 +76,24 @@ export default function EventChatScreen() {
     }
   };
 
+  const handleSendImage = async () => {
+    if (!user || sending) return;
+    const result = await ImagePicker.launchImageLibraryAsync({
+      mediaTypes: ["images"],
+      quality: 0.9,
+    });
+    if (result.canceled || !result.assets[0]) return;
+    setSending(true);
+    try {
+      const url = await uploadChatImage(result.assets[0].uri);
+      await sendEventMessage(eid, user, "", url);
+    } catch {
+      showToast("Couldn't send photo.");
+    } finally {
+      setSending(false);
+    }
+  };
+
   return (
     <ScreenBackground>
       <KeyboardAvoidingView style={{ flex: 1 }} behavior={Platform.OS === "ios" ? "padding" : undefined} keyboardVerticalOffset={90}>
@@ -87,7 +108,10 @@ export default function EventChatScreen() {
             return (
               <View style={[s.bubble, isMe ? s.bubbleMe : s.bubbleOther]}>
                 {!isMe && <Text style={s.sender}>{item.username}</Text>}
-                <Text style={s.msgText}>{item.message}</Text>
+                {!!item.imageUrl && (
+                  <Image source={{ uri: item.imageUrl }} style={s.msgImage} contentFit="cover" transition={150} />
+                )}
+                {!!item.message && <Text style={s.msgText}>{item.message}</Text>}
                 <Text style={s.time}>{fmtTime(item.createdAt)}</Text>
               </View>
             );
@@ -95,6 +119,9 @@ export default function EventChatScreen() {
         />
 
         <View style={s.inputRow}>
+          <Pressable style={s.attachBtn} onPress={handleSendImage} disabled={sending}>
+            <Ionicons name="image-outline" size={22} color="rgba(255,255,255,0.6)" />
+          </Pressable>
           <TextInput
             style={s.input}
             value={input}
@@ -125,6 +152,8 @@ const s = StyleSheet.create({
   bubbleOther: { alignSelf: "flex-start", backgroundColor: "rgba(255,255,255,0.1)", borderWidth: 1, borderColor: "rgba(255,255,255,0.08)" },
   sender: { color: "rgba(255,255,255,0.55)", fontSize: 11, fontWeight: "700", marginBottom: 3 },
   msgText: { color: "#fff", fontSize: 15, lineHeight: 20 },
+  msgImage: { width: 200, height: 200, borderRadius: 10, marginVertical: 2 },
+  attachBtn: { width: 40, height: 40, alignItems: "center", justifyContent: "center" },
   time: { color: "rgba(255,255,255,0.35)", fontSize: 10, marginTop: 4, alignSelf: "flex-end" },
 
   inputRow: {
