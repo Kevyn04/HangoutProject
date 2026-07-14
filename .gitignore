@@ -30,8 +30,10 @@ Thumbs.db
 # ── Supabase ───────────────────────────────────────────────
 supabase/.temp/
 node_modules/
-package-lock.json
-package.json
+# anchored to repo root — a bare "package.json" also matches
+# HangoutFront/package.json and breaks EAS build archives
+/package-lock.json
+/package.json
 
 # ── Misc ───────────────────────────────────────────────────
 *.log
