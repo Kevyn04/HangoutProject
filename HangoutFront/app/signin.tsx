@@ -10,6 +10,7 @@ import * as AppleAuthentication from "expo-apple-authentication";
 import { signIn, signInWithApple, signInWithGoogle } from "@/services/api";
 import { useAuth } from "@/services/auth-context";
 import { AppColors } from "@/constants/theme";
+import { TurnstileModal, captchaEnabled } from "@/components/TurnstileModal";
 
 export default function SignInScreen() {
   const router = useRouter();
@@ -20,6 +21,7 @@ export default function SignInScreen() {
   const [submitting, setSubmitting] = useState(false);
   const [oauthLoading, setOauthLoading] = useState<"apple" | "google" | null>(null);
   const [error, setError] = useState("");
+  const [showCaptcha, setShowCaptcha] = useState(false);
 
   const passwordRef = useRef<TextInput>(null);
   const [fontsLoaded] = useFonts({ Cinzel_700Bold });
@@ -32,15 +34,24 @@ export default function SignInScreen() {
     );
   }
 
-  const handleSignIn = async () => {
+  const handleSignIn = () => {
     setError("");
     if (!username.trim() || !password.trim()) {
       setError("Please enter both username and password.");
       return;
     }
+    if (captchaEnabled) {
+      setShowCaptcha(true);
+    } else {
+      doSignIn();
+    }
+  };
+
+  const doSignIn = async (captchaToken?: string) => {
+    setShowCaptcha(false);
     setSubmitting(true);
     try {
-      const data = await signIn(username.trim(), password);
+      const data = await signIn(username.trim(), password, captchaToken);
       await login(data.username);
       router.dismissAll();
     } catch (e: any) {
@@ -179,6 +190,12 @@ export default function SignInScreen() {
           </Pressable>
         </ScrollView>
       </KeyboardAvoidingView>
+
+      <TurnstileModal
+        visible={showCaptcha}
+        onToken={(token) => doSignIn(token)}
+        onCancel={() => setShowCaptcha(false)}
+      />
     </View>
   );
 }

@@ -10,6 +10,7 @@ import * as AppleAuthentication from "expo-apple-authentication";
 import { signUp, signInWithApple, signInWithGoogle } from "@/services/api";
 import { AppColors } from "@/constants/theme";
 import { PrivacyPolicyModal } from "@/components/PrivacyPolicyModal";
+import { TurnstileModal, captchaEnabled } from "@/components/TurnstileModal";
 
 export default function SignUpScreen() {
   const router = useRouter();
@@ -20,6 +21,7 @@ export default function SignUpScreen() {
   const [oauthLoading, setOauthLoading] = useState<"apple" | "google" | null>(null);
   const [error, setError] = useState("");
   const [showPrivacy, setShowPrivacy] = useState(false);
+  const [showCaptcha, setShowCaptcha] = useState(false);
 
   const passwordRef = useRef<TextInput>(null);
   const [fontsLoaded] = useFonts({ Cinzel_700Bold });
@@ -41,11 +43,20 @@ export default function SignUpScreen() {
     setShowPrivacy(true);
   };
 
-  const handlePrivacyAgree = async () => {
+  const handlePrivacyAgree = () => {
     setShowPrivacy(false);
+    if (captchaEnabled) {
+      setShowCaptcha(true);
+    } else {
+      doSignUp();
+    }
+  };
+
+  const doSignUp = async (captchaToken?: string) => {
+    setShowCaptcha(false);
     setSubmitting(true);
     try {
-      await signUp(username.trim(), password);
+      await signUp(username.trim(), password, captchaToken);
       Alert.alert("Account Created", "You can now sign in.", [
         { text: "OK", onPress: () => router.back() },
       ]);
@@ -197,6 +208,12 @@ export default function SignUpScreen() {
         visible={showPrivacy}
         onAgree={handlePrivacyAgree}
         onDecline={() => setShowPrivacy(false)}
+      />
+
+      <TurnstileModal
+        visible={showCaptcha}
+        onToken={(token) => doSignUp(token)}
+        onCancel={() => setShowCaptcha(false)}
       />
     </View>
   );

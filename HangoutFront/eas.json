@@ -4,14 +4,24 @@
     "appVersionSource": "remote"
   },
   "build": {
+    "base": {
+      "env": {
+        "EXPO_PUBLIC_SUPABASE_URL": "https://zkdrmmpjhdsoeshpcxqi.supabase.co",
+        "EXPO_PUBLIC_SUPABASE_ANON_KEY": "eyJhbGciOiJIUzI1NiIsInR5cCI6IkpXVCJ9.eyJpc3MiOiJzdXBhYmFzZSIsInJlZiI6InprZHJtbXBqaGRzb2VzaHBjeHFpIiwicm9sZSI6ImFub24iLCJpYXQiOjE3Nzk3NTI2NzMsImV4cCI6MjA5NTMyODY3M30.eDOaewrrRxOhxw13yNW8mLcgdd_ZL5pAVYZxQx6ttsM",
+        "EXPO_PUBLIC_TURNSTILE_SITE_KEY": "0x4AAAAAAD1iuMJ847pZx21O"
+      }
+    },
     "development": {
+      "extends": "base",
       "developmentClient": true,
       "distribution": "internal"
     },
     "preview": {
+      "extends": "base",
       "distribution": "internal"
     },
     "production": {
+      "extends": "base",
       "autoIncrement": true
     }
   },
