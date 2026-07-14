@@ -7,11 +7,15 @@ import {
 import { useLocalSearchParams, useRouter } from "expo-router";
 import { useFocusEffect } from "@react-navigation/native";
 import * as Location from "expo-location";
+import * as ImagePicker from "expo-image-picker";
+import { Image } from "expo-image";
+import MapView, { Marker, PROVIDER_GOOGLE, PROVIDER_DEFAULT } from "react-native-maps";
 import {
   getBubbleById, getBubbleMembers, updateMemberLocation,
   getBubbleChannels, switchChannel, getMessages, sendMessage,
   deleteBubble, leaveBubble, notifyTyping, getTypingUsers,
   getBlockedUsers, reportMessage, getDiscussions, createDiscussion,
+  uploadChatImage,
 } from "@/services/api";
 import { SkeletonBox } from "@/components/SkeletonBox";
 import { ErrorScreen } from "@/components/ErrorScreen";
@@ -155,6 +159,73 @@ function MemberEmoji({
   );
 }
 
+// ── LiveMemberMap ─────────────────────────────────────────────────────
+// Compact map of everyone currently sharing their location. Coordinates
+// arrive via the Realtime UPDATE subscription, so markers move live.
+function LiveMemberMap({
+  members, me,
+}: {
+  members: { username: string; latitude?: number; longitude?: number; profileEmoji?: string }[];
+  me: string | null | undefined;
+}) {
+  const mapRef = useRef<MapView>(null);
+  const coordsKey = members.map((m) => `${m.username}:${m.latitude}:${m.longitude}`).join("|");
+
+  useEffect(() => {
+    const coords = members.map((m) => ({ latitude: m.latitude!, longitude: m.longitude! }));
+    if (!coords.length) return;
+    mapRef.current?.fitToCoordinates(coords, {
+      edgePadding: { top: 40, right: 40, bottom: 40, left: 40 },
+      animated: true,
+    });
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [coordsKey]);
+
+  return (
+    <View style={lm.wrap}>
+      <MapView
+        ref={mapRef}
+        style={lm.map}
+        provider={Platform.OS === "android" ? PROVIDER_GOOGLE : PROVIDER_DEFAULT}
+        initialRegion={{
+          latitude: members[0].latitude!,
+          longitude: members[0].longitude!,
+          latitudeDelta: 0.01,
+          longitudeDelta: 0.01,
+        }}
+      >
+        {members.map((m) => (
+          <Marker
+            key={m.username}
+            coordinate={{ latitude: m.latitude!, longitude: m.longitude! }}
+            title={m.username === me ? `${m.username} (you)` : m.username}
+            anchor={{ x: 0.5, y: 0.5 }}
+          >
+            <View style={[lm.marker, m.username === me && lm.markerMe]}>
+              <Text style={lm.markerEmoji}>{m.profileEmoji || emojiForUser(m.username)}</Text>
+            </View>
+          </Marker>
+        ))}
+      </MapView>
+    </View>
+  );
+}
+
+const lm = StyleSheet.create({
+  wrap: {
+    height: 180, borderRadius: 14, overflow: "hidden",
+    borderWidth: 1, borderColor: "rgba(255,255,255,0.12)", marginBottom: 6,
+  },
+  map: { flex: 1 },
+  marker: {
+    width: 36, height: 36, borderRadius: 18,
+    backgroundColor: "#1a0808", alignItems: "center", justifyContent: "center",
+    borderWidth: 2, borderColor: "#7c3aed",
+  },
+  markerMe: { borderColor: "#dc2626" },
+  markerEmoji: { fontSize: 18 },
+});
+
 // ── Helpers ──────────────────────────────────────────────────────────
 function haversineKm(lat1: number, lon1: number, lat2: number, lon2: number): number {
   const R = 6371;
@@ -190,7 +261,7 @@ type BubbleMember = {
 
 type ChatMsg = {
   id: number; bubbleId: number; channelId: number;
-  username: string; message: string; createdAt: string;
+  username: string; message: string; imageUrl?: string | null; createdAt: string;
 };
 
 type Bubble = {
@@ -367,11 +438,39 @@ export default function BubbleDetailScreen() {
     return () => { supabase.removeChannel(ch); };
   }, [bubbleId, loadMembers]);
 
-  // Poll member locations every 20s (location updates only, not joins/leaves)
+  // Realtime: live location — member row UPDATEs (coords / share toggle / channel)
+  // patch state directly, no refetch. A slow 60s poll remains as a safety net
+  // in case a Realtime event is dropped.
   useEffect(() => {
-    const p = setInterval(loadMembers, 20000);
-    return () => clearInterval(p);
-  }, [loadMembers]);
+    const ch = supabase
+      .channel(`bubble-${bubbleId}-locations`)
+      .on(
+        'postgres_changes',
+        { event: 'UPDATE', schema: 'public', table: 'bubble_member_detail', filter: `bubble_id=eq.${bubbleId}` },
+        (payload) => {
+          const row = payload.new as any;
+          setMembers((prev) =>
+            prev.map((m) =>
+              m.username === row.username
+                ? {
+                    ...m,
+                    latitude: row.lat,
+                    longitude: row.lng,
+                    shareLocation: row.share_location,
+                    channelId: row.channel_id ?? 1,
+                  }
+                : m
+            )
+          );
+        }
+      )
+      .subscribe();
+    const fallback = setInterval(loadMembers, 60000);
+    return () => {
+      supabase.removeChannel(ch);
+      clearInterval(fallback);
+    };
+  }, [bubbleId, loadMembers]);
 
   // Realtime chat subscription
   useEffect(() => {
@@ -391,7 +490,8 @@ export default function BubbleDetailScreen() {
 
           const msg: ChatMsg = {
             id: row.id, bubbleId: row.bubble_id, channelId: row.channel_id,
-            username: row.username, message: row.message, createdAt: row.created_at,
+            username: row.username, message: row.message,
+            imageUrl: row.image_url ?? null, createdAt: row.created_at,
           };
 
           setMessages((prev) => prev.some((m) => m.id === msg.id) ? prev : [...prev, msg]);
@@ -423,7 +523,7 @@ export default function BubbleDetailScreen() {
     await updateMemberLocation(bubbleId, user ?? "Guest", true, coord.latitude, coord.longitude);
 
     const sub = await Location.watchPositionAsync(
-      { accuracy: Location.Accuracy.Balanced, timeInterval: 20000, distanceInterval: 20 },
+      { accuracy: Location.Accuracy.Balanced, timeInterval: 5000, distanceInterval: 10 },
       async (l) => {
         const c = { latitude: l.coords.latitude, longitude: l.coords.longitude };
         setMyLocation(c);
@@ -456,6 +556,22 @@ export default function BubbleDetailScreen() {
       await sendMessage(bubbleId, channelId, user ?? "Guest", text);
     } catch {
       showToast("Failed to send message. Try again.");
+    } finally { setSending(false); }
+  };
+
+  const handleSendImage = async () => {
+    if (!user || sending) return;
+    const result = await ImagePicker.launchImageLibraryAsync({
+      mediaTypes: ["images"],
+      quality: 0.9,
+    });
+    if (result.canceled || !result.assets[0]) return;
+    setSending(true);
+    try {
+      const url = await uploadChatImage(result.assets[0].uri);
+      await sendMessage(bubbleId, channelId, user, "", url);
+    } catch {
+      showToast("Failed to send photo. Try again.");
     } finally { setSending(false); }
   };
 
@@ -586,6 +702,9 @@ export default function BubbleDetailScreen() {
 
   // ── Derived ─────────────────────────────────────────────────────
   const visibleMembers = members.filter((m) => !blockedUsers.has(m.username));
+  const sharingMembers = visibleMembers.filter(
+    (m) => m.shareLocation && m.latitude != null && m.longitude != null
+  );
   const visibleMessages = messages.filter((m) => m.username === user || !blockedUsers.has(m.username));
   const membersInChannel = visibleMembers.filter((m) => (m.channelId ?? 1) === channelId);
   const isHost = bubble?.createdBy === user;
@@ -727,22 +846,25 @@ export default function BubbleDetailScreen() {
           keyExtractor={(m) => String(m.id)}
           contentContainerStyle={s.listContent}
           ListHeaderComponent={
-            <Pressable
-              style={[s.locationToggle, sharing && s.locationToggleOn]}
-              onPress={() => { if (sharing) stopSharing(); else startSharing(); }}
-            >
-              <View>
-                <Text style={s.locationToggleTitle}>
-                  {sharing ? "📍 Sharing your location" : "📍 Location hidden"}
-                </Text>
-                <Text style={s.locationToggleSub}>
-                  {sharing ? "Tap to stop sharing" : "Tap to share your location with members"}
-                </Text>
-              </View>
-              <View style={[s.toggle, sharing && s.toggleOn]}>
-                <View style={[s.toggleThumb, sharing && s.toggleThumbOn]} />
-              </View>
-            </Pressable>
+            <View>
+              <Pressable
+                style={[s.locationToggle, sharing && s.locationToggleOn]}
+                onPress={() => { if (sharing) stopSharing(); else startSharing(); }}
+              >
+                <View>
+                  <Text style={s.locationToggleTitle}>
+                    {sharing ? "📍 Sharing your location" : "📍 Location hidden"}
+                  </Text>
+                  <Text style={s.locationToggleSub}>
+                    {sharing ? "Tap to stop sharing" : "Tap to share your location with members"}
+                  </Text>
+                </View>
+                <View style={[s.toggle, sharing && s.toggleOn]}>
+                  <View style={[s.toggleThumb, sharing && s.toggleThumbOn]} />
+                </View>
+              </Pressable>
+              {sharingMembers.length > 0 && <LiveMemberMap members={sharingMembers} me={user} />}
+            </View>
           }
           renderItem={({ item: m }) => {
             const isMe = m.username === user;
@@ -816,7 +938,10 @@ export default function BubbleDetailScreen() {
                   )}
                   <View style={[s.msgBubble, isMe && s.msgBubbleMe]}>
                     {!isMe && <Text style={s.msgUsername}>{msg.username}</Text>}
-                    <Text style={s.msgText}>{msg.message}</Text>
+                    {!!msg.imageUrl && (
+                      <Image source={{ uri: msg.imageUrl }} style={s.msgImage} contentFit="cover" transition={150} />
+                    )}
+                    {!!msg.message && <Text style={s.msgText}>{msg.message}</Text>}
                     <Text style={s.msgTime}>{fmtTime(msg.createdAt)}</Text>
                   </View>
                 </Pressable>
@@ -831,6 +956,9 @@ export default function BubbleDetailScreen() {
             </View>
           ) : (
           <View style={s.inputRow}>
+            <Pressable style={s.attachBtn} onPress={handleSendImage} disabled={sending}>
+              <Ionicons name="image-outline" size={22} color="rgba(255,255,255,0.6)" />
+            </Pressable>
             <TextInput
               style={s.msgInput}
               placeholder="Message..."
@@ -1181,7 +1309,9 @@ const s = StyleSheet.create({
   msgBubbleMe: { backgroundColor: "#dc2626", borderBottomLeftRadius: 14, borderBottomRightRadius: 4 },
   msgUsername: { color: "#c4b5fd", fontSize: 11, fontWeight: "700", marginBottom: 2 },
   msgText: { color: "#fff", fontSize: 14, lineHeight: 20 },
+  msgImage: { width: 200, height: 200, borderRadius: 10, marginVertical: 2 },
   msgTime: { color: "rgba(255,255,255,0.4)", fontSize: 10, alignSelf: "flex-end" },
+  attachBtn: { width: 40, height: 40, alignItems: "center", justifyContent: "center" },
 
   // Chat — input
   inputRow: {
