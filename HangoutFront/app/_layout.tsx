@@ -96,6 +96,7 @@ function AppContent() {
           <Stack.Screen name="notifications" options={{ headerShown: false }} />
           <Stack.Screen name="search" options={{ headerShown: false }} />
           <Stack.Screen name="invite-user" options={{ headerShown: false }} />
+          <Stack.Screen name="story-viewer" options={{ headerShown: false, presentation: 'fullScreenModal', animation: 'fade' }} />
         </Stack>
         <StatusBar style="light" />
       </ThemeProvider>
