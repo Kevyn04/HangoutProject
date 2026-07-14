@@ -11,7 +11,7 @@ export type ActivityItem = {
 
 // ── Auth ──────────────────────────────────────────────────────────────────────
 
-export async function signUp(username: string, password: string): Promise<any> {
+export async function signUp(username: string, password: string, captchaToken?: string): Promise<any> {
   const { data: existing } = await supabase
     .from('profiles')
     .select('username')
@@ -23,7 +23,7 @@ export async function signUp(username: string, password: string): Promise<any> {
   const { data, error } = await supabase.auth.signUp({
     email: `${username}@hangout.local`,
     password,
-    options: { data: { username } },
+    options: { data: { username }, captchaToken },
   });
 
   if (error) throw new Error(error.message);
@@ -74,10 +74,11 @@ export async function signInWithGoogle(): Promise<'success' | 'cancelled'> {
   return 'success';
 }
 
-export async function signIn(username: string, password: string): Promise<any> {
+export async function signIn(username: string, password: string, captchaToken?: string): Promise<any> {
   const { error } = await supabase.auth.signInWithPassword({
     email: `${username}@hangout.local`,
     password,
+    options: { captchaToken },
   });
 
   if (error) throw new Error(error.message);
@@ -125,7 +126,7 @@ export async function getEventById(id: number): Promise<any> {
 export async function createEvent(event: {
   title: string; location: string; time: string;
   createdBy: string; latitude?: number; longitude?: number; type?: string;
-  eventDateISO?: string;
+  eventDateISO?: string; coverUrl?: string;
 }): Promise<any> {
   const { data, error } = await supabase
     .from('events')
@@ -138,6 +139,7 @@ export async function createEvent(event: {
       lng: event.longitude,
       type: event.type ?? null,
       event_date: event.eventDateISO ?? null,
+      cover_url: event.coverUrl ?? null,
     })
     .select()
     .single();
@@ -148,11 +150,13 @@ export async function createEvent(event: {
 
 export async function updateEvent(
   id: number,
-  event: { title: string; location: string; time: string; createdBy: string; latitude?: number; longitude?: number }
+  event: { title: string; location: string; time: string; createdBy: string; latitude?: number; longitude?: number; coverUrl?: string }
 ): Promise<any> {
+  const update: Record<string, any> = { title: event.title, location: event.location, time: event.time };
+  if (event.coverUrl !== undefined) update.cover_url = event.coverUrl;
   const { data, error } = await supabase
     .from('events')
-    .update({ title: event.title, location: event.location, time: event.time })
+    .update(update)
     .eq('id', id)
     .select()
     .single();
@@ -422,7 +426,7 @@ export async function switchChannel(id: number, username: string, channelId: num
 export async function getMessages(id: number, channel: number): Promise<any[]> {
   const { data, error } = await supabase
     .from('chat_messages')
-    .select('id, bubble_id, channel_id, username, message, created_at')
+    .select('id, bubble_id, channel_id, username, message, image_url, created_at')
     .eq('bubble_id', id)
     .eq('channel_id', channel)
     .order('created_at', { ascending: true })
@@ -435,23 +439,25 @@ export async function getMessages(id: number, channel: number): Promise<any[]> {
     channelId: m.channel_id,
     username: m.username,
     message: m.message,
+    imageUrl: m.image_url ?? null,
     createdAt: m.created_at,
   }));
 }
 
 export async function sendMessage(
-  id: number, channelId: number, username: string, message: string,
+  id: number, channelId: number, username: string, message: string, imageUrl?: string,
 ): Promise<any> {
   const { data, error } = await supabase
     .from('chat_messages')
-    .insert({ bubble_id: id, channel_id: channelId, username, message })
+    .insert({ bubble_id: id, channel_id: channelId, username, message, image_url: imageUrl ?? null })
     .select()
     .single();
 
   if (error) throw new Error(error.message);
   return {
     id: data.id, bubbleId: data.bubble_id, channelId: data.channel_id,
-    username: data.username, message: data.message, createdAt: data.created_at,
+    username: data.username, message: data.message, imageUrl: data.image_url ?? null,
+    createdAt: data.created_at,
   };
 }
 
@@ -591,46 +597,155 @@ export async function getFollowingPages(username: string): Promise<any[]> {
   return (data ?? []).map((r: any) => mapPage(r.pages)).filter(Boolean);
 }
 
+// ── Page Posts / Moderation / Analytics ───────────────────────────────────────
+
+export type PagePost = {
+  id: number;
+  pageId: number;
+  username: string;
+  content: string;
+  createdAt: string;
+};
+
+export async function getPagePosts(pageId: number): Promise<PagePost[]> {
+  const { data, error } = await supabase
+    .from('page_posts')
+    .select('*')
+    .eq('page_id', pageId)
+    .order('created_at', { ascending: false })
+    .limit(50);
+  if (error) throw new Error(error.message);
+  return (data ?? []).map((r) => ({
+    id: r.id, pageId: r.page_id, username: r.username,
+    content: r.content, createdAt: r.created_at,
+  }));
+}
+
+export async function createPagePost(pageId: number, username: string, content: string): Promise<void> {
+  const { error } = await supabase
+    .from('page_posts')
+    .insert({ page_id: pageId, username, content });
+  if (error) throw new Error(error.message);
+}
+
+export async function deletePagePost(id: number): Promise<void> {
+  const { error } = await supabase.from('page_posts').delete().eq('id', id);
+  if (error) throw new Error(error.message);
+}
+
+export async function getPageModerators(pageId: number): Promise<string[]> {
+  const { data, error } = await supabase
+    .from('page_moderators')
+    .select('username')
+    .eq('page_id', pageId)
+    .order('created_at', { ascending: true });
+  if (error) throw new Error(error.message);
+  return (data ?? []).map((r) => r.username);
+}
+
+export async function addPageModerator(pageId: number, username: string, addedBy: string): Promise<void> {
+  const { error } = await supabase
+    .from('page_moderators')
+    .insert({ page_id: pageId, username, added_by: addedBy });
+  if (error) throw new Error(error.message);
+}
+
+export async function removePageModerator(pageId: number, username: string): Promise<void> {
+  const { error } = await supabase
+    .from('page_moderators')
+    .delete()
+    .eq('page_id', pageId)
+    .eq('username', username);
+  if (error) throw new Error(error.message);
+}
+
+export type PageAnalytics = {
+  followerCount: number;
+  gained7d: number;
+  gained30d: number;
+  postCount: number;
+};
+
+export async function getPageAnalytics(pageId: number): Promise<PageAnalytics> {
+  const now = Date.now();
+  const iso7d = new Date(now - 7 * 24 * 3600 * 1000).toISOString();
+  const iso30d = new Date(now - 30 * 24 * 3600 * 1000).toISOString();
+
+  const [total, last7, last30, posts] = await Promise.all([
+    supabase.from('page_followers').select('*', { count: 'exact', head: true }).eq('page_id', pageId),
+    supabase.from('page_followers').select('*', { count: 'exact', head: true }).eq('page_id', pageId).gt('created_at', iso7d),
+    supabase.from('page_followers').select('*', { count: 'exact', head: true }).eq('page_id', pageId).gt('created_at', iso30d),
+    supabase.from('page_posts').select('*', { count: 'exact', head: true }).eq('page_id', pageId),
+  ]);
+
+  return {
+    followerCount: total.count ?? 0,
+    gained7d: last7.count ?? 0,
+    gained30d: last30.count ?? 0,
+    postCount: posts.count ?? 0,
+  };
+}
+
 // ── Profile ───────────────────────────────────────────────────────────────────
 
-const AVATAR_ALLOWED_MIME: Record<string, string> = {
+const IMAGE_ALLOWED_MIME: Record<string, string> = {
   jpg: 'image/jpeg', jpeg: 'image/jpeg',
   png: 'image/png', webp: 'image/webp',
   heic: 'image/heic', heif: 'image/heif',
 };
-const AVATAR_MAX_BYTES = 5 * 1024 * 1024; // 5 MB
+const IMAGE_MAX_BYTES = 5 * 1024 * 1024; // 5 MB
 
-export async function uploadAvatar(localUri: string): Promise<string> {
-  const { data: { user } } = await supabase.auth.getUser();
-  if (!user) throw new Error('Not authenticated');
-
+// Shared upload pipeline: validates the extension, re-encodes through the
+// pixel pipeline (strips EXIF, embedded scripts, polyglot payloads), then
+// uploads pure-pixel JPEG to the given bucket path.
+async function uploadImage(
+  localUri: string, bucket: string, path: string,
+  resize: { width: number; height?: number }, upsert: boolean,
+): Promise<string> {
   const rawExt = localUri.split('.').pop()?.toLowerCase() ?? '';
-  if (!AVATAR_ALLOWED_MIME[rawExt]) throw new Error('Only JPG, PNG, WebP, or HEIC images are allowed.');
+  if (!IMAGE_ALLOWED_MIME[rawExt]) throw new Error('Only JPG, PNG, WebP, or HEIC images are allowed.');
 
-  // Re-encode through the pixel pipeline — strips EXIF, embedded scripts,
-  // polyglot payloads, and any hidden data. Result is pure pixel data as JPEG.
   const { manipulateAsync, SaveFormat } = await import('expo-image-manipulator');
   const clean = await manipulateAsync(
     localUri,
-    [{ resize: { width: 400, height: 400 } }],
+    [{ resize }],
     { compress: 0.85, format: SaveFormat.JPEG }
   );
 
   const response = await fetch(clean.uri);
   const blob = await response.blob();
 
-  if (blob.size > AVATAR_MAX_BYTES) throw new Error('Image must be under 5 MB.');
-
-  const path = `${user.id}/avatar`;
+  if (blob.size > IMAGE_MAX_BYTES) throw new Error('Image must be under 5 MB.');
 
   const { error } = await supabase.storage
-    .from('avatars')
-    .upload(path, blob, { upsert: true, contentType: 'image/jpeg' });
+    .from(bucket)
+    .upload(path, blob, { upsert, contentType: 'image/jpeg' });
 
   if (error) throw new Error(error.message);
 
-  const { data } = supabase.storage.from('avatars').getPublicUrl(path);
+  const { data } = supabase.storage.from(bucket).getPublicUrl(path);
   return `${data.publicUrl}?t=${Date.now()}`;
+}
+
+async function requireUserId(): Promise<string> {
+  const { data: { user } } = await supabase.auth.getUser();
+  if (!user) throw new Error('Not authenticated');
+  return user.id;
+}
+
+export async function uploadAvatar(localUri: string): Promise<string> {
+  const uid = await requireUserId();
+  return uploadImage(localUri, 'avatars', `${uid}/avatar`, { width: 400, height: 400 }, true);
+}
+
+export async function uploadEventCover(localUri: string): Promise<string> {
+  const uid = await requireUserId();
+  return uploadImage(localUri, 'event-covers', `${uid}/${Date.now()}.jpg`, { width: 1200 }, false);
+}
+
+export async function uploadChatImage(localUri: string): Promise<string> {
+  const uid = await requireUserId();
+  return uploadImage(localUri, 'chat-media', `${uid}/${Date.now()}.jpg`, { width: 1200 }, false);
 }
 
 export async function getProfile(username: string, viewer?: string): Promise<any> {
@@ -805,33 +920,78 @@ export async function getUserRatings(username: string): Promise<any> {
 
 // ── Feed ──────────────────────────────────────────────────────────────────────
 
+// Fire-and-forget: stamps the profile with a coarse last-known position.
+// Rounded to 2 decimals (~1.1 km) before it ever leaves the device.
+export function updateMyCoarseLocation(username: string, latitude: number, longitude: number): void {
+  const coarse = (v: number) => Math.round(v * 100) / 100;
+  supabase
+    .from('profiles')
+    .update({
+      last_lat: coarse(latitude),
+      last_lng: coarse(longitude),
+      location_updated_at: new Date().toISOString(),
+    })
+    .eq('username', username)
+    .then(() => {}, () => {});
+}
+
+// Users active nearby in the last 7 days. Server returns distance only —
+// never coordinates (nearby_users is SECURITY DEFINER).
+export async function getNearbyUsers(
+  latitude: number, longitude: number
+): Promise<Array<{ username: string; distanceKm: number }>> {
+  const { data, error } = await supabase.rpc('nearby_users', {
+    my_lat: latitude, my_lng: longitude,
+  });
+  if (error) throw new Error(error.message);
+  return (data ?? []).map((r: any) => ({ username: r.username, distanceKm: r.distance_km }));
+}
+
 export async function getSuggestedUsers(
-  username: string
-): Promise<Array<{ username: string; mutualBubbles: number }>> {
-  const { data: myMemberships } = await supabase
-    .from('bubble_member_detail')
-    .select('bubble_id')
-    .eq('username', username);
-
-  if (!myMemberships?.length) return [];
-
-  const bubbleIds = myMemberships.map((m: any) => m.bubble_id);
-
-  const [{ data: coMembers }, { data: following }] = await Promise.all([
-    supabase.from('bubble_member_detail').select('username').in('bubble_id', bubbleIds).neq('username', username),
+  username: string,
+  coords?: { latitude: number; longitude: number },
+): Promise<Array<{ username: string; mutualBubbles: number; distanceKm?: number }>> {
+  const [membershipsRes, followsRes, nearby] = await Promise.all([
+    supabase.from('bubble_member_detail').select('bubble_id').eq('username', username),
     supabase.from('user_follows').select('followee').eq('follower', username),
+    coords
+      ? getNearbyUsers(coords.latitude, coords.longitude).catch(() => [] as Array<{ username: string; distanceKm: number }>)
+      : Promise.resolve([] as Array<{ username: string; distanceKm: number }>),
   ]);
 
-  const followedSet = new Set((following ?? []).map((f: any) => f.followee));
+  const followedSet = new Set((followsRes.data ?? []).map((f: any) => f.followee));
+  const bubbleIds = (membershipsRes.data ?? []).map((m: any) => m.bubble_id);
+
   const counts: Record<string, number> = {};
-  for (const { username: u } of coMembers ?? []) {
-    if (!followedSet.has(u)) counts[u] = (counts[u] ?? 0) + 1;
+  if (bubbleIds.length > 0) {
+    const { data: coMembers } = await supabase
+      .from('bubble_member_detail')
+      .select('username')
+      .in('bubble_id', bubbleIds)
+      .neq('username', username);
+    for (const { username: u } of coMembers ?? []) {
+      if (!followedSet.has(u)) counts[u] = (counts[u] ?? 0) + 1;
+    }
   }
 
-  return Object.entries(counts)
-    .sort((a, b) => b[1] - a[1])
-    .slice(0, 12)
-    .map(([u, n]) => ({ username: u, mutualBubbles: n }));
+  const distances = new Map(
+    nearby
+      .filter((n) => n.username !== username && !followedSet.has(n.username))
+      .map((n) => [n.username, n.distanceKm] as const)
+  );
+
+  const usernames = new Set([...Object.keys(counts), ...distances.keys()]);
+  return Array.from(usernames)
+    .map((u) => ({
+      username: u,
+      mutualBubbles: counts[u] ?? 0,
+      distanceKm: distances.get(u),
+    }))
+    .sort((a, b) =>
+      b.mutualBubbles - a.mutualBubbles
+      || (a.distanceKm ?? Infinity) - (b.distanceKm ?? Infinity)
+    )
+    .slice(0, 12);
 }
 
 export async function getTrendingBubbles(): Promise<any[]> {
@@ -1087,13 +1247,14 @@ export async function getEventMessages(eventId: number) {
     .order('created_at', { ascending: true });
   if (error) throw new Error(error.message);
   return (data ?? []).map((r) => ({
-    id: r.id, username: r.username, message: r.message, createdAt: r.created_at,
+    id: r.id, username: r.username, message: r.message,
+    imageUrl: r.image_url ?? null, createdAt: r.created_at,
   }));
 }
 
-export async function sendEventMessage(eventId: number, username: string, message: string) {
+export async function sendEventMessage(eventId: number, username: string, message: string, imageUrl?: string) {
   const { error } = await supabase
-    .from('event_messages').insert({ event_id: eventId, username, message });
+    .from('event_messages').insert({ event_id: eventId, username, message, image_url: imageUrl ?? null });
   if (error) throw new Error(error.message);
 }
 
@@ -1135,6 +1296,74 @@ export async function addDiscussionReply(discussionId: number, username: string,
   if (error) throw new Error(error.message);
 }
 
+// ── Stories ───────────────────────────────────────────────────────────────────
+
+export type Story = {
+  id: number;
+  username: string;
+  imageUrl: string;
+  caption: string | null;
+  createdAt: string;
+  expiresAt: string;
+};
+
+export type StoryGroup = {
+  username: string;
+  stories: Story[];
+};
+
+// Active (unexpired) stories grouped per user; the viewer's own group first,
+// then most recently updated. Blocked users are filtered out.
+export async function getActiveStories(viewer: string): Promise<StoryGroup[]> {
+  const [storiesRes, blocked] = await Promise.all([
+    supabase
+      .from('stories')
+      .select('*')
+      .gt('expires_at', new Date().toISOString())
+      .order('created_at', { ascending: true }),
+    getBlockedUsers(viewer).catch(() => [] as string[]),
+  ]);
+
+  if (storiesRes.error) throw new Error(storiesRes.error.message);
+  const blockedSet = new Set(blocked);
+
+  const groups = new Map<string, Story[]>();
+  for (const r of storiesRes.data ?? []) {
+    if (blockedSet.has(r.username)) continue;
+    const story: Story = {
+      id: r.id, username: r.username, imageUrl: r.image_url,
+      caption: r.caption ?? null, createdAt: r.created_at, expiresAt: r.expires_at,
+    };
+    const arr = groups.get(r.username);
+    if (arr) arr.push(story);
+    else groups.set(r.username, [story]);
+  }
+
+  return Array.from(groups.entries())
+    .map(([username, stories]) => ({ username, stories }))
+    .sort((a, b) => {
+      if (a.username === viewer) return -1;
+      if (b.username === viewer) return 1;
+      const aLast = a.stories[a.stories.length - 1].createdAt;
+      const bLast = b.stories[b.stories.length - 1].createdAt;
+      return new Date(bLast).getTime() - new Date(aLast).getTime();
+    });
+}
+
+export async function postStory(username: string, localUri: string, caption?: string): Promise<void> {
+  const uid = await requireUserId();
+  const imageUrl = await uploadImage(localUri, 'stories', `${uid}/${Date.now()}.jpg`, { width: 1080 }, false);
+  const { error } = await supabase
+    .from('stories')
+    .insert({ username, image_url: imageUrl, caption: caption?.trim() || null });
+  if (error) throw new Error(error.message);
+}
+
+export async function deleteStory(id: number): Promise<void> {
+  const { error } = await supabase.from('stories').delete().eq('id', id);
+  if (error) throw new Error(error.message);
+}
+
 // ── Mappers ───────────────────────────────────────────────────────────────────
 
 function mapEvent(r: any) {
@@ -1143,6 +1372,7 @@ function mapEvent(r: any) {
     createdBy: r.created_by, latitude: r.lat, longitude: r.lng,
     createdAt: r.created_at, type: r.type ?? null,
     eventDate: r.event_date ?? null,
+    coverUrl: r.cover_url ?? null,
   };
 }
 
