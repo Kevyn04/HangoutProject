@@ -6,17 +6,38 @@ import {
 import { useFocusEffect, useRouter } from "expo-router";
 import { Ionicons } from "@expo/vector-icons";
 import * as Haptics from "expo-haptics";
+import * as ImagePicker from "expo-image-picker";
+import * as Location from "expo-location";
+import AsyncStorage from "@react-native-async-storage/async-storage";
 import { useAuth } from "@/services/auth-context";
 import {
   ActivityItem, getFollowingFeed, getDiscoverFeed, getSuggestedFeed,
   getSuggestedUsers, toggleUserFollow, getUnreadNotificationCount, getUnreadInviteCount,
-  getUnreadDMCount,
+  getUnreadDMCount, getActiveStories, postStory, StoryGroup,
+  updateMyCoarseLocation,
 } from "@/services/api";
 import { SkeletonBox } from "@/components/SkeletonBox";
 import { EmptyState } from "@/components/EmptyState";
 import { ScreenBackground } from "@/components/ScreenBackground";
+import { StoryBar } from "@/components/StoryBar";
+import { useToast } from "@/context/ToastContext";
 
-type Suggestion = { username: string; mutualBubbles: number };
+type Suggestion = { username: string; mutualBubbles: number; distanceKm?: number };
+
+// Uses location only if permission was already granted elsewhere (bubbles,
+// event creation) — Discover never triggers its own permission prompt.
+async function getQuietCoords(): Promise<{ latitude: number; longitude: number } | undefined> {
+  try {
+    const { status } = await Location.getForegroundPermissionsAsync();
+    if (status !== "granted") return undefined;
+    const loc =
+      (await Location.getLastKnownPositionAsync()) ??
+      (await Location.getCurrentPositionAsync({ accuracy: Location.Accuracy.Balanced }));
+    return { latitude: loc.coords.latitude, longitude: loc.coords.longitude };
+  } catch {
+    return undefined;
+  }
+}
 
 function timeAgo(dateStr: string): string {
   const diff = Date.now() - new Date(dateStr).getTime();
@@ -113,7 +134,11 @@ function PersonCard({
       </View>
       <Text style={s.personName} numberOfLines={1}>{item.username}</Text>
       <Text style={s.personMutual}>
-        {item.mutualBubbles} shared bubble{item.mutualBubbles !== 1 ? "s" : ""}
+        {item.mutualBubbles > 0
+          ? `${item.mutualBubbles} shared bubble${item.mutualBubbles !== 1 ? "s" : ""}`
+          : item.distanceKm != null
+          ? item.distanceKm < 1 ? "nearby" : `~${Math.round(item.distanceKm)} km away`
+          : "suggested"}
       </Text>
       <Pressable
         style={[s.followBtn, isFollowing && s.followBtnDone]}
@@ -156,7 +181,11 @@ function FeedSkeleton() {
 export default function FeedScreen() {
   const { user, loading: authLoading } = useAuth();
   const router = useRouter();
+  const { showToast } = useToast();
 
+  const [storyGroups, setStoryGroups]       = useState<StoryGroup[]>([]);
+  const [seenStoryIds, setSeenStoryIds]     = useState<Set<number>>(new Set());
+  const [postingStory, setPostingStory]     = useState(false);
   const [followingFeed, setFollowingFeed]   = useState<ActivityItem[]>([]);
   const [suggestedFeed, setSuggestedFeed]   = useState<ActivityItem[]>([]);
   const [discoverFeed, setDiscoverFeed]     = useState<ActivityItem[]>([]);
@@ -175,19 +204,25 @@ export default function FeedScreen() {
       const [discover] = await Promise.all([getDiscoverFeed(user ?? undefined)]);
       setDiscoverFeed(discover);
       if (user) {
-        const [feed, suggested, sugg, notifCount, inviteCount, dmUnread] = await Promise.all([
+        const coords = await getQuietCoords();
+        if (coords) updateMyCoarseLocation(user, coords.latitude, coords.longitude);
+        const [feed, suggested, sugg, notifCount, inviteCount, dmUnread, stories, seenRaw] = await Promise.all([
           getFollowingFeed(user),
           getSuggestedFeed(user),
-          getSuggestedUsers(user),
+          getSuggestedUsers(user, coords),
           getUnreadNotificationCount(user),
           getUnreadInviteCount(user),
           getUnreadDMCount(user),
+          getActiveStories(user).catch(() => [] as StoryGroup[]),
+          AsyncStorage.getItem("@hangout/seen_stories").catch(() => null),
         ]);
         setFollowingFeed(feed);
         setSuggestedFeed(suggested);
         setSuggestions(sugg);
         setBellCount(notifCount + inviteCount);
         setDmCount(dmUnread);
+        setStoryGroups(stories);
+        setSeenStoryIds(new Set(seenRaw ? (JSON.parse(seenRaw) as number[]) : []));
       }
     } catch {
       setLoadError(true);
@@ -219,6 +254,26 @@ export default function FeedScreen() {
         next.has(username) ? next.delete(username) : next.add(username);
         return next;
       });
+    }
+  };
+
+  const handleAddStory = async () => {
+    if (!user || postingStory) return;
+    const result = await ImagePicker.launchImageLibraryAsync({
+      mediaTypes: ["images"],
+      quality: 0.9,
+    });
+    if (result.canceled || !result.assets[0]) return;
+    setPostingStory(true);
+    try {
+      await postStory(user, result.assets[0].uri);
+      showToast("Story posted!", "success");
+      const groups = await getActiveStories(user);
+      setStoryGroups(groups);
+    } catch {
+      showToast("Couldn't post story. Try again.");
+    } finally {
+      setPostingStory(false);
     }
   };
 
@@ -306,6 +361,18 @@ export default function FeedScreen() {
           <Pressable style={s.errorBanner} onPress={() => load()}>
             <Text style={s.errorBannerText}>Couldn't load feed. Tap to retry.</Text>
           </Pressable>
+        )}
+
+        {/* ── Stories ── */}
+        {user && !loading && (
+          <StoryBar
+            groups={storyGroups}
+            me={user}
+            seenIds={seenStoryIds}
+            posting={postingStory}
+            onAddStory={handleAddStory}
+            onOpen={(username) => router.push({ pathname: "/story-viewer" as any, params: { username } })}
+          />
         )}
 
         {/* ── Following Feed ── */}
