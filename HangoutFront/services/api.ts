@@ -733,6 +733,17 @@ async function requireUserId(): Promise<string> {
   return user.id;
 }
 
+// Extract the in-bucket object path from a Supabase public URL, e.g.
+// https://xxx.supabase.co/storage/v1/object/public/stories/<uid>/<file>.jpg?t=123
+// -> "<uid>/<file>.jpg". Returns null if the URL doesn't belong to the bucket.
+function storagePathFromPublicUrl(url: string | null | undefined, bucket: string): string | null {
+  if (!url) return null;
+  const marker = `/object/public/${bucket}/`;
+  const i = url.indexOf(marker);
+  if (i === -1) return null;
+  return url.slice(i + marker.length).split('?')[0];
+}
+
 export async function uploadAvatar(localUri: string): Promise<string> {
   const uid = await requireUserId();
   return uploadImage(localUri, 'avatars', `${uid}/avatar`, { width: 400, height: 400 }, true);
@@ -1360,8 +1371,16 @@ export async function postStory(username: string, localUri: string, caption?: st
 }
 
 export async function deleteStory(id: number): Promise<void> {
+  // Grab the file path before deleting the row, otherwise the image lingers in
+  // Storage (and keeps costing) with nothing pointing at it.
+  const { data: story } = await supabase
+    .from('stories').select('image_url').eq('id', id).maybeSingle();
+
   const { error } = await supabase.from('stories').delete().eq('id', id);
   if (error) throw new Error(error.message);
+
+  const path = storagePathFromPublicUrl(story?.image_url, 'stories');
+  if (path) await supabase.storage.from('stories').remove([path]);
 }
 
 // ── Mappers ───────────────────────────────────────────────────────────────────
