@@ -113,8 +113,18 @@ Deno.serve(async (req) => {
       // `reports` rows are intentionally retained as a moderation audit trail.
     }
 
-    // ── Avatar, profile row, auth user ───────────────────────────────────────
-    await supabase.storage.from('avatars').remove([`${user.id}/avatar`]);
+    // ── Storage: wipe every object the user uploaded ─────────────────────────
+    // Avatar, stories, chat photos, event covers are all namespaced under a
+    // `${uid}/` folder. List + remove that folder in each bucket. Non-fatal:
+    // leftover files are a cost/privacy nuisance but must not block the wipe.
+    for (const bucket of ['avatars', 'stories', 'chat-media', 'event-covers']) {
+      const { data: files } = await supabase.storage.from(bucket).list(user.id, { limit: 1000 });
+      if (files && files.length) {
+        await supabase.storage.from(bucket).remove(files.map((f) => `${user.id}/${f.name}`));
+      }
+    }
+
+    // ── Profile row, auth user ───────────────────────────────────────────────
     await mustDelete(supabase.from('profiles').delete().eq('id', user.id));
 
     const { error: authDeleteError } = await supabase.auth.admin.deleteUser(user.id);
