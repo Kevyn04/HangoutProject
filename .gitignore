@@ -39,3 +39,6 @@ node_modules/
 *.log
 HangoutBack/untitled/
 graphify-out/
+
+# ── Local-only notes (never publish) ───────────────────────
+APP_OVERVIEW.md
