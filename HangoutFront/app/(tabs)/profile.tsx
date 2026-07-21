@@ -1,13 +1,14 @@
-import React, { useState, useCallback } from "react";
+import React, { useState, useCallback, useMemo } from "react";
 import {
   View, Text, StyleSheet, ScrollView, Pressable,
-  TextInput, ActivityIndicator, StatusBar, Alert, RefreshControl, Linking,
+  TextInput, ActivityIndicator, Alert, RefreshControl, Linking,
 } from "react-native";
 import { Ionicons } from "@expo/vector-icons";
 import * as Haptics from "expo-haptics";
 import * as ImagePicker from "expo-image-picker";
 import { useFocusEffect, useRouter } from "expo-router";
 import { useAuth } from "@/services/auth-context";
+import { useTheme } from "@/services/theme-context";
 import { getProfile, updateProfile, uploadAvatar, getUserBubbles, getUserRatings, deleteMyAccount } from "@/services/api";
 import { UserAvatar } from "@/components/UserAvatar";
 import { ColorWheelPicker } from "@/components/ColorWheelPicker";
@@ -25,7 +26,9 @@ const FACE_EMOJIS = [
   "🙄","🥸","🤠","🤑","🥹","😜","😝","🤪","🫡","😸",
 ];
 
-function Stars({ value }: { value: number }) {
+type ThemeColors = ReturnType<typeof useTheme>["colors"];
+
+function Stars({ value, colors }: { value: number; colors: ThemeColors }) {
   return (
     <View style={{ flexDirection: "row", gap: 3 }}>
       {[1, 2, 3, 4, 5].map((i) => (
@@ -33,7 +36,7 @@ function Stars({ value }: { value: number }) {
           key={i}
           name={i <= Math.round(value) ? "star" : "star-outline"}
           size={13}
-          color={i <= Math.round(value) ? "#fbbf24" : "rgba(255,255,255,0.2)"}
+          color={i <= Math.round(value) ? "#fbbf24" : colors.borderLight}
         />
       ))}
     </View>
@@ -50,6 +53,8 @@ type ReasonItem = { reason: string; count: number };
 
 export default function ProfileScreen() {
   const { user, logout } = useAuth();
+  const { mode, colors, setTheme } = useTheme();
+  const s = useMemo(() => buildStyles(colors), [colors]);
   const router = useRouter();
   const { showToast } = useToast();
 
@@ -214,7 +219,6 @@ export default function ProfileScreen() {
   if (loading) {
     return (
       <ScreenBackground style={s.container}>
-        <StatusBar barStyle="light-content" backgroundColor="transparent" translucent />
         <ScrollView contentContainerStyle={s.scroll} showsVerticalScrollIndicator={false}>
           {/* Avatar + username + stats */}
           <View style={[s.avatarSection, { gap: 14 }]}>
@@ -255,12 +259,11 @@ export default function ProfileScreen() {
 
   return (
     <ScreenBackground style={s.container}>
-      <StatusBar barStyle="light-content" backgroundColor="transparent" translucent />
       <ScrollView
         contentContainerStyle={s.scroll}
         showsVerticalScrollIndicator={false}
         keyboardShouldPersistTaps="handled"
-        refreshControl={<RefreshControl refreshing={refreshing} onRefresh={handleRefresh} tintColor="#dc2626" colors={["#dc2626"]} />}
+        refreshControl={<RefreshControl refreshing={refreshing} onRefresh={handleRefresh} tintColor={colors.red} colors={[colors.red]} />}
       >
 
         {/* Avatar */}
@@ -390,7 +393,7 @@ export default function ProfileScreen() {
               value={bioInput}
               onChangeText={setBioInput}
               placeholder="Write something about yourself…"
-              placeholderTextColor="rgba(255,255,255,0.3)"
+              placeholderTextColor={colors.textGhost}
               multiline maxLength={300} autoFocus
             />
           ) : (
@@ -403,7 +406,7 @@ export default function ProfileScreen() {
           <View style={s.section}>
             <View style={s.sectionHeader}>
               <Text style={s.sectionTitle}>What people say</Text>
-              <Stars value={profile?.avgRating ?? 0} />
+              <Stars value={profile?.avgRating ?? 0} colors={colors} />
             </View>
             <View style={s.reasonsWrap}>
               {reasons.map((r) => (
@@ -456,7 +459,7 @@ export default function ProfileScreen() {
               key={b.id} style={s.bubbleRow}
               onPress={() => router.push({ pathname: "/bubble-detail", params: { id: b.id } })}
             >
-              <View style={[s.bubbleRowDot, { backgroundColor: "#7c3aed" }]}>
+              <View style={[s.bubbleRowDot, { backgroundColor: colors.purple }]}>
                 <Text style={s.bubbleRowDotText}>{b.name.charAt(0).toUpperCase()}</Text>
               </View>
               <View style={s.bubbleRowInfo}>
@@ -470,6 +473,24 @@ export default function ProfileScreen() {
         <Pressable style={({ pressed }) => [s.signOutBtn, pressed && { opacity: 0.7 }]} onPress={() => logout()}>
           <Text style={s.signOutText}>Sign Out</Text>
         </Pressable>
+
+        <View style={s.themeRow}>
+          <Text style={s.themeLabel}>Appearance</Text>
+          <View style={s.themeToggle}>
+            <Pressable
+              style={[s.themeOption, mode === "dark" && s.themeOptionActive]}
+              onPress={() => setTheme("dark")}
+            >
+              <Text style={[s.themeOptionText, mode === "dark" && s.themeOptionTextActive]}>Dark</Text>
+            </Pressable>
+            <Pressable
+              style={[s.themeOption, mode === "light" && s.themeOptionActive]}
+              onPress={() => setTheme("light")}
+            >
+              <Text style={[s.themeOptionText, mode === "light" && s.themeOptionTextActive]}>Light</Text>
+            </Pressable>
+          </View>
+        </View>
 
         <Pressable
           onPress={() => Linking.openURL("https://kevyn04.github.io/HangoutProject/privacy.html")}
@@ -493,124 +514,144 @@ export default function ProfileScreen() {
   );
 }
 
-const s = StyleSheet.create({
-  container: { flex: 1, paddingTop: 56 },
-  centered: { flex: 1, alignItems: "center", justifyContent: "center", gap: 16 },
-  scroll: { paddingHorizontal: 20, paddingBottom: 40 },
+function buildStyles(colors: ThemeColors) {
+  return StyleSheet.create({
+    container: { flex: 1, paddingTop: 56 },
+    centered: { flex: 1, alignItems: "center", justifyContent: "center", gap: 16 },
+    scroll: { paddingHorizontal: 20, paddingBottom: 40 },
 
-  avatarSection: { alignItems: "center", paddingVertical: 24, gap: 10 },
-  avatarsRow: { flexDirection: "row", alignItems: "flex-start", gap: 20 },
-  avatarCol: { alignItems: "center", gap: 6 },
-  avatarWrapper: { position: "relative" },
-  cameraBtn: {
-    position: "absolute", bottom: 0, right: 0,
-    width: 28, height: 28, borderRadius: 14,
-    backgroundColor: "#dc2626", alignItems: "center", justifyContent: "center",
-    borderWidth: 2, borderColor: "#0f0305",
-  },
-  avatarColLabel: { color: "rgba(255,255,255,0.35)", fontSize: 11, letterSpacing: 0.5 },
+    avatarSection: { alignItems: "center", paddingVertical: 24, gap: 10 },
+    avatarsRow: { flexDirection: "row", alignItems: "flex-start", gap: 20 },
+    avatarCol: { alignItems: "center", gap: 6 },
+    avatarWrapper: { position: "relative" },
+    cameraBtn: {
+      position: "absolute", bottom: 0, right: 0,
+      width: 28, height: 28, borderRadius: 14,
+      backgroundColor: colors.red, alignItems: "center", justifyContent: "center",
+      borderWidth: 2, borderColor: colors.bgBase,
+    },
+    avatarColLabel: { color: colors.textGhost, fontSize: 11, letterSpacing: 0.5 },
 
-  bubblePopCircle: {
-    width: 62, height: 62, borderRadius: 31,
-    backgroundColor: "rgba(255,255,255,0.07)",
-    borderWidth: 1.5, borderColor: "rgba(220,38,38,0.4)",
-    alignItems: "center", justifyContent: "center",
-  },
-  bubblePopEmoji: { fontSize: 32 },
-  bubblePopPlaceholder: { color: "rgba(255,255,255,0.3)", fontSize: 24, lineHeight: 28 },
-  bubblePopLabel: { color: "#dc2626", fontSize: 11, fontWeight: "700", letterSpacing: 0.5 },
+    bubblePopCircle: {
+      width: 62, height: 62, borderRadius: 31,
+      backgroundColor: colors.card,
+      borderWidth: 1.5, borderColor: colors.redBorder,
+      alignItems: "center", justifyContent: "center",
+    },
+    bubblePopEmoji: { fontSize: 32 },
+    bubblePopPlaceholder: { color: colors.textGhost, fontSize: 24, lineHeight: 28 },
+    bubblePopLabel: { color: colors.red, fontSize: 11, fontWeight: "700", letterSpacing: 0.5 },
 
-  emojiPickerLabel: {
-    color: "rgba(255,255,255,0.4)", fontSize: 11,
-    letterSpacing: 1, textTransform: "uppercase",
-    alignSelf: "flex-start", marginLeft: 4,
-  },
-  emojiRow: { flexDirection: "row", gap: 8, paddingHorizontal: 4, paddingVertical: 4 },
-  emojiBtn: {
-    width: 40, height: 40, borderRadius: 20,
-    alignItems: "center", justifyContent: "center",
-    backgroundColor: "rgba(255,255,255,0.07)",
-    borderWidth: 1.5, borderColor: "transparent",
-  },
-  emojiBtnActive: { borderColor: "#dc2626", backgroundColor: "rgba(220,38,38,0.12)" },
-  emojiOption: { fontSize: 22 },
-  emojiInitial: { color: "#fff", fontSize: 16, fontWeight: "700" },
-  username: { color: "#fff", fontSize: 22, fontWeight: "700", letterSpacing: 0.5 },
+    emojiPickerLabel: {
+      color: colors.textMuted, fontSize: 11,
+      letterSpacing: 1, textTransform: "uppercase",
+      alignSelf: "flex-start", marginLeft: 4,
+    },
+    emojiRow: { flexDirection: "row", gap: 8, paddingHorizontal: 4, paddingVertical: 4 },
+    emojiBtn: {
+      width: 40, height: 40, borderRadius: 20,
+      alignItems: "center", justifyContent: "center",
+      backgroundColor: colors.card,
+      borderWidth: 1.5, borderColor: "transparent",
+    },
+    emojiBtnActive: { borderColor: colors.red, backgroundColor: colors.redSubtle },
+    emojiOption: { fontSize: 22 },
+    emojiInitial: { color: "#fff", fontSize: 16, fontWeight: "700" },
+    username: { color: colors.text, fontSize: 22, fontWeight: "700", letterSpacing: 0.5 },
 
-  statsRow: {
-    flexDirection: "row", alignItems: "center",
-    backgroundColor: "rgba(255,255,255,0.05)", borderRadius: 14,
-    borderWidth: 1, borderColor: "rgba(255,255,255,0.08)",
-    paddingVertical: 14, paddingHorizontal: 20, gap: 0, width: "100%",
-  },
-  statItem: { flex: 1, alignItems: "center", gap: 2 },
-  statDivider: { width: 1, height: 32, backgroundColor: "rgba(255,255,255,0.1)" },
-  statValue: { color: "#fff", fontSize: 20, fontWeight: "700" },
-  statLabel: { color: "rgba(255,255,255,0.4)", fontSize: 11 },
+    statsRow: {
+      flexDirection: "row", alignItems: "center",
+      backgroundColor: colors.card, borderRadius: 14,
+      borderWidth: 1, borderColor: colors.borderFaint,
+      paddingVertical: 14, paddingHorizontal: 20, gap: 0, width: "100%",
+    },
+    statItem: { flex: 1, alignItems: "center", gap: 2 },
+    statDivider: { width: 1, height: 32, backgroundColor: colors.borderFaint },
+    statValue: { color: colors.text, fontSize: 20, fontWeight: "700" },
+    statLabel: { color: colors.textMuted, fontSize: 11 },
 
-  colorRow: { flexDirection: "row", gap: 10, alignItems: "center" },
-  colorDot: { width: 36, height: 36, borderRadius: 18 },
-  colorDotActive: { borderWidth: 3, borderColor: "#fff" },
-  customColorBtn: {
-    width: 36, height: 36, borderRadius: 18,
-    borderWidth: 1.5, borderColor: "rgba(255,255,255,0.4)",
-    alignItems: "center", justifyContent: "center",
-    backgroundColor: "rgba(255,255,255,0.08)",
-  },
-  customColorText: { color: "rgba(255,255,255,0.7)", fontSize: 18, lineHeight: 22 },
+    colorRow: { flexDirection: "row", gap: 10, alignItems: "center" },
+    colorDot: { width: 36, height: 36, borderRadius: 18 },
+    colorDotActive: { borderWidth: 3, borderColor: colors.text },
+    customColorBtn: {
+      width: 36, height: 36, borderRadius: 18,
+      borderWidth: 1.5, borderColor: colors.borderLight,
+      alignItems: "center", justifyContent: "center",
+      backgroundColor: colors.card,
+    },
+    customColorText: { color: colors.textSub, fontSize: 18, lineHeight: 22 },
 
-  section: {
-    backgroundColor: "rgba(255,255,255,0.05)", borderRadius: 14,
-    padding: 16, marginBottom: 12, borderWidth: 1,
-    borderColor: "rgba(255,255,255,0.08)", gap: 10,
-  },
-  sectionHeader: { flexDirection: "row", justifyContent: "space-between", alignItems: "center" },
-  sectionTitle: { color: "#fff", fontSize: 15, fontWeight: "700", letterSpacing: 0.3 },
-  editLink: { color: "#dc2626", fontSize: 13, fontWeight: "600" },
-  editActions: { flexDirection: "row", gap: 14 },
-  cancelLink: { color: "rgba(255,255,255,0.45)", fontSize: 13, fontWeight: "600" },
-  saveLink: { color: "#dc2626", fontSize: 13, fontWeight: "700" },
+    section: {
+      backgroundColor: colors.card, borderRadius: 14,
+      padding: 16, marginBottom: 12, borderWidth: 1,
+      borderColor: colors.borderFaint, gap: 10,
+    },
+    sectionHeader: { flexDirection: "row", justifyContent: "space-between", alignItems: "center" },
+    sectionTitle: { color: colors.text, fontSize: 15, fontWeight: "700", letterSpacing: 0.3 },
+    editLink: { color: colors.red, fontSize: 13, fontWeight: "600" },
+    editActions: { flexDirection: "row", gap: 14 },
+    cancelLink: { color: colors.textMuted, fontSize: 13, fontWeight: "600" },
+    saveLink: { color: colors.red, fontSize: 13, fontWeight: "700" },
 
-  bioText: { color: "rgba(255,255,255,0.6)", fontSize: 14, lineHeight: 20 },
-  bioInput: {
-    color: "#fff", fontSize: 14, lineHeight: 20,
-    borderWidth: 1, borderColor: "rgba(255,255,255,0.15)",
-    borderRadius: 10, padding: 10, minHeight: 80,
-    backgroundColor: "rgba(255,255,255,0.05)",
-  },
+    bioText: { color: colors.textSub, fontSize: 14, lineHeight: 20 },
+    bioInput: {
+      color: colors.text, fontSize: 14, lineHeight: 20,
+      borderWidth: 1, borderColor: colors.borderLight,
+      borderRadius: 10, padding: 10, minHeight: 80,
+      backgroundColor: colors.card,
+    },
 
-  reasonsWrap: { flexDirection: "row", flexWrap: "wrap", gap: 8 },
-  reasonTag: {
-    flexDirection: "row", alignItems: "center", gap: 6,
-    backgroundColor: "rgba(220,38,38,0.1)", borderRadius: 20,
-    paddingHorizontal: 12, paddingVertical: 5,
-    borderWidth: 1, borderColor: "rgba(220,38,38,0.25)",
-  },
-  reasonText: { color: "#fff", fontSize: 12, fontWeight: "600" },
-  reasonCount: { color: "#dc2626", fontSize: 12, fontWeight: "700" },
+    reasonsWrap: { flexDirection: "row", flexWrap: "wrap", gap: 8 },
+    reasonTag: {
+      flexDirection: "row", alignItems: "center", gap: 6,
+      backgroundColor: colors.redSubtle, borderRadius: 20,
+      paddingHorizontal: 12, paddingVertical: 5,
+      borderWidth: 1, borderColor: colors.redBorder,
+    },
+    reasonText: { color: colors.text, fontSize: 12, fontWeight: "600" },
+    reasonCount: { color: colors.red, fontSize: 12, fontWeight: "700" },
 
-  bubbleRow: {
-    flexDirection: "row", alignItems: "center", gap: 12, paddingVertical: 8,
-    borderBottomWidth: 1, borderBottomColor: "rgba(255,255,255,0.06)",
-  },
-  bubbleRowDot: { width: 36, height: 36, borderRadius: 18, alignItems: "center", justifyContent: "center" },
-  bubbleRowDotText: { color: "#fff", fontSize: 14, fontWeight: "700" },
-  bubbleRowInfo: { flex: 1 },
-  bubbleRowName: { color: "#fff", fontSize: 14, fontWeight: "600" },
-  bubbleRowMeta: { color: "rgba(255,255,255,0.4)", fontSize: 12, marginTop: 2 },
-  emptyText: { color: "rgba(255,255,255,0.35)", fontSize: 13 },
+    bubbleRow: {
+      flexDirection: "row", alignItems: "center", gap: 12, paddingVertical: 8,
+      borderBottomWidth: 1, borderBottomColor: colors.borderFaint,
+    },
+    bubbleRowDot: { width: 36, height: 36, borderRadius: 18, alignItems: "center", justifyContent: "center" },
+    bubbleRowDotText: { color: "#fff", fontSize: 14, fontWeight: "700" },
+    bubbleRowInfo: { flex: 1 },
+    bubbleRowName: { color: colors.text, fontSize: 14, fontWeight: "600" },
+    bubbleRowMeta: { color: colors.textMuted, fontSize: 12, marginTop: 2 },
+    emptyText: { color: colors.textGhost, fontSize: 13 },
 
-  signOutBtn: {
-    marginTop: 8, height: 48, borderRadius: 14,
-    alignItems: "center", justifyContent: "center",
-    borderWidth: 1, borderColor: "rgba(220,38,38,0.5)",
-    backgroundColor: "rgba(220,38,38,0.1)",
-  },
-  signOutText: { color: "#dc2626", fontWeight: "700", fontSize: 14, letterSpacing: 0.5 },
-  guestText: { color: "rgba(255,255,255,0.5)", fontSize: 15 },
-  signInBtn: { paddingHorizontal: 28, paddingVertical: 12, borderRadius: 14, backgroundColor: "#dc2626" },
-  signInBtnText: { color: "#fff", fontWeight: "700", fontSize: 14 },
-  privacyLink: { color: "rgba(255,255,255,0.3)", fontSize: 12, textAlign: "center", textDecorationLine: "underline", marginTop: 16, paddingBottom: 8 },
-  deleteBtn: { marginTop: 12, height: 40, alignItems: "center", justifyContent: "center", paddingBottom: 4 },
-  deleteText: { color: "rgba(239,68,68,0.7)", fontSize: 13, fontWeight: "600" },
-});
+    signOutBtn: {
+      marginTop: 8, height: 48, borderRadius: 14,
+      alignItems: "center", justifyContent: "center",
+      borderWidth: 1, borderColor: colors.redBorder,
+      backgroundColor: colors.redSubtle,
+    },
+    signOutText: { color: colors.red, fontWeight: "700", fontSize: 14, letterSpacing: 0.5 },
+    guestText: { color: colors.textMuted, fontSize: 15 },
+    signInBtn: { paddingHorizontal: 28, paddingVertical: 12, borderRadius: 14, backgroundColor: colors.red },
+    signInBtnText: { color: "#fff", fontWeight: "700", fontSize: 14 },
+
+    themeRow: {
+      marginTop: 20, alignItems: "center", gap: 8,
+    },
+    themeLabel: {
+      color: colors.textMuted, fontSize: 11,
+      letterSpacing: 1, textTransform: "uppercase",
+    },
+    themeToggle: { flexDirection: "row", gap: 8 },
+    themeOption: {
+      paddingHorizontal: 20, paddingVertical: 8, borderRadius: 20,
+      borderWidth: 1.5, borderColor: "transparent",
+      backgroundColor: colors.cardFaint,
+    },
+    themeOptionActive: { borderColor: colors.red, backgroundColor: colors.redSubtle },
+    themeOptionText: { color: colors.textSub, fontSize: 13, fontWeight: "600" },
+    themeOptionTextActive: { color: colors.red },
+
+    privacyLink: { color: colors.textGhost, fontSize: 12, textAlign: "center", textDecorationLine: "underline", marginTop: 16, paddingBottom: 8 },
+    deleteBtn: { marginTop: 12, height: 40, alignItems: "center", justifyContent: "center", paddingBottom: 4 },
+    deleteText: { color: "rgba(239,68,68,0.7)", fontSize: 13, fontWeight: "600" },
+  });
+}

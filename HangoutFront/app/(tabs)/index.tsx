@@ -1,7 +1,7 @@
-import React, { useCallback, useState } from "react";
+import React, { useCallback, useMemo, useState } from "react";
 import {
   View, Text, StyleSheet, ScrollView, Pressable,
-  StatusBar, FlatList, RefreshControl,
+  FlatList, RefreshControl,
 } from "react-native";
 import { useFocusEffect, useRouter } from "expo-router";
 import { Ionicons } from "@expo/vector-icons";
@@ -10,6 +10,7 @@ import * as ImagePicker from "expo-image-picker";
 import * as Location from "expo-location";
 import AsyncStorage from "@react-native-async-storage/async-storage";
 import { useAuth } from "@/services/auth-context";
+import { useTheme } from "@/services/theme-context";
 import {
   ActivityItem, getFollowingFeed, getDiscoverFeed, getSuggestedFeed,
   getSuggestedUsers, toggleUserFollow, getUnreadNotificationCount, getUnreadInviteCount,
@@ -23,6 +24,8 @@ import { StoryBar } from "@/components/StoryBar";
 import { useToast } from "@/context/ToastContext";
 
 type Suggestion = { username: string; mutualBubbles: number; distanceKm?: number };
+type ThemeColors = ReturnType<typeof useTheme>["colors"];
+type Styles = ReturnType<typeof buildStyles>;
 
 // Uses location only if permission was already granted elsewhere (bubbles,
 // event creation) — Discover never triggers its own permission prompt.
@@ -55,16 +58,16 @@ function actionLabel(type: ActivityItem["type"]): string {
   return "is going to an event";
 }
 
-function SectionLabel({ title, icon }: { title: string; icon: string }) {
+function SectionLabel({ title, icon, colors, s }: { title: string; icon: string; colors: ThemeColors; s: Styles }) {
   return (
     <View style={s.sectionRow}>
-      <Ionicons name={icon as any} size={14} color="rgba(255,255,255,0.4)" />
+      <Ionicons name={icon as any} size={14} color={colors.textMuted} />
       <Text style={s.sectionLabel}>{title}</Text>
     </View>
   );
 }
 
-function ActivityCard({ item, onPress }: { item: ActivityItem; onPress: () => void }) {
+function ActivityCard({ item, onPress, colors, s }: { item: ActivityItem; onPress: () => void; colors: ThemeColors; s: Styles }) {
   const isBubble = item.type === "bubble_created";
   return (
     <Pressable
@@ -98,23 +101,23 @@ function ActivityCard({ item, onPress }: { item: ActivityItem; onPress: () => vo
               </Text>
             </View>
           </View>
-          <Ionicons name="chevron-forward" size={14} color="rgba(255,255,255,0.2)" />
+          <Ionicons name="chevron-forward" size={14} color={colors.borderLight} />
         </View>
       )}
 
       {!isBubble && item.event && (
         <View style={s.actContent}>
           <View style={s.actEventIcon}>
-            <Ionicons name="calendar" size={16} color="#dc2626" />
+            <Ionicons name="calendar" size={16} color={colors.red} />
           </View>
           <View style={{ flex: 1 }}>
             <Text style={s.actContentTitle} numberOfLines={1}>{item.event.title}</Text>
             <View style={s.actMeta}>
-              <Ionicons name="location-outline" size={11} color="rgba(255,255,255,0.35)" />
+              <Ionicons name="location-outline" size={11} color={colors.textMuted} />
               <Text style={s.actContentSub}>{item.event.location}</Text>
             </View>
           </View>
-          <Ionicons name="chevron-forward" size={14} color="rgba(255,255,255,0.2)" />
+          <Ionicons name="chevron-forward" size={14} color={colors.borderLight} />
         </View>
       )}
     </Pressable>
@@ -122,9 +125,9 @@ function ActivityCard({ item, onPress }: { item: ActivityItem; onPress: () => vo
 }
 
 function PersonCard({
-  item, onFollow, following,
+  item, onFollow, following, s,
 }: {
-  item: Suggestion; onFollow: (username: string) => void; following: Set<string>;
+  item: Suggestion; onFollow: (username: string) => void; following: Set<string>; s: Styles;
 }) {
   const isFollowing = following.has(item.username);
   return (
@@ -152,7 +155,7 @@ function PersonCard({
   );
 }
 
-function FeedSkeleton() {
+function FeedSkeleton({ s }: { s: Styles }) {
   return (
     <>
       {[0, 1, 2].map((i) => (
@@ -180,6 +183,8 @@ function FeedSkeleton() {
 
 export default function FeedScreen() {
   const { user, loading: authLoading } = useAuth();
+  const { colors } = useTheme();
+  const s = useMemo(() => buildStyles(colors), [colors]);
   const router = useRouter();
   const { showToast } = useToast();
 
@@ -297,7 +302,6 @@ export default function FeedScreen() {
   if (!authLoading && !user) {
     return (
       <ScreenBackground style={s.container}>
-        <StatusBar barStyle="light-content" backgroundColor="transparent" translucent />
         <View style={s.guestContainer}>
           <Text style={s.guestTitle}>The Hangout</Text>
           <Text style={s.guestSub}>See what's happening around you</Text>
@@ -314,8 +318,6 @@ export default function FeedScreen() {
 
   return (
     <ScreenBackground style={s.container}>
-      <StatusBar barStyle="light-content" backgroundColor="transparent" translucent />
-
       <View style={s.header}>
         <Text style={s.headerTitle}>Discover</Text>
         <View style={s.headerActions}>
@@ -323,13 +325,13 @@ export default function FeedScreen() {
             style={s.headerIconBtn}
             onPress={() => { Haptics.impactAsync(Haptics.ImpactFeedbackStyle.Light); router.push("/search" as any); }}
           >
-            <Ionicons name="search" size={22} color="rgba(255,255,255,0.75)" />
+            <Ionicons name="search" size={22} color={colors.textSub} />
           </Pressable>
           <Pressable
             style={s.headerIconBtn}
             onPress={() => { Haptics.impactAsync(Haptics.ImpactFeedbackStyle.Light); router.push("/dms" as any); }}
           >
-            <Ionicons name={dmCount > 0 ? "chatbubble" : "chatbubble-outline"} size={22} color={dmCount > 0 ? "#dc2626" : "rgba(255,255,255,0.75)"} />
+            <Ionicons name={dmCount > 0 ? "chatbubble" : "chatbubble-outline"} size={22} color={dmCount > 0 ? colors.red : colors.textSub} />
             {dmCount > 0 && (
               <View style={s.bellBadge}>
                 <Text style={s.bellBadgeText}>{dmCount > 9 ? "9+" : dmCount}</Text>
@@ -340,7 +342,7 @@ export default function FeedScreen() {
             style={s.headerIconBtn}
             onPress={() => { Haptics.impactAsync(Haptics.ImpactFeedbackStyle.Light); router.push("/notifications" as any); }}
           >
-            <Ionicons name={bellCount > 0 ? "notifications" : "notifications-outline"} size={22} color={bellCount > 0 ? "#dc2626" : "rgba(255,255,255,0.75)"} />
+            <Ionicons name={bellCount > 0 ? "notifications" : "notifications-outline"} size={22} color={bellCount > 0 ? colors.red : colors.textSub} />
             {bellCount > 0 && (
               <View style={s.bellBadge}>
                 <Text style={s.bellBadgeText}>{bellCount > 9 ? "9+" : bellCount}</Text>
@@ -353,7 +355,7 @@ export default function FeedScreen() {
       <ScrollView
         contentContainerStyle={s.scroll}
         showsVerticalScrollIndicator={false}
-        refreshControl={<RefreshControl refreshing={refreshing} onRefresh={handleRefresh} tintColor="#dc2626" colors={["#dc2626"]} />}
+        refreshControl={<RefreshControl refreshing={refreshing} onRefresh={handleRefresh} tintColor={colors.red} colors={[colors.red]} />}
       >
 
         {/* ── Error banner ── */}
@@ -378,9 +380,9 @@ export default function FeedScreen() {
         {/* ── Following Feed ── */}
         {user && (
           <>
-            <SectionLabel title="FOLLOWING" icon="people" />
+            <SectionLabel title="FOLLOWING" icon="people" colors={colors} s={s} />
             {loading ? (
-              <FeedSkeleton />
+              <FeedSkeleton s={s} />
             ) : followingFeed.length === 0 ? (
               <EmptyState
                 icon="person-add-outline"
@@ -390,7 +392,7 @@ export default function FeedScreen() {
               />
             ) : (
               followingFeed.map((item) => (
-                <ActivityCard key={item.id} item={item} onPress={() => handleActivityPress(item)} />
+                <ActivityCard key={item.id} item={item} onPress={() => handleActivityPress(item)} colors={colors} s={s} />
               ))
             )}
           </>
@@ -399,7 +401,7 @@ export default function FeedScreen() {
         {/* ── People You May Know ── */}
         {user && (
           <>
-            <SectionLabel title="PEOPLE YOU MAY KNOW" icon="person-add-outline" />
+            <SectionLabel title="PEOPLE YOU MAY KNOW" icon="person-add-outline" colors={colors} s={s} />
             {loading ? (
               <>
                 <ScrollView horizontal showsHorizontalScrollIndicator={false} contentContainerStyle={s.hScroll}>
@@ -412,7 +414,7 @@ export default function FeedScreen() {
                     </View>
                   ))}
                 </ScrollView>
-                <FeedSkeleton />
+                <FeedSkeleton s={s} />
               </>
             ) : suggestions.length === 0 ? (
               <EmptyState
@@ -429,13 +431,13 @@ export default function FeedScreen() {
                   showsHorizontalScrollIndicator={false}
                   contentContainerStyle={s.hScroll}
                   renderItem={({ item }) => (
-                    <PersonCard item={item} onFollow={handleFollow} following={following} />
+                    <PersonCard item={item} onFollow={handleFollow} following={following} s={s} />
                   )}
                 />
                 {suggestedFeed.length > 0 && (
                   <View style={{ marginTop: 8 }}>
                     {suggestedFeed.map((item) => (
-                      <ActivityCard key={item.id} item={item} onPress={() => handleActivityPress(item)} />
+                      <ActivityCard key={item.id} item={item} onPress={() => handleActivityPress(item)} colors={colors} s={s} />
                     ))}
                   </View>
                 )}
@@ -445,9 +447,9 @@ export default function FeedScreen() {
         )}
 
         {/* ── Discover Feed ── */}
-        <SectionLabel title="DISCOVER" icon="compass-outline" />
+        <SectionLabel title="DISCOVER" icon="compass-outline" colors={colors} s={s} />
         {loading ? (
-          <FeedSkeleton />
+          <FeedSkeleton s={s} />
         ) : discoverFeed.length === 0 ? (
           <EmptyState
             icon="compass-outline"
@@ -457,7 +459,7 @@ export default function FeedScreen() {
           />
         ) : (
           discoverFeed.map((item) => (
-            <ActivityCard key={item.id} item={item} onPress={() => handleActivityPress(item)} />
+            <ActivityCard key={item.id} item={item} onPress={() => handleActivityPress(item)} colors={colors} s={s} />
           ))
         )}
 
@@ -467,108 +469,110 @@ export default function FeedScreen() {
   );
 }
 
-const s = StyleSheet.create({
-  container: { flex: 1, paddingTop: 56 },
-  header: { paddingHorizontal: 20, marginBottom: 4, flexDirection: "row", alignItems: "center", justifyContent: "space-between" },
-  headerTitle: { fontSize: 28, fontWeight: "700", color: "#fff", letterSpacing: 0.5 },
-  headerActions: { flexDirection: "row", alignItems: "center", gap: 4 },
-  headerIconBtn: { padding: 8, position: "relative" },
-  bellBadge: {
-    position: "absolute", top: 4, right: 4,
-    backgroundColor: "#dc2626", borderRadius: 8,
-    minWidth: 16, height: 16, alignItems: "center", justifyContent: "center",
-    paddingHorizontal: 3,
-  },
-  bellBadgeText: { color: "#fff", fontSize: 9, fontWeight: "800" },
-  scroll: { paddingBottom: 40 },
+function buildStyles(colors: ThemeColors) {
+  return StyleSheet.create({
+    container: { flex: 1, paddingTop: 56 },
+    header: { paddingHorizontal: 20, marginBottom: 4, flexDirection: "row", alignItems: "center", justifyContent: "space-between" },
+    headerTitle: { fontSize: 28, fontWeight: "700", color: colors.text, letterSpacing: 0.5 },
+    headerActions: { flexDirection: "row", alignItems: "center", gap: 4 },
+    headerIconBtn: { padding: 8, position: "relative" },
+    bellBadge: {
+      position: "absolute", top: 4, right: 4,
+      backgroundColor: colors.red, borderRadius: 8,
+      minWidth: 16, height: 16, alignItems: "center", justifyContent: "center",
+      paddingHorizontal: 3,
+    },
+    bellBadgeText: { color: "#fff", fontSize: 9, fontWeight: "800" },
+    scroll: { paddingBottom: 40 },
 
-  sectionRow: { flexDirection: "row", alignItems: "center", gap: 6, paddingHorizontal: 20, marginTop: 22, marginBottom: 10 },
-  sectionLabel: { color: "rgba(255,255,255,0.35)", fontSize: 11, fontWeight: "700", letterSpacing: 1.5 },
+    sectionRow: { flexDirection: "row", alignItems: "center", gap: 6, paddingHorizontal: 20, marginTop: 22, marginBottom: 10 },
+    sectionLabel: { color: colors.textMuted, fontSize: 11, fontWeight: "700", letterSpacing: 1.5 },
 
-  emptySection: { paddingHorizontal: 20, paddingBottom: 4 },
-  emptySectionText: { color: "rgba(255,255,255,0.3)", fontSize: 13, fontStyle: "italic" },
+    emptySection: { paddingHorizontal: 20, paddingBottom: 4 },
+    emptySectionText: { color: colors.textGhost, fontSize: 13, fontStyle: "italic" },
 
-  actCard: {
-    marginHorizontal: 20, marginBottom: 10,
-    backgroundColor: "rgba(255,255,255,0.05)", borderRadius: 16, padding: 14,
-    borderWidth: StyleSheet.hairlineWidth,
-    borderColor: "rgba(255,255,255,0.13)", borderTopColor: "rgba(255,255,255,0.2)",
-    gap: 12,
-  },
-  cardPressed: { opacity: 0.7, transform: [{ scale: 0.98 }] },
-  actHeader: { flexDirection: "row", alignItems: "center" },
-  actAvatar: {
-    width: 36, height: 36, borderRadius: 18,
-    backgroundColor: "#7c3aed", alignItems: "center", justifyContent: "center",
-  },
-  actAvatarText: { color: "#fff", fontSize: 15, fontWeight: "700" },
-  actUsername: { color: "#fff", fontSize: 13, fontWeight: "700" },
-  actAction: { color: "rgba(255,255,255,0.45)", fontSize: 12, marginTop: 1 },
-  actTime: { color: "rgba(255,255,255,0.3)", fontSize: 11 },
+    actCard: {
+      marginHorizontal: 20, marginBottom: 10,
+      backgroundColor: colors.card, borderRadius: 16, padding: 14,
+      borderWidth: StyleSheet.hairlineWidth,
+      borderColor: colors.border, borderTopColor: colors.borderLight,
+      gap: 12,
+    },
+    cardPressed: { opacity: 0.7, transform: [{ scale: 0.98 }] },
+    actHeader: { flexDirection: "row", alignItems: "center" },
+    actAvatar: {
+      width: 36, height: 36, borderRadius: 18,
+      backgroundColor: colors.purple, alignItems: "center", justifyContent: "center",
+    },
+    actAvatarText: { color: "#fff", fontSize: 15, fontWeight: "700" },
+    actUsername: { color: colors.text, fontSize: 13, fontWeight: "700" },
+    actAction: { color: colors.textMuted, fontSize: 12, marginTop: 1 },
+    actTime: { color: colors.textGhost, fontSize: 11 },
 
-  actContent: {
-    flexDirection: "row", alignItems: "center", gap: 10,
-    backgroundColor: "rgba(255,255,255,0.04)", borderRadius: 12, padding: 10,
-    borderWidth: StyleSheet.hairlineWidth, borderColor: "rgba(255,255,255,0.08)",
-  },
-  actBubbleIcon: {
-    width: 36, height: 36, borderRadius: 18,
-    backgroundColor: "#7c3aed", alignItems: "center", justifyContent: "center",
-  },
-  actBubbleIconText: { color: "#fff", fontSize: 15, fontWeight: "700" },
-  actEventIcon: {
-    width: 36, height: 36, borderRadius: 18,
-    backgroundColor: "rgba(220,38,38,0.15)", alignItems: "center", justifyContent: "center",
-    borderWidth: 1, borderColor: "rgba(220,38,38,0.3)",
-  },
-  actContentTitle: { color: "#fff", fontSize: 14, fontWeight: "600" },
-  actMeta: { flexDirection: "row", alignItems: "center", gap: 4, marginTop: 2 },
-  actContentSub: { color: "rgba(255,255,255,0.4)", fontSize: 11 },
+    actContent: {
+      flexDirection: "row", alignItems: "center", gap: 10,
+      backgroundColor: colors.cardFaint, borderRadius: 12, padding: 10,
+      borderWidth: StyleSheet.hairlineWidth, borderColor: colors.borderFaint,
+    },
+    actBubbleIcon: {
+      width: 36, height: 36, borderRadius: 18,
+      backgroundColor: colors.purple, alignItems: "center", justifyContent: "center",
+    },
+    actBubbleIconText: { color: "#fff", fontSize: 15, fontWeight: "700" },
+    actEventIcon: {
+      width: 36, height: 36, borderRadius: 18,
+      backgroundColor: colors.redSubtle, alignItems: "center", justifyContent: "center",
+      borderWidth: 1, borderColor: colors.redBorder,
+    },
+    actContentTitle: { color: colors.text, fontSize: 14, fontWeight: "600" },
+    actMeta: { flexDirection: "row", alignItems: "center", gap: 4, marginTop: 2 },
+    actContentSub: { color: colors.textMuted, fontSize: 11 },
 
-  badge: { backgroundColor: "rgba(124,58,237,0.3)", borderRadius: 6, paddingHorizontal: 6, paddingVertical: 2 },
-  badgeText: { color: "#c4b5fd", fontSize: 10, fontWeight: "700" },
+    badge: { backgroundColor: colors.purpleSubtle, borderRadius: 6, paddingHorizontal: 6, paddingVertical: 2 },
+    badgeText: { color: "#c4b5fd", fontSize: 10, fontWeight: "700" },
 
-  hScroll: { paddingHorizontal: 20, gap: 10, paddingBottom: 4 },
-  personCard: {
-    width: 110, alignItems: "center", gap: 6, padding: 12,
-    backgroundColor: "rgba(255,255,255,0.05)", borderRadius: 16,
-    borderWidth: StyleSheet.hairlineWidth, borderColor: "rgba(255,255,255,0.13)",
-  },
-  personAvatar: {
-    width: 56, height: 56, borderRadius: 28,
-    backgroundColor: "#7c3aed", alignItems: "center", justifyContent: "center",
-  },
-  personInitial: { color: "#fff", fontSize: 22, fontWeight: "700" },
-  personName: { color: "#fff", fontSize: 13, fontWeight: "700", textAlign: "center" },
-  personMutual: { color: "rgba(255,255,255,0.4)", fontSize: 10, textAlign: "center" },
-  followBtn: {
-    backgroundColor: "rgba(255,255,255,0.92)", borderRadius: 10,
-    paddingHorizontal: 14, paddingVertical: 6, width: "100%", alignItems: "center",
-  },
-  followBtnDone: { backgroundColor: "rgba(124,58,237,0.25)", borderWidth: 1, borderColor: "rgba(124,58,237,0.5)" },
-  followBtnText: { color: "#0b0b0f", fontWeight: "700", fontSize: 12 },
-  followBtnTextDone: { color: "#c4b5fd" },
+    hScroll: { paddingHorizontal: 20, gap: 10, paddingBottom: 4 },
+    personCard: {
+      width: 110, alignItems: "center", gap: 6, padding: 12,
+      backgroundColor: colors.card, borderRadius: 16,
+      borderWidth: StyleSheet.hairlineWidth, borderColor: colors.border,
+    },
+    personAvatar: {
+      width: 56, height: 56, borderRadius: 28,
+      backgroundColor: colors.purple, alignItems: "center", justifyContent: "center",
+    },
+    personInitial: { color: "#fff", fontSize: 22, fontWeight: "700" },
+    personName: { color: colors.text, fontSize: 13, fontWeight: "700", textAlign: "center" },
+    personMutual: { color: colors.textMuted, fontSize: 10, textAlign: "center" },
+    followBtn: {
+      backgroundColor: colors.btnLight, borderRadius: 10,
+      paddingHorizontal: 14, paddingVertical: 6, width: "100%", alignItems: "center",
+    },
+    followBtnDone: { backgroundColor: colors.purpleSubtle, borderWidth: 1, borderColor: "rgba(124,58,237,0.5)" },
+    followBtnText: { color: colors.btnLightText, fontWeight: "700", fontSize: 12 },
+    followBtnTextDone: { color: "#c4b5fd" },
 
-  errorBanner: {
-    marginHorizontal: 20, marginTop: 16, marginBottom: 4,
-    backgroundColor: "rgba(220,38,38,0.12)", borderRadius: 12,
-    borderWidth: 1, borderColor: "rgba(220,38,38,0.3)",
-    paddingVertical: 14, alignItems: "center",
-  },
-  errorBannerText: { color: "#dc2626", fontSize: 13, fontWeight: "600" },
+    errorBanner: {
+      marginHorizontal: 20, marginTop: 16, marginBottom: 4,
+      backgroundColor: colors.redSubtle, borderRadius: 12,
+      borderWidth: 1, borderColor: colors.redBorder,
+      paddingVertical: 14, alignItems: "center",
+    },
+    errorBannerText: { color: colors.red, fontSize: 13, fontWeight: "600" },
 
-  guestContainer: { flex: 1, alignItems: "center", justifyContent: "center", gap: 14, paddingHorizontal: 44 },
-  guestTitle: { fontSize: 36, fontWeight: "700", color: "#fff", letterSpacing: 0.5 },
-  guestSub: { color: "rgba(255,255,255,0.45)", fontSize: 14, textAlign: "center" },
-  signInBtn: {
-    width: "100%", height: 48, borderRadius: 14,
-    backgroundColor: "rgba(255,255,255,0.92)", alignItems: "center", justifyContent: "center",
-  },
-  signInBtnText: { color: "#0b0b0f", fontWeight: "700", fontSize: 14 },
-  signUpBtn: {
-    width: "100%", height: 48, borderRadius: 14,
-    borderWidth: 1, borderColor: "rgba(255,255,255,0.4)",
-    alignItems: "center", justifyContent: "center",
-  },
-  signUpBtnText: { color: "#fff", fontWeight: "600", fontSize: 14 },
-});
+    guestContainer: { flex: 1, alignItems: "center", justifyContent: "center", gap: 14, paddingHorizontal: 44 },
+    guestTitle: { fontSize: 36, fontWeight: "700", color: colors.text, letterSpacing: 0.5 },
+    guestSub: { color: colors.textMuted, fontSize: 14, textAlign: "center" },
+    signInBtn: {
+      width: "100%", height: 48, borderRadius: 14,
+      backgroundColor: colors.btnLight, alignItems: "center", justifyContent: "center",
+    },
+    signInBtnText: { color: colors.btnLightText, fontWeight: "700", fontSize: 14 },
+    signUpBtn: {
+      width: "100%", height: 48, borderRadius: 14,
+      borderWidth: 1, borderColor: colors.borderLight,
+      alignItems: "center", justifyContent: "center",
+    },
+    signUpBtnText: { color: colors.text, fontWeight: "600", fontSize: 14 },
+  });
+}

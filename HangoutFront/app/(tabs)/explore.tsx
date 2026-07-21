@@ -1,6 +1,6 @@
-import React, { useState, useCallback } from "react";
+import React, { useState, useCallback, useMemo } from "react";
 import {
-  View, Text, StyleSheet, ScrollView, Pressable, StatusBar, RefreshControl,
+  View, Text, StyleSheet, ScrollView, Pressable, RefreshControl,
 } from "react-native";
 import { useFocusEffect } from "@react-navigation/native";
 import { useRouter } from "expo-router";
@@ -8,6 +8,7 @@ import { Ionicons } from "@expo/vector-icons";
 import * as Haptics from "expo-haptics";
 import { getBubbles, getMyEvents } from "@/services/api";
 import { useAuth } from "@/services/auth-context";
+import { useTheme } from "@/services/theme-context";
 import { SkeletonBox } from "@/components/SkeletonBox";
 import { ErrorScreen } from "@/components/ErrorScreen";
 import { EmptyState } from "@/components/EmptyState";
@@ -27,6 +28,8 @@ type Event = {
 export default function MyHangoutsScreen() {
   const router = useRouter();
   const { user } = useAuth();
+  const { colors } = useTheme();
+  const s = useMemo(() => buildStyles(colors), [colors]);
   const [myBubbles, setMyBubbles] = useState<Bubble[]>([]);
   const [myEvents, setMyEvents] = useState<Event[]>([]);
   const [loading, setLoading] = useState(true);
@@ -67,8 +70,6 @@ export default function MyHangoutsScreen() {
 
   return (
     <ScreenBackground style={s.container}>
-      <StatusBar barStyle="light-content" backgroundColor="transparent" translucent />
-
       <View style={s.header}>
         <Text style={s.headerTitle}>My Hangouts</Text>
       </View>
@@ -76,7 +77,7 @@ export default function MyHangoutsScreen() {
 
       {!user ? (
         <View style={s.center}>
-          <Ionicons name="person-outline" size={48} color="rgba(255,255,255,0.2)" />
+          <Ionicons name="person-outline" size={48} color={colors.borderLight} />
           <Text style={s.emptyText}>Sign in to see your hangouts</Text>
           <Pressable style={s.signInBtn} onPress={() => router.push("/signin")}>
             <Text style={s.signInBtnText}>Sign In</Text>
@@ -86,7 +87,7 @@ export default function MyHangoutsScreen() {
         <ScrollView
           contentContainerStyle={s.list}
           showsVerticalScrollIndicator={false}
-          refreshControl={<RefreshControl refreshing={refreshing} onRefresh={handleRefresh} tintColor="#dc2626" colors={["#dc2626"]} />}
+          refreshControl={<RefreshControl refreshing={refreshing} onRefresh={handleRefresh} tintColor={colors.red} colors={[colors.red]} />}
         >
 
           {/* ── Bubbles ── */}
@@ -140,7 +141,7 @@ export default function MyHangoutsScreen() {
                 </View>
                 {bubble.meetTime ? (
                   <View style={{ flexDirection: "row", alignItems: "center", gap: 5 }}>
-                    <Ionicons name="time-outline" size={13} color="rgba(255,255,255,0.5)" />
+                    <Ionicons name="time-outline" size={13} color={colors.textSub} />
                     <Text style={s.cardSub}>{bubble.meetTime}</Text>
                   </View>
                 ) : null}
@@ -186,11 +187,11 @@ export default function MyHangoutsScreen() {
               >
                 <Text style={s.cardName}>{event.title}</Text>
                 <View style={s.cardMeta}>
-                  <Ionicons name="location-outline" size={12} color="rgba(255,255,255,0.4)" />
+                  <Ionicons name="location-outline" size={12} color={colors.textMuted} />
                   <Text style={s.cardSub}>{event.location}</Text>
                 </View>
                 <View style={s.cardMeta}>
-                  <Ionicons name="time-outline" size={12} color="rgba(255,255,255,0.4)" />
+                  <Ionicons name="time-outline" size={12} color={colors.textMuted} />
                   <Text style={s.cardSub}>{event.time}</Text>
                 </View>
               </Pressable>
@@ -203,52 +204,54 @@ export default function MyHangoutsScreen() {
   );
 }
 
-const s = StyleSheet.create({
-  container: { flex: 1, paddingTop: 56 },
-  header: {
-    flexDirection: "row", alignItems: "center",
-    justifyContent: "space-between",
-    paddingHorizontal: 20, marginBottom: 4,
-  },
-  headerTitle: { fontSize: 28, fontWeight: "700", color: "#fff", letterSpacing: 0.5 },
-  subtitle: { color: "rgba(255,255,255,0.45)", fontSize: 13, paddingHorizontal: 20, marginBottom: 20 },
-  sectionLabel: {
-    color: "rgba(255,255,255,0.35)", fontSize: 11, fontWeight: "700",
-    letterSpacing: 1.5, textTransform: "uppercase",
-    paddingHorizontal: 20, marginBottom: 10,
-  },
-  list: { paddingBottom: 40 },
+function buildStyles(colors: ReturnType<typeof useTheme>["colors"]) {
+  return StyleSheet.create({
+    container: { flex: 1, paddingTop: 56 },
+    header: {
+      flexDirection: "row", alignItems: "center",
+      justifyContent: "space-between",
+      paddingHorizontal: 20, marginBottom: 4,
+    },
+    headerTitle: { fontSize: 28, fontWeight: "700", color: colors.text, letterSpacing: 0.5 },
+    subtitle: { color: colors.textMuted, fontSize: 13, paddingHorizontal: 20, marginBottom: 20 },
+    sectionLabel: {
+      color: colors.textMuted, fontSize: 11, fontWeight: "700",
+      letterSpacing: 1.5, textTransform: "uppercase",
+      paddingHorizontal: 20, marginBottom: 10,
+    },
+    list: { paddingBottom: 40 },
 
-  center: { flex: 1, alignItems: "center", justifyContent: "center", gap: 16 },
-  emptyText: { color: "rgba(255,255,255,0.4)", fontSize: 15 },
-  signInBtn: {
-    backgroundColor: "rgba(255,255,255,0.92)", borderRadius: 14,
-    paddingHorizontal: 28, paddingVertical: 12,
-  },
-  signInBtnText: { color: "#0b0b0f", fontWeight: "700", fontSize: 14 },
+    center: { flex: 1, alignItems: "center", justifyContent: "center", gap: 16 },
+    emptyText: { color: colors.textMuted, fontSize: 15 },
+    signInBtn: {
+      backgroundColor: colors.btnLight, borderRadius: 14,
+      paddingHorizontal: 28, paddingVertical: 12,
+    },
+    signInBtnText: { color: colors.btnLightText, fontWeight: "700", fontSize: 14 },
 
-  emptySection: { paddingHorizontal: 20, paddingVertical: 12 },
-  emptySectionText: { color: "rgba(255,255,255,0.3)", fontSize: 13, fontStyle: "italic" },
+    emptySection: { paddingHorizontal: 20, paddingVertical: 12 },
+    emptySectionText: { color: colors.textGhost, fontSize: 13, fontStyle: "italic" },
 
-  card: {
-    marginHorizontal: 20, marginBottom: 10,
-    backgroundColor: "rgba(255,255,255,0.05)", borderRadius: 16, padding: 16,
-    borderWidth: StyleSheet.hairlineWidth,
-    borderColor: "rgba(255,255,255,0.13)", borderTopColor: "rgba(255,255,255,0.2)",
-    gap: 8,
-  },
-  cardPressed: { opacity: 0.7, transform: [{ scale: 0.98 }] },
-  cardTop: { flexDirection: "row", alignItems: "center", gap: 12 },
-  bubbleIcon: {
-    width: 44, height: 44, borderRadius: 22,
-    backgroundColor: "#7c3aed", alignItems: "center", justifyContent: "center",
-  },
-  bubbleIconText: { color: "#fff", fontSize: 18, fontWeight: "700" },
-  cardInfo: { flex: 1 },
-  cardName: { color: "#fff", fontSize: 16, fontWeight: "700" },
-  cardMeta: { flexDirection: "row", alignItems: "center", gap: 6, marginTop: 2, flexWrap: "wrap" },
-  typeBadge: { backgroundColor: "rgba(124,58,237,0.3)", borderRadius: 6, paddingHorizontal: 6, paddingVertical: 2 },
-  typeBadgeText: { color: "#c4b5fd", fontSize: 11, fontWeight: "600" },
-  cardSub: { color: "rgba(255,255,255,0.45)", fontSize: 12 },
-  cardDescription: { color: "rgba(255,255,255,0.5)", fontSize: 13, lineHeight: 18 },
-});
+    card: {
+      marginHorizontal: 20, marginBottom: 10,
+      backgroundColor: colors.card, borderRadius: 16, padding: 16,
+      borderWidth: StyleSheet.hairlineWidth,
+      borderColor: colors.border, borderTopColor: colors.borderLight,
+      gap: 8,
+    },
+    cardPressed: { opacity: 0.7, transform: [{ scale: 0.98 }] },
+    cardTop: { flexDirection: "row", alignItems: "center", gap: 12 },
+    bubbleIcon: {
+      width: 44, height: 44, borderRadius: 22,
+      backgroundColor: colors.purple, alignItems: "center", justifyContent: "center",
+    },
+    bubbleIconText: { color: "#fff", fontSize: 18, fontWeight: "700" },
+    cardInfo: { flex: 1 },
+    cardName: { color: colors.text, fontSize: 16, fontWeight: "700" },
+    cardMeta: { flexDirection: "row", alignItems: "center", gap: 6, marginTop: 2, flexWrap: "wrap" },
+    typeBadge: { backgroundColor: colors.purpleSubtle, borderRadius: 6, paddingHorizontal: 6, paddingVertical: 2 },
+    typeBadgeText: { color: "#c4b5fd", fontSize: 11, fontWeight: "600" },
+    cardSub: { color: colors.textMuted, fontSize: 12 },
+    cardDescription: { color: colors.textSub, fontSize: 13, lineHeight: 18 },
+  });
+}

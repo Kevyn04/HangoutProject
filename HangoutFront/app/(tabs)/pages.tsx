@@ -1,11 +1,12 @@
-import React, { useState, useCallback } from "react";
+import React, { useState, useCallback, useMemo } from "react";
 import {
   View, Text, StyleSheet, ScrollView, Pressable,
-  TextInput, StatusBar, RefreshControl,
+  TextInput, RefreshControl,
 } from "react-native";
 import { useFocusEffect, useRouter } from "expo-router";
 import * as Haptics from "expo-haptics";
 import { useAuth } from "@/services/auth-context";
+import { useTheme } from "@/services/theme-context";
 import { getPages, toggleFollow } from "@/services/api";
 import { SkeletonBox } from "@/components/SkeletonBox";
 import { EmptyState } from "@/components/EmptyState";
@@ -32,6 +33,8 @@ type PageItem = {
 export default function PagesScreen() {
   const router = useRouter();
   const { user } = useAuth();
+  const { colors } = useTheme();
+  const s = useMemo(() => buildStyles(colors), [colors]);
   const { showToast } = useToast();
 
   const [pages, setPages] = useState<PageItem[]>([]);
@@ -87,8 +90,6 @@ export default function PagesScreen() {
 
   return (
     <ScreenBackground style={s.container}>
-      <StatusBar barStyle="light-content" backgroundColor="transparent" translucent />
-
       {/* Header */}
       <View style={s.header}>
         <Text style={s.headerTitle}>Pages</Text>
@@ -109,7 +110,7 @@ export default function PagesScreen() {
         <TextInput
           style={s.searchInput}
           placeholder="Search pages..."
-          placeholderTextColor="rgba(255,255,255,0.3)"
+          placeholderTextColor={colors.textGhost}
           value={search}
           onChangeText={setSearch}
         />
@@ -131,13 +132,13 @@ export default function PagesScreen() {
       {/* Pages list */}
       {loadError ? (
         <View style={{ flex: 1, alignItems: "center", justifyContent: "center", gap: 14 }}>
-          <Text style={{ color: "rgba(255,255,255,0.5)", fontSize: 15 }}>Couldn't load pages.</Text>
-          <Pressable style={{ paddingHorizontal: 24, paddingVertical: 10, borderRadius: 14, borderWidth: 1, borderColor: "rgba(220,38,38,0.5)", backgroundColor: "rgba(220,38,38,0.1)" }} onPress={() => load()}>
-            <Text style={{ color: "#dc2626", fontWeight: "700" }}>Try Again</Text>
+          <Text style={{ color: colors.textMuted, fontSize: 15 }}>Couldn't load pages.</Text>
+          <Pressable style={{ paddingHorizontal: 24, paddingVertical: 10, borderRadius: 14, borderWidth: 1, borderColor: colors.redBorder, backgroundColor: colors.redSubtle }} onPress={() => load()}>
+            <Text style={{ color: colors.red, fontWeight: "700" }}>Try Again</Text>
           </Pressable>
         </View>
       ) : loading ? (
-        <ScrollView contentContainerStyle={s.list} showsVerticalScrollIndicator={false} refreshControl={<RefreshControl refreshing={refreshing} onRefresh={handleRefresh} tintColor="#dc2626" colors={["#dc2626"]} />}>
+        <ScrollView contentContainerStyle={s.list} showsVerticalScrollIndicator={false} refreshControl={<RefreshControl refreshing={refreshing} onRefresh={handleRefresh} tintColor={colors.red} colors={[colors.red]} />}>
           {[0,1,2,3].map((i) => (
             <View key={i} style={s.card}>
               <View style={s.cardTop}>
@@ -153,7 +154,7 @@ export default function PagesScreen() {
           ))}
         </ScrollView>
       ) : (
-        <ScrollView contentContainerStyle={s.list} showsVerticalScrollIndicator={false} refreshControl={<RefreshControl refreshing={refreshing} onRefresh={handleRefresh} tintColor="#dc2626" colors={["#dc2626"]} />}>
+        <ScrollView contentContainerStyle={s.list} showsVerticalScrollIndicator={false} refreshControl={<RefreshControl refreshing={refreshing} onRefresh={handleRefresh} tintColor={colors.red} colors={[colors.red]} />}>
           {filtered.length === 0 ? (
             <EmptyState
               icon="megaphone-outline"
@@ -220,61 +221,63 @@ export default function PagesScreen() {
 
 }
 
-const s = StyleSheet.create({
-  container: { flex: 1, paddingTop: 56 },
-  header: { flexDirection: "row", alignItems: "center", justifyContent: "space-between", paddingHorizontal: 20, marginBottom: 4 },
-  headerTitle: { fontSize: 28, fontWeight: "700", color: "#fff", letterSpacing: 0.5 },
-  createBtn: { backgroundColor: "#dc2626", paddingHorizontal: 16, paddingVertical: 8, borderRadius: 20 },
-  createBtnText: { color: "#fff", fontWeight: "700", fontSize: 14 },
-  myPageBtn: { paddingHorizontal: 16, paddingVertical: 8, borderRadius: 20, borderWidth: 1.5, borderColor: "#dc2626" },
-  myPageBtnText: { color: "#dc2626", fontWeight: "700", fontSize: 14 },
-  subtitle: { color: "rgba(255,255,255,0.45)", fontSize: 13, paddingHorizontal: 20, marginBottom: 14 },
+function buildStyles(colors: ReturnType<typeof useTheme>["colors"]) {
+  return StyleSheet.create({
+    container: { flex: 1, paddingTop: 56 },
+    header: { flexDirection: "row", alignItems: "center", justifyContent: "space-between", paddingHorizontal: 20, marginBottom: 4 },
+    headerTitle: { fontSize: 28, fontWeight: "700", color: colors.text, letterSpacing: 0.5 },
+    createBtn: { backgroundColor: colors.red, paddingHorizontal: 16, paddingVertical: 8, borderRadius: 20 },
+    createBtnText: { color: "#fff", fontWeight: "700", fontSize: 14 },
+    myPageBtn: { paddingHorizontal: 16, paddingVertical: 8, borderRadius: 20, borderWidth: 1.5, borderColor: colors.red },
+    myPageBtnText: { color: colors.red, fontWeight: "700", fontSize: 14 },
+    subtitle: { color: colors.textMuted, fontSize: 13, paddingHorizontal: 20, marginBottom: 14 },
 
-  searchRow: { paddingHorizontal: 20, marginBottom: 12 },
-  searchInput: {
-    backgroundColor: "rgba(255,255,255,0.07)", borderRadius: 12,
-    paddingHorizontal: 14, paddingVertical: 10, color: "#fff", fontSize: 14,
-    borderWidth: 1, borderColor: "rgba(255,255,255,0.1)",
-  },
+    searchRow: { paddingHorizontal: 20, marginBottom: 12 },
+    searchInput: {
+      backgroundColor: colors.card, borderRadius: 12,
+      paddingHorizontal: 14, paddingVertical: 10, color: colors.text, fontSize: 14,
+      borderWidth: 1, borderColor: colors.borderFaint,
+    },
 
-  chips: { flexGrow: 0, marginBottom: 12 },
-  chipsContent: { paddingHorizontal: 20, gap: 8 },
-  chip: {
-    paddingHorizontal: 14, paddingVertical: 6, borderRadius: 20,
-    backgroundColor: "rgba(255,255,255,0.07)",
-    borderWidth: 1, borderColor: "rgba(255,255,255,0.1)",
-  },
-  chipActive: { backgroundColor: "#dc2626", borderColor: "#dc2626" },
-  chipText: { color: "rgba(255,255,255,0.55)", fontSize: 13, fontWeight: "600" },
-  chipTextActive: { color: "#fff" },
+    chips: { flexGrow: 0, marginBottom: 12 },
+    chipsContent: { paddingHorizontal: 20, gap: 8 },
+    chip: {
+      paddingHorizontal: 14, paddingVertical: 6, borderRadius: 20,
+      backgroundColor: colors.card,
+      borderWidth: 1, borderColor: colors.borderFaint,
+    },
+    chipActive: { backgroundColor: colors.red, borderColor: colors.red },
+    chipText: { color: colors.textSub, fontSize: 13, fontWeight: "600" },
+    chipTextActive: { color: "#fff" },
 
-  list: { paddingHorizontal: 20, paddingBottom: 32, gap: 12 },
-  empty: { alignItems: "center", marginTop: 60, gap: 8 },
-  emptyText: { color: "rgba(255,255,255,0.5)", fontSize: 16, fontWeight: "600" },
-  emptySub: { color: "rgba(255,255,255,0.3)", fontSize: 13 },
+    list: { paddingHorizontal: 20, paddingBottom: 32, gap: 12 },
+    empty: { alignItems: "center", marginTop: 60, gap: 8 },
+    emptyText: { color: colors.textMuted, fontSize: 16, fontWeight: "600" },
+    emptySub: { color: colors.textGhost, fontSize: 13 },
 
-  card: {
-    backgroundColor: "rgba(255,255,255,0.05)", borderRadius: 16,
-    padding: 16, borderWidth: StyleSheet.hairlineWidth,
-    borderColor: "rgba(255,255,255,0.12)", borderTopColor: "rgba(255,255,255,0.2)",
-    gap: 10,
-  },
-  cardTop: { flexDirection: "row", alignItems: "center", gap: 12 },
-  avatar: { width: 50, height: 50, borderRadius: 25, alignItems: "center", justifyContent: "center" },
-  avatarText: { color: "#fff", fontSize: 20, fontWeight: "700" },
-  cardInfo: { flex: 1 },
-  cardName: { color: "#fff", fontSize: 16, fontWeight: "700" },
-  cardMeta: { flexDirection: "row", alignItems: "center", gap: 8, marginTop: 4 },
-  catBadge: { borderRadius: 6, paddingHorizontal: 7, paddingVertical: 2 },
-  catBadgeText: { fontSize: 11, fontWeight: "700" },
-  followers: { color: "rgba(255,255,255,0.4)", fontSize: 12 },
-  cardDesc: { color: "rgba(255,255,255,0.5)", fontSize: 13, lineHeight: 18 },
+    card: {
+      backgroundColor: colors.card, borderRadius: 16,
+      padding: 16, borderWidth: StyleSheet.hairlineWidth,
+      borderColor: colors.border, borderTopColor: colors.borderLight,
+      gap: 10,
+    },
+    cardTop: { flexDirection: "row", alignItems: "center", gap: 12 },
+    avatar: { width: 50, height: 50, borderRadius: 25, alignItems: "center", justifyContent: "center" },
+    avatarText: { color: "#fff", fontSize: 20, fontWeight: "700" },
+    cardInfo: { flex: 1 },
+    cardName: { color: colors.text, fontSize: 16, fontWeight: "700" },
+    cardMeta: { flexDirection: "row", alignItems: "center", gap: 8, marginTop: 4 },
+    catBadge: { borderRadius: 6, paddingHorizontal: 7, paddingVertical: 2 },
+    catBadgeText: { fontSize: 11, fontWeight: "700" },
+    followers: { color: colors.textMuted, fontSize: 12 },
+    cardDesc: { color: colors.textMuted, fontSize: 13, lineHeight: 18 },
 
-  followBtn: {
-    paddingHorizontal: 14, paddingVertical: 6, borderRadius: 20,
-    borderWidth: 1, borderColor: "#dc2626",
-  },
-  followBtnText: { color: "#dc2626", fontSize: 13, fontWeight: "700" },
-  followingBtn: { backgroundColor: "rgba(220,38,38,0.15)" },
-  followingBtnText: { color: "rgba(220,38,38,0.8)" },
-});
+    followBtn: {
+      paddingHorizontal: 14, paddingVertical: 6, borderRadius: 20,
+      borderWidth: 1, borderColor: colors.red,
+    },
+    followBtnText: { color: colors.red, fontSize: 13, fontWeight: "700" },
+    followingBtn: { backgroundColor: colors.redSubtle },
+    followingBtnText: { color: "rgba(220,38,38,0.8)" },
+  });
+}

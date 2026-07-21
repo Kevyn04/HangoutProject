@@ -5,19 +5,20 @@ import { LinearGradient } from 'expo-linear-gradient';
 
 import { HapticTab } from '@/components/haptic-tab';
 import { IconSymbol } from '@/components/ui/icon-symbol';
-import { AppColors } from '@/constants/theme';
+import { useTheme } from '@/services/theme-context';
 
 export default function TabLayout() {
+  const { colors } = useTheme();
   return (
     <Tabs
       screenOptions={{
-        tabBarActiveTintColor: AppColors.tabActive,
-        tabBarInactiveTintColor: AppColors.tabInactive,
+        tabBarActiveTintColor: colors.tabActive,
+        tabBarInactiveTintColor: colors.tabInactive,
         headerShown: false,
         tabBarButton: HapticTab,
         tabBarBackground: () => (
           <LinearGradient
-            colors={["rgba(10,2,4,0.96)", "#120303"]}
+            colors={colors.tabBarGradient}
             start={{ x: 0, y: 0 }}
             end={{ x: 0, y: 1 }}
             style={StyleSheet.absoluteFill}
@@ -26,7 +27,7 @@ export default function TabLayout() {
         tabBarStyle: {
           backgroundColor: 'transparent',
           borderTopWidth: StyleSheet.hairlineWidth,
-          borderTopColor: 'rgba(255,255,255,0.1)',
+          borderTopColor: colors.tabBarBorder,
           elevation: 0,
         },
       }}>

@@ -17,6 +17,7 @@ import { useRouter } from "expo-router";
 import { useFocusEffect } from "@react-navigation/native";
 import { getEvents, getBubbles } from "@/services/api";
 import { useAuth } from "@/services/auth-context";
+import { useTheme } from "@/services/theme-context";
 import { useToast } from "@/context/ToastContext";
 
 const { height: SCREEN_H } = Dimensions.get("window");
@@ -113,6 +114,8 @@ function isToday(iso?: string | null): boolean {
 export default function MapScreen() {
   const router = useRouter();
   const { user } = useAuth();
+  const { colors } = useTheme();
+  const styles = useMemo(() => buildStyles(colors), [colors]);
 
   const { showToast } = useToast();
 
@@ -338,7 +341,7 @@ export default function MapScreen() {
           <TextInput
             style={styles.searchInput}
             placeholder="Search events and bubbles…"
-            placeholderTextColor="rgba(255,255,255,0.3)"
+            placeholderTextColor={colors.textGhost}
             value={searchQuery}
             onChangeText={setSearchQuery}
             clearButtonMode="while-editing"
@@ -351,7 +354,7 @@ export default function MapScreen() {
           showsVerticalScrollIndicator={false}
         >
           {loading ? (
-            <ActivityIndicator size="large" color="white" style={{ marginTop: 20 }} />
+            <ActivityIndicator size="large" color={colors.text} style={{ marginTop: 20 }} />
           ) : filteredEvents.length === 0 && filteredBubbles.length === 0 ? (
             <Text style={styles.emptyText}>Nothing nearby matches your filters.</Text>
           ) : (
@@ -418,218 +421,222 @@ export default function MapScreen() {
   );
 }
 
-const styles = StyleSheet.create({
-  container: {
-    flex: 1,
-    backgroundColor: "#120303",
-  },
-  map: {
-    flex: 1,
-  },
+function buildStyles(colors: ReturnType<typeof useTheme>["colors"]) {
+  return StyleSheet.create({
+    container: {
+      flex: 1,
+      backgroundColor: colors.bgBase,
+    },
+    map: {
+      flex: 1,
+    },
 
-  // Filter chips
-  filterBar: {
-    position: "absolute",
-    top: 56,
-    left: 0,
-    right: 0,
-  },
-  filterRow: {
-    paddingHorizontal: 12,
-    gap: 8,
-    flexDirection: "row",
-  },
-  chip: {
-    backgroundColor: "rgba(18,3,3,0.85)",
-    borderRadius: 20,
-    borderWidth: 1,
-    borderColor: "rgba(255,255,255,0.15)",
-    paddingHorizontal: 12,
-    paddingVertical: 6,
-  },
-  chipRedOn: {
-    backgroundColor: "#dc2626",
-    borderColor: "#dc2626",
-  },
-  chipPurpleOn: {
-    backgroundColor: "#7c3aed",
-    borderColor: "#7c3aed",
-  },
-  chipText: {
-    color: "rgba(255,255,255,0.75)",
-    fontSize: 12,
-    fontWeight: "600",
-  },
-  chipTextOn: {
-    color: "#fff",
-  },
+    // Filter chips — floating overlay on top of the live map; kept dark/
+    // translucent in both themes for legibility against variable map tile
+    // colors, not tied to colors.* (deliberate, see conversion notes).
+    filterBar: {
+      position: "absolute",
+      top: 56,
+      left: 0,
+      right: 0,
+    },
+    filterRow: {
+      paddingHorizontal: 12,
+      gap: 8,
+      flexDirection: "row",
+    },
+    chip: {
+      backgroundColor: "rgba(18,3,3,0.85)",
+      borderRadius: 20,
+      borderWidth: 1,
+      borderColor: "rgba(255,255,255,0.15)",
+      paddingHorizontal: 12,
+      paddingVertical: 6,
+    },
+    chipRedOn: {
+      backgroundColor: "#dc2626",
+      borderColor: "#dc2626",
+    },
+    chipPurpleOn: {
+      backgroundColor: "#7c3aed",
+      borderColor: "#7c3aed",
+    },
+    chipText: {
+      color: "rgba(255,255,255,0.75)",
+      fontSize: 12,
+      fontWeight: "600",
+    },
+    chipTextOn: {
+      color: "#fff",
+    },
 
-  // Cluster badge
-  clusterBubble: {
-    minWidth: 34,
-    height: 34,
-    borderRadius: 17,
-    paddingHorizontal: 8,
-    alignItems: "center",
-    justifyContent: "center",
-    borderWidth: 2,
-    borderColor: "#fff",
-  },
-  clusterText: {
-    color: "#fff",
-    fontWeight: "800",
-    fontSize: 13,
-  },
+    // Cluster badge — also a map overlay, stays high-contrast in both themes
+    clusterBubble: {
+      minWidth: 34,
+      height: 34,
+      borderRadius: 17,
+      paddingHorizontal: 8,
+      alignItems: "center",
+      justifyContent: "center",
+      borderWidth: 2,
+      borderColor: "#fff",
+    },
+    clusterText: {
+      color: "#fff",
+      fontWeight: "800",
+      fontSize: 13,
+    },
 
-  // Legend
-  legend: {
-    position: "absolute",
-    top: 100,
-    right: 12,
-    backgroundColor: "rgba(18,3,3,0.85)",
-    borderRadius: 10,
-    padding: 10,
-    gap: 6,
-    borderWidth: 1,
-    borderColor: "rgba(255,255,255,0.1)",
-  },
-  legendItem: {
-    flexDirection: "row",
-    alignItems: "center",
-    gap: 6,
-  },
-  legendDot: {
-    width: 10,
-    height: 10,
-    borderRadius: 5,
-  },
-  legendText: {
-    color: "rgba(255,255,255,0.75)",
-    fontSize: 12,
-  },
+    // Legend — same map-overlay rationale as filter chips
+    legend: {
+      position: "absolute",
+      top: 100,
+      right: 12,
+      backgroundColor: "rgba(18,3,3,0.85)",
+      borderRadius: 10,
+      padding: 10,
+      gap: 6,
+      borderWidth: 1,
+      borderColor: "rgba(255,255,255,0.1)",
+    },
+    legendItem: {
+      flexDirection: "row",
+      alignItems: "center",
+      gap: 6,
+    },
+    legendDot: {
+      width: 10,
+      height: 10,
+      borderRadius: 5,
+    },
+    legendText: {
+      color: "rgba(255,255,255,0.75)",
+      fontSize: 12,
+    },
 
-  // Events bottom sheet
-  sheet: {
-    position: "absolute",
-    bottom: 0,
-    left: 0,
-    right: 0,
-    backgroundColor: "#1a0808",
-    borderTopLeftRadius: 20,
-    borderTopRightRadius: 20,
-    borderTopWidth: 1,
-    borderColor: "rgba(255,255,255,0.08)",
-  },
-  handleArea: {
-    alignItems: "center",
-    paddingTop: 10,
-    paddingBottom: 12,
-    paddingHorizontal: 20,
-  },
-  handle: {
-    width: 40,
-    height: 5,
-    borderRadius: 3,
-    backgroundColor: "rgba(255,255,255,0.3)",
-    marginBottom: 10,
-  },
-  sheetHeader: {
-    flexDirection: "row",
-    alignItems: "center",
-    justifyContent: "space-between",
-    width: "100%",
-  },
-  sheetTitle: {
-    fontSize: 15,
-    fontWeight: "700",
-    letterSpacing: 1.5,
-    color: "rgba(255,255,255,0.85)",
-  },
-  newEventBtn: {
-    backgroundColor: "#dc2626",
-    paddingHorizontal: 14,
-    paddingVertical: 6,
-    borderRadius: 20,
-  },
-  newEventBtnText: {
-    color: "#fff",
-    fontWeight: "700",
-    fontSize: 13,
-  },
-  searchInput: {
-    backgroundColor: "rgba(255,255,255,0.07)",
-    borderRadius: 10,
-    borderWidth: 1,
-    borderColor: "rgba(255,255,255,0.1)",
-    paddingHorizontal: 12,
-    paddingVertical: 8,
-    color: "#fff",
-    fontSize: 14,
-    marginTop: 8,
-  },
-  sheetScroll: {
-    flex: 1,
-  },
-  sheetList: {
-    paddingHorizontal: 20,
-    paddingBottom: 30,
-    gap: 12,
-  },
-  card: {
-    padding: 16,
-    borderRadius: 14,
-    borderWidth: 1,
-    borderColor: "rgba(255,255,255,0.12)",
-    backgroundColor: "rgba(255,255,255,0.07)",
-    gap: 6,
-  },
-  bubbleCard: {
-    borderColor: "rgba(124,58,237,0.4)",
-  },
-  cardPressed: {
-    opacity: 0.7,
-  },
-  cardTitle: {
-    fontSize: 17,
-    fontWeight: "700",
-    color: "#fff",
-  },
-  cardRow: {
-    flexDirection: "row",
-    justifyContent: "space-between",
-    alignItems: "center",
-  },
-  cardLabel: {
-    fontSize: 12,
-    color: "rgba(255,255,255,0.5)",
-    letterSpacing: 0.8,
-  },
-  cardValue: {
-    fontSize: 14,
-    color: "rgba(255,255,255,0.9)",
-  },
-  createdBy: {
-    fontSize: 12,
-    color: "rgba(255,255,255,0.4)",
-    fontStyle: "italic",
-    marginTop: 4,
-  },
-  emptyText: {
-    fontSize: 15,
-    color: "rgba(255,255,255,0.5)",
-    textAlign: "center",
-    paddingVertical: 20,
-  },
-  typeBadge: {
-    backgroundColor: "rgba(220,38,38,0.15)", borderRadius: 6,
-    borderWidth: 1, borderColor: "rgba(220,38,38,0.3)",
-    paddingHorizontal: 6, paddingVertical: 2,
-  },
-  typeBadgeText: { color: "#dc2626", fontSize: 10, fontWeight: "700" },
-  bubbleBadge: {
-    backgroundColor: "rgba(124,58,237,0.15)", borderRadius: 6,
-    borderWidth: 1, borderColor: "rgba(124,58,237,0.4)",
-    paddingHorizontal: 6, paddingVertical: 2,
-  },
-  bubbleBadgeText: { color: "#a78bfa", fontSize: 10, fontWeight: "700" },
-});
+    // Events bottom sheet — a real screen surface, theme-aware
+    sheet: {
+      position: "absolute",
+      bottom: 0,
+      left: 0,
+      right: 0,
+      backgroundColor: colors.bgMid,
+      borderTopLeftRadius: 20,
+      borderTopRightRadius: 20,
+      borderTopWidth: 1,
+      borderColor: colors.borderFaint,
+    },
+    handleArea: {
+      alignItems: "center",
+      paddingTop: 10,
+      paddingBottom: 12,
+      paddingHorizontal: 20,
+    },
+    handle: {
+      width: 40,
+      height: 5,
+      borderRadius: 3,
+      backgroundColor: colors.borderLight,
+      marginBottom: 10,
+    },
+    sheetHeader: {
+      flexDirection: "row",
+      alignItems: "center",
+      justifyContent: "space-between",
+      width: "100%",
+    },
+    sheetTitle: {
+      fontSize: 15,
+      fontWeight: "700",
+      letterSpacing: 1.5,
+      color: colors.text,
+    },
+    newEventBtn: {
+      backgroundColor: colors.red,
+      paddingHorizontal: 14,
+      paddingVertical: 6,
+      borderRadius: 20,
+    },
+    newEventBtnText: {
+      color: "#fff",
+      fontWeight: "700",
+      fontSize: 13,
+    },
+    searchInput: {
+      backgroundColor: colors.card,
+      borderRadius: 10,
+      borderWidth: 1,
+      borderColor: colors.borderFaint,
+      paddingHorizontal: 12,
+      paddingVertical: 8,
+      color: colors.text,
+      fontSize: 14,
+      marginTop: 8,
+    },
+    sheetScroll: {
+      flex: 1,
+    },
+    sheetList: {
+      paddingHorizontal: 20,
+      paddingBottom: 30,
+      gap: 12,
+    },
+    card: {
+      padding: 16,
+      borderRadius: 14,
+      borderWidth: 1,
+      borderColor: colors.border,
+      backgroundColor: colors.card,
+      gap: 6,
+    },
+    bubbleCard: {
+      borderColor: "rgba(124,58,237,0.4)",
+    },
+    cardPressed: {
+      opacity: 0.7,
+    },
+    cardTitle: {
+      fontSize: 17,
+      fontWeight: "700",
+      color: colors.text,
+    },
+    cardRow: {
+      flexDirection: "row",
+      justifyContent: "space-between",
+      alignItems: "center",
+    },
+    cardLabel: {
+      fontSize: 12,
+      color: colors.textMuted,
+      letterSpacing: 0.8,
+    },
+    cardValue: {
+      fontSize: 14,
+      color: colors.text,
+    },
+    createdBy: {
+      fontSize: 12,
+      color: colors.textMuted,
+      fontStyle: "italic",
+      marginTop: 4,
+    },
+    emptyText: {
+      fontSize: 15,
+      color: colors.textMuted,
+      textAlign: "center",
+      paddingVertical: 20,
+    },
+    typeBadge: {
+      backgroundColor: colors.redSubtle, borderRadius: 6,
+      borderWidth: 1, borderColor: colors.redBorder,
+      paddingHorizontal: 6, paddingVertical: 2,
+    },
+    typeBadgeText: { color: colors.red, fontSize: 10, fontWeight: "700" },
+    bubbleBadge: {
+      backgroundColor: colors.purpleSubtle, borderRadius: 6,
+      borderWidth: 1, borderColor: "rgba(124,58,237,0.4)",
+      paddingHorizontal: 6, paddingVertical: 2,
+    },
+    bubbleBadgeText: { color: "#a78bfa", fontSize: 10, fontWeight: "700" },
+  });
+}
