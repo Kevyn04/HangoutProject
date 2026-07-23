@@ -1,8 +1,9 @@
-import React, { useRef, useState } from "react";
+import React, { useEffect, useRef, useState } from "react";
 import {
   View, Text, StyleSheet, Pressable, Modal, Alert,
-  FlatList, Dimensions, Animated, Linking,
+  FlatList, Dimensions, Animated, Linking, AccessibilityInfo,
 } from "react-native";
+import { useSafeAreaInsets } from "react-native-safe-area-context";
 import { Ionicons } from "@expo/vector-icons";
 import * as Haptics from "expo-haptics";
 import { LinearGradient } from "expo-linear-gradient";
@@ -84,22 +85,34 @@ interface Props {
 export function OnboardingOverlay({ visible, mode = "full", onAccept }: Props) {
   const slides = mode === "consent" ? [CONSENT_SLIDE] : [...FEATURE_SLIDES, CONSENT_SLIDE];
   const [index, setIndex] = useState(0);
+  const [reduceMotion, setReduceMotion] = useState(false);
   const listRef = useRef<FlatList>(null);
   const fadeAnim = useRef(new Animated.Value(1)).current;
   const scrollX = useRef(new Animated.Value(0)).current;
+  const insets = useSafeAreaInsets();
+
+  useEffect(() => {
+    AccessibilityInfo.isReduceMotionEnabled().then(setReduceMotion);
+    const sub = AccessibilityInfo.addEventListener("reduceMotionChanged", setReduceMotion);
+    return () => sub.remove();
+  }, []);
 
   const isConsent = !!slides[index]?.isConsent;
   const lastIndex = slides.length - 1;
 
   const goTo = (next: number) => {
     Haptics.impactAsync(Haptics.ImpactFeedbackStyle.Light);
-    listRef.current?.scrollToIndex({ index: next, animated: true });
+    listRef.current?.scrollToIndex({ index: next, animated: !reduceMotion });
     setIndex(next);
   };
 
   const handleAccept = () => {
     Haptics.notificationAsync(Haptics.NotificationFeedbackType.Success);
-    Animated.timing(fadeAnim, { toValue: 0, duration: 260, useNativeDriver: true }).start(onAccept);
+    Animated.timing(fadeAnim, {
+      toValue: 0,
+      duration: reduceMotion ? 0 : 260,
+      useNativeDriver: true,
+    }).start(onAccept);
   };
 
   const handleDecline = () => {
@@ -131,7 +144,13 @@ export function OnboardingOverlay({ visible, mode = "full", onAccept }: Props) {
 
         {/* Skip button */}
         {!isConsent && slides.length > 1 && (
-          <Pressable style={s.skipBtn} onPress={handleSkip} accessibilityRole="button" accessibilityLabel="Skip to privacy step">
+          <Pressable
+            style={[s.skipBtn, { top: insets.top + 12 }]}
+            hitSlop={8}
+            onPress={handleSkip}
+            accessibilityRole="button"
+            accessibilityLabel="Skip to privacy step"
+          >
             <Text style={s.skipText}>Skip</Text>
           </Pressable>
         )}
@@ -146,6 +165,7 @@ export function OnboardingOverlay({ visible, mode = "full", onAccept }: Props) {
           scrollEnabled={slides.length > 1}
           bounces={false}
           showsHorizontalScrollIndicator={false}
+          getItemLayout={(_, i) => ({ length: width, offset: width * i, index: i })}
           onScroll={Animated.event(
             [{ nativeEvent: { contentOffset: { x: scrollX } } }],
             { useNativeDriver: true },
@@ -209,7 +229,11 @@ export function OnboardingOverlay({ visible, mode = "full", onAccept }: Props) {
 
         {/* Dots */}
         {slides.length > 1 && (
-          <View style={s.dots}>
+          <View
+            style={s.dots}
+            accessible
+            accessibilityLabel={`Step ${index + 1} of ${slides.length}`}
+          >
             {slides.map((_, i) => {
               // Scale (not width) so this stays on the native driver like scrollX —
               // width/height aren't supported there and log a warning every frame.
@@ -265,7 +289,7 @@ export function OnboardingOverlay({ visible, mode = "full", onAccept }: Props) {
           <View style={{ height: 44 }} />
         )}
 
-        <View style={{ height: 40 }} />
+        <View style={{ height: Math.max(insets.bottom, 20) }} />
       </Animated.View>
     </Modal>
   );
@@ -279,13 +303,16 @@ const s = StyleSheet.create({
   },
   skipBtn: {
     position: "absolute",
-    top: 60,
     right: 24,
-    padding: 12,
+    minWidth: 44,
+    minHeight: 44,
+    paddingHorizontal: 12,
+    alignItems: "center",
+    justifyContent: "center",
     zIndex: 10,
   },
   skipText: {
-    color: "rgba(255,255,255,0.4)",
+    color: "rgba(255,255,255,0.55)",
     fontSize: 14,
     fontWeight: "600",
   },
@@ -381,7 +408,7 @@ const s = StyleSheet.create({
     backgroundColor: "#dc2626",
   },
   consentFootnote: {
-    color: "rgba(255,255,255,0.35)",
+    color: "rgba(255,255,255,0.5)",
     fontSize: 12,
     textAlign: "center",
     marginBottom: 12,
@@ -416,7 +443,7 @@ const s = StyleSheet.create({
     justifyContent: "center",
   },
   declineText: {
-    color: "rgba(255,255,255,0.4)",
+    color: "rgba(255,255,255,0.55)",
     fontSize: 14,
     fontWeight: "600",
   },

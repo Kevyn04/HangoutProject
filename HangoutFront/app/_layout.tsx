@@ -3,6 +3,7 @@ import { DarkTheme, DefaultTheme, ThemeProvider } from '@react-navigation/native
 import { Stack, useRouter, useSegments } from 'expo-router';
 import { StatusBar } from 'expo-status-bar';
 import 'react-native-reanimated';
+import { SafeAreaProvider } from 'react-native-safe-area-context';
 import { useEffect, useState } from 'react';
 import { AuthProvider, useAuth } from '@/services/auth-context';
 import { ThemeContextProvider, useTheme } from '@/services/theme-context';
@@ -128,12 +129,14 @@ function AppContent() {
 
 export default function RootLayout() {
   return (
-    <ThemeContextProvider>
-      <AuthProvider>
-        <ToastProvider>
-          <AppContent />
-        </ToastProvider>
-      </AuthProvider>
-    </ThemeContextProvider>
+    <SafeAreaProvider>
+      <ThemeContextProvider>
+        <AuthProvider>
+          <ToastProvider>
+            <AppContent />
+          </ToastProvider>
+        </AuthProvider>
+      </ThemeContextProvider>
+    </SafeAreaProvider>
   );
 }
