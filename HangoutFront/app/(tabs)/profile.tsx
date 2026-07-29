@@ -20,6 +20,13 @@ import { ScreenBackground } from "@/components/ScreenBackground";
 
 const PRESET_COLORS = ["#7c3aed", "#dc2626", "#0ea5e9", "#16a34a", "#ea580c", "#db2777"];
 
+const PRONOUN_OPTIONS: { value: string; label: string }[] = [
+  { value: "she/her", label: "She/Her" },
+  { value: "he/him", label: "He/Him" },
+  { value: "they/them", label: "They/Them" },
+  { value: "prefer_not_to_say", label: "Prefer not to say" },
+];
+
 const FACE_EMOJIS = [
   "😀","😄","😁","😆","😅","😂","🙂","😉","😊","😇",
   "🥰","😍","🤩","😎","🤓","😏","😋","🤗","🤭","😬",
@@ -45,6 +52,7 @@ function Stars({ value, colors }: { value: number; colors: ThemeColors }) {
 
 type Profile = {
   username: string; bio: string; avatarColor: string; profileEmoji: string;
+  pronouns: string | null;
   followerCount: number; followingCount: number;
   avgRating: number; ratingCount: number;
 };
@@ -64,6 +72,7 @@ export default function ProfileScreen() {
   const [avatarUrl, setAvatarUrl] = useState<string | null>(null);
   const [avatarUploading, setAvatarUploading] = useState(false);
   const [profileEmoji, setProfileEmoji] = useState<string>("");
+  const [pronouns, setPronouns] = useState<string | null>(null);
   const [createdBubbles, setCreatedBubbles] = useState<BubbleItem[]>([]);
   const [joinedBubbles, setJoinedBubbles] = useState<BubbleItem[]>([]);
   const [reasons, setReasons] = useState<ReasonItem[]>([]);
@@ -89,6 +98,7 @@ export default function ProfileScreen() {
       setAvatarColor(p.avatarColor || "#7c3aed");
       setAvatarUrl(p.avatarUrl || null);
       setProfileEmoji(p.profileEmoji || "");
+      setPronouns(p.pronouns ?? null);
       setBioInput(p.bio || "");
       setCreatedBubbles(b.created || []);
       setJoinedBubbles(b.joined || []);
@@ -125,6 +135,15 @@ export default function ProfileScreen() {
     setProfileEmoji(emoji);
     updateProfile(user, { profileEmoji: emoji }).catch(() => {
       showToast("Could not save emoji.");
+    });
+  };
+
+  const handlePronounPick = (value: string) => {
+    if (!user) return;
+    const next = pronouns === value ? null : value;
+    setPronouns(next);
+    updateProfile(user, { pronouns: next }).catch(() => {
+      showToast("Could not save pronouns.");
     });
   };
 
@@ -401,6 +420,24 @@ export default function ProfileScreen() {
           )}
         </View>
 
+        {/* Pronouns */}
+        <View style={s.section}>
+          <Text style={s.sectionTitle}>Pronouns</Text>
+          <View style={s.reasonsWrap}>
+            {PRONOUN_OPTIONS.map((opt) => (
+              <Pressable
+                key={opt.value}
+                style={[s.pronounChip, pronouns === opt.value && s.pronounChipActive]}
+                onPress={() => handlePronounPick(opt.value)}
+              >
+                <Text style={[s.pronounChipText, pronouns === opt.value && s.pronounChipTextActive]}>
+                  {opt.label}
+                </Text>
+              </Pressable>
+            ))}
+          </View>
+        </View>
+
         {/* Ratings breakdown */}
         {reasons.length > 0 && (
           <View style={s.section}>
@@ -610,6 +647,15 @@ function buildStyles(colors: ThemeColors) {
     },
     reasonText: { color: colors.text, fontSize: 12, fontWeight: "600" },
     reasonCount: { color: colors.red, fontSize: 12, fontWeight: "700" },
+
+    pronounChip: {
+      paddingHorizontal: 14, paddingVertical: 8, borderRadius: 20,
+      backgroundColor: colors.cardFaint,
+      borderWidth: 1.5, borderColor: "transparent",
+    },
+    pronounChipActive: { borderColor: colors.red, backgroundColor: colors.redSubtle },
+    pronounChipText: { color: colors.textSub, fontSize: 13, fontWeight: "600" },
+    pronounChipTextActive: { color: colors.red },
 
     bubbleRow: {
       flexDirection: "row", alignItems: "center", gap: 12, paddingVertical: 8,

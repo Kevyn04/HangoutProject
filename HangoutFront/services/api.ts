@@ -761,7 +761,7 @@ export async function uploadChatImage(localUri: string): Promise<string> {
 
 export async function getProfile(username: string, viewer?: string): Promise<any> {
   const [profileRes, followerRes, followingRes, ratingsRes] = await Promise.all([
-    supabase.from('profiles').select('username, bio, avatar_color, profile_emoji, avatar_url').eq('username', username).single(),
+    supabase.from('profiles').select('username, bio, avatar_color, profile_emoji, avatar_url, pronouns').eq('username', username).single(),
     supabase.from('user_follows').select('*', { count: 'exact', head: true }).eq('followee', username),
     supabase.from('user_follows').select('*', { count: 'exact', head: true }).eq('follower', username),
     supabase.from('user_ratings').select('rating').eq('rated_username', username),
@@ -787,6 +787,7 @@ export async function getProfile(username: string, viewer?: string): Promise<any
     avatarColor: profileRes.data.avatar_color ?? '#7c3aed',
     profileEmoji: profileRes.data.profile_emoji ?? '',
     avatarUrl: profileRes.data.avatar_url ?? null,
+    pronouns: profileRes.data.pronouns ?? null,
     followerCount: followerRes.count ?? 0,
     followingCount: followingRes.count ?? 0,
     isFollowing,
@@ -797,13 +798,14 @@ export async function getProfile(username: string, viewer?: string): Promise<any
 
 export async function updateProfile(
   username: string,
-  data: { bio?: string; avatarColor?: string; profileEmoji?: string; avatarUrl?: string }
+  data: { bio?: string; avatarColor?: string; profileEmoji?: string; avatarUrl?: string; pronouns?: string | null }
 ): Promise<any> {
   const update: Record<string, any> = {};
   if (data.bio !== undefined) update.bio = data.bio;
   if (data.avatarColor !== undefined) update.avatar_color = data.avatarColor;
   if (data.profileEmoji !== undefined) update.profile_emoji = data.profileEmoji;
   if (data.avatarUrl !== undefined) update.avatar_url = data.avatarUrl;
+  if (data.pronouns !== undefined) update.pronouns = data.pronouns;
 
   const { error } = await supabase.from('profiles').update(update).eq('username', username);
   if (error) throw new Error(error.message);

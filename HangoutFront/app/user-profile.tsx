@@ -58,8 +58,15 @@ function StarPicker({ value, onChange }: { value: number; onChange: (v: number) 
   );
 }
 
+const PRONOUN_LABELS: Record<string, string> = {
+  "she/her": "She/Her",
+  "he/him": "He/Him",
+  "they/them": "They/Them",
+};
+
 type ProfileData = {
   username: string; bio: string; avatarColor: string; avatarUrl?: string | null;
+  pronouns?: string | null;
   followerCount: number; followingCount: number;
   avgRating: number; ratingCount: number; isFollowing: boolean;
 };
@@ -264,6 +271,9 @@ export default function UserProfileScreen() {
         <View style={s.hero}>
           <UserAvatar username={username as string} avatarColor={profile.avatarColor} avatarUrl={profile.avatarUrl} size={90} />
           <Text style={s.name}>@{username}</Text>
+          {profile.pronouns && PRONOUN_LABELS[profile.pronouns] && (
+            <Text style={s.pronouns}>{PRONOUN_LABELS[profile.pronouns]}</Text>
+          )}
 
           {/* Stats */}
           <View style={s.statsRow}>
@@ -457,6 +467,7 @@ const s = StyleSheet.create({
   avatar: { width: 90, height: 90, borderRadius: 45, alignItems: "center", justifyContent: "center" },
   avatarText: { color: "#fff", fontSize: 38, fontWeight: "700" },
   name: { color: "#fff", fontSize: 22, fontWeight: "700" },
+  pronouns: { color: "rgba(255,255,255,0.45)", fontSize: 13, fontWeight: "600", marginTop: -6 },
   bio: { color: "rgba(255,255,255,0.55)", fontSize: 14, lineHeight: 20, textAlign: "center" },
 
   statsRow: {
