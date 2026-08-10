@@ -1,4 +1,4 @@
-import React, { useState, useEffect, useRef, useCallback } from "react";
+import React, { useState, useEffect, useRef, useCallback, useMemo } from "react";
 import {
   View, Text, StyleSheet, FlatList, TextInput, Pressable,
   KeyboardAvoidingView, Platform, ActivityIndicator,
@@ -8,6 +8,8 @@ import { Image } from "expo-image";
 import * as ImagePicker from "expo-image-picker";
 import { Ionicons } from "@expo/vector-icons";
 import { useAuth } from "@/services/auth-context";
+import { useTheme } from "@/services/theme-context";
+import type { ThemeColors } from "@/constants/theme";
 import { useToast } from "@/context/ToastContext";
 import { getEventMessages, sendEventMessage, uploadChatImage } from "@/services/api";
 import { supabase } from "@/services/supabase";
@@ -23,6 +25,8 @@ function fmtTime(iso: string) {
 export default function EventChatScreen() {
   const { eventId, title } = useLocalSearchParams<{ eventId: string; title: string }>();
   const { user } = useAuth();
+  const { colors } = useTheme();
+  const s = useMemo(() => buildStyles(colors), [colors]);
   const { showToast } = useToast();
   const eid = Number(eventId);
 
@@ -111,8 +115,8 @@ export default function EventChatScreen() {
                 {!!item.imageUrl && (
                   <Image source={{ uri: item.imageUrl }} style={s.msgImage} contentFit="cover" transition={150} />
                 )}
-                {!!item.message && <Text style={s.msgText}>{item.message}</Text>}
-                <Text style={s.time}>{fmtTime(item.createdAt)}</Text>
+                {!!item.message && <Text style={[s.msgText, !isMe && s.msgTextOther]}>{item.message}</Text>}
+                <Text style={[s.time, !isMe && s.timeOther]}>{fmtTime(item.createdAt)}</Text>
               </View>
             );
           }}
@@ -120,14 +124,14 @@ export default function EventChatScreen() {
 
         <View style={s.inputRow}>
           <Pressable style={s.attachBtn} onPress={handleSendImage} disabled={sending}>
-            <Ionicons name="image-outline" size={22} color="rgba(255,255,255,0.6)" />
+            <Ionicons name="image-outline" size={22} color={colors.textSub} />
           </Pressable>
           <TextInput
             style={s.input}
             value={input}
             onChangeText={setInput}
             placeholder="Message…"
-            placeholderTextColor="rgba(255,255,255,0.3)"
+            placeholderTextColor={colors.textGhost}
             multiline
             onSubmitEditing={handleSend}
             returnKeyType="send"
@@ -141,36 +145,42 @@ export default function EventChatScreen() {
   );
 }
 
-const s = StyleSheet.create({
-  list: { padding: 16, gap: 8, paddingBottom: 8 },
-  empty: { color: "rgba(255,255,255,0.4)", fontSize: 14, textAlign: "center", marginTop: 40 },
+function buildStyles(colors: ThemeColors) {
+  return StyleSheet.create({
+    list: { padding: 16, gap: 8, paddingBottom: 8 },
+    empty: { color: colors.textMuted, fontSize: 14, textAlign: "center", marginTop: 40 },
 
-  bubble: {
-    maxWidth: "78%", borderRadius: 16, padding: 10, paddingHorizontal: 14, marginVertical: 2,
-  },
-  bubbleMe: { alignSelf: "flex-end", backgroundColor: "#7c3aed" },
-  bubbleOther: { alignSelf: "flex-start", backgroundColor: "rgba(255,255,255,0.1)", borderWidth: 1, borderColor: "rgba(255,255,255,0.08)" },
-  sender: { color: "rgba(255,255,255,0.55)", fontSize: 11, fontWeight: "700", marginBottom: 3 },
-  msgText: { color: "#fff", fontSize: 15, lineHeight: 20 },
-  msgImage: { width: 200, height: 200, borderRadius: 10, marginVertical: 2 },
-  attachBtn: { width: 40, height: 40, alignItems: "center", justifyContent: "center" },
-  time: { color: "rgba(255,255,255,0.35)", fontSize: 10, marginTop: 4, alignSelf: "flex-end" },
+    bubble: {
+      maxWidth: "78%", borderRadius: 16, padding: 10, paddingHorizontal: 14, marginVertical: 2,
+    },
+    bubbleMe: { alignSelf: "flex-end", backgroundColor: colors.purple },
+    bubbleOther: { alignSelf: "flex-start", backgroundColor: colors.card, borderWidth: 1, borderColor: colors.borderFaint },
+    sender: { color: colors.textSub, fontSize: 11, fontWeight: "700", marginBottom: 3 },
+    // White text for the default (solid-purple "me" bubble); msgTextOther/timeOther
+    // below override it for the themed "other" bubble.
+    msgText: { color: "#fff", fontSize: 15, lineHeight: 20 },
+    msgTextOther: { color: colors.text },
+    msgImage: { width: 200, height: 200, borderRadius: 10, marginVertical: 2 },
+    attachBtn: { width: 40, height: 40, alignItems: "center", justifyContent: "center" },
+    time: { color: "rgba(255,255,255,0.65)", fontSize: 10, marginTop: 4, alignSelf: "flex-end" },
+    timeOther: { color: colors.textGhost },
 
-  inputRow: {
-    flexDirection: "row", alignItems: "flex-end", gap: 8,
-    paddingHorizontal: 12, paddingVertical: 10,
-    borderTopWidth: 1, borderColor: "rgba(255,255,255,0.08)",
-    backgroundColor: "rgba(0,0,0,0.3)",
-  },
-  input: {
-    flex: 1, minHeight: 40, maxHeight: 100, borderRadius: 20,
-    backgroundColor: "rgba(255,255,255,0.08)", borderWidth: 1, borderColor: "rgba(255,255,255,0.12)",
-    paddingHorizontal: 14, paddingVertical: 10, color: "#fff", fontSize: 15,
-  },
-  sendBtn: {
-    height: 40, paddingHorizontal: 16, borderRadius: 20,
-    backgroundColor: "#7c3aed", alignItems: "center", justifyContent: "center",
-  },
-  sendBtnDisabled: { opacity: 0.4 },
-  sendBtnText: { color: "#fff", fontWeight: "700", fontSize: 14 },
-});
+    inputRow: {
+      flexDirection: "row", alignItems: "flex-end", gap: 8,
+      paddingHorizontal: 12, paddingVertical: 10,
+      borderTopWidth: 1, borderColor: colors.borderFaint,
+      backgroundColor: colors.bgMid,
+    },
+    input: {
+      flex: 1, minHeight: 40, maxHeight: 100, borderRadius: 20,
+      backgroundColor: colors.card, borderWidth: 1, borderColor: colors.border,
+      paddingHorizontal: 14, paddingVertical: 10, color: colors.text, fontSize: 15,
+    },
+    sendBtn: {
+      height: 40, paddingHorizontal: 16, borderRadius: 20,
+      backgroundColor: colors.purple, alignItems: "center", justifyContent: "center",
+    },
+    sendBtnDisabled: { opacity: 0.4 },
+    sendBtnText: { color: "#fff", fontWeight: "700", fontSize: 14 },
+  });
+}

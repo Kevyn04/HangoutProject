@@ -1,4 +1,4 @@
-import React, { useState } from "react";
+import React, { useState, useMemo } from "react";
 import {
   View, Text, StyleSheet, ScrollView, Pressable,
   TextInput, ActivityIndicator, Alert,
@@ -6,6 +6,8 @@ import {
 import { useRouter } from "expo-router";
 import { useAuth } from "@/services/auth-context";
 import { createPage } from "@/services/api";
+import { useTheme } from "@/services/theme-context";
+import type { ThemeColors } from "@/constants/theme";
 
 const CATEGORIES = ["Nightlife", "Community", "Art", "Music", "Sports", "Food", "Culture"];
 const AVATAR_COLORS = ["#7c3aed", "#dc2626", "#0ea5e9", "#16a34a", "#ea580c", "#db2777"];
@@ -18,6 +20,8 @@ const CATEGORY_COLORS: Record<string, string> = {
 export default function CreatePageScreen() {
   const router = useRouter();
   const { user } = useAuth();
+  const { colors } = useTheme();
+  const s = useMemo(() => buildStyles(colors), [colors]);
 
   const [name, setName] = useState("");
   const [description, setDescription] = useState("");
@@ -60,7 +64,7 @@ export default function CreatePageScreen() {
       <TextInput
         style={s.input}
         placeholder="e.g. 2degreesnyc"
-        placeholderTextColor="rgba(255,255,255,0.3)"
+        placeholderTextColor={colors.textGhost}
         value={name}
         onChangeText={setName}
         maxLength={60}
@@ -71,7 +75,7 @@ export default function CreatePageScreen() {
       <TextInput
         style={[s.input, s.textArea]}
         placeholder="What is this page about?"
-        placeholderTextColor="rgba(255,255,255,0.3)"
+        placeholderTextColor={colors.textGhost}
         value={description}
         onChangeText={setDescription}
         multiline
@@ -112,7 +116,7 @@ export default function CreatePageScreen() {
         disabled={submitting}
       >
         {submitting
-          ? <ActivityIndicator color="#0b0b0f" />
+          ? <ActivityIndicator color={colors.btnLightText} />
           : <Text style={s.submitBtnText}>Create Page</Text>
         }
       </Pressable>
@@ -121,41 +125,43 @@ export default function CreatePageScreen() {
   );
 }
 
-const s = StyleSheet.create({
-  container: { flex: 1, backgroundColor: "#0f0305" },
-  scroll: { padding: 20, paddingBottom: 48 },
+function buildStyles(colors: ThemeColors) {
+  return StyleSheet.create({
+    container: { flex: 1, backgroundColor: colors.headerBgAlt },
+    scroll: { padding: 20, paddingBottom: 48 },
 
-  preview: { alignItems: "center", paddingVertical: 24, gap: 8, marginBottom: 8 },
-  previewAvatar: { width: 80, height: 80, borderRadius: 40, alignItems: "center", justifyContent: "center" },
-  previewAvatarText: { color: "#fff", fontSize: 32, fontWeight: "700" },
-  previewName: { color: "#fff", fontSize: 20, fontWeight: "700" },
-  catBadge: { borderRadius: 8, paddingHorizontal: 10, paddingVertical: 3 },
-  catBadgeText: { fontSize: 12, fontWeight: "700" },
+    preview: { alignItems: "center", paddingVertical: 24, gap: 8, marginBottom: 8 },
+    previewAvatar: { width: 80, height: 80, borderRadius: 40, alignItems: "center", justifyContent: "center" },
+    previewAvatarText: { color: colors.text, fontSize: 32, fontWeight: "700" },
+    previewName: { color: colors.text, fontSize: 20, fontWeight: "700" },
+    catBadge: { borderRadius: 8, paddingHorizontal: 10, paddingVertical: 3 },
+    catBadgeText: { fontSize: 12, fontWeight: "700" },
 
-  label: { color: "rgba(255,255,255,0.6)", fontSize: 13, fontWeight: "600", marginBottom: 8, marginTop: 16, letterSpacing: 0.5 },
-  input: {
-    backgroundColor: "rgba(255,255,255,0.07)", borderRadius: 12,
-    paddingHorizontal: 14, paddingVertical: 12, color: "#fff", fontSize: 15,
-    borderWidth: 1, borderColor: "rgba(255,255,255,0.1)",
-  },
-  textArea: { minHeight: 90, textAlignVertical: "top" },
+    label: { color: colors.textSub, fontSize: 13, fontWeight: "600", marginBottom: 8, marginTop: 16, letterSpacing: 0.5 },
+    input: {
+      backgroundColor: colors.card, borderRadius: 12,
+      paddingHorizontal: 14, paddingVertical: 12, color: colors.text, fontSize: 15,
+      borderWidth: 1, borderColor: colors.border,
+    },
+    textArea: { minHeight: 90, textAlignVertical: "top" },
 
-  categoryGrid: { flexDirection: "row", flexWrap: "wrap", gap: 8 },
-  catChip: {
-    paddingHorizontal: 14, paddingVertical: 7, borderRadius: 20,
-    borderWidth: 1, borderColor: "rgba(255,255,255,0.15)",
-    backgroundColor: "rgba(255,255,255,0.05)",
-  },
-  catChipText: { color: "rgba(255,255,255,0.5)", fontSize: 13, fontWeight: "600" },
+    categoryGrid: { flexDirection: "row", flexWrap: "wrap", gap: 8 },
+    catChip: {
+      paddingHorizontal: 14, paddingVertical: 7, borderRadius: 20,
+      borderWidth: 1, borderColor: colors.borderLight,
+      backgroundColor: colors.cardFaint,
+    },
+    catChipText: { color: colors.textSub, fontSize: 13, fontWeight: "600" },
 
-  colorRow: { flexDirection: "row", gap: 12, marginTop: 4 },
-  colorDot: { width: 28, height: 28, borderRadius: 14 },
-  colorDotActive: { borderWidth: 3, borderColor: "#fff" },
+    colorRow: { flexDirection: "row", gap: 12, marginTop: 4 },
+    colorDot: { width: 28, height: 28, borderRadius: 14 },
+    colorDotActive: { borderWidth: 3, borderColor: colors.text },
 
-  submitBtn: {
-    marginTop: 32, height: 50, borderRadius: 14,
-    backgroundColor: "rgba(255,255,255,0.92)",
-    alignItems: "center", justifyContent: "center",
-  },
-  submitBtnText: { color: "#0b0b0f", fontSize: 15, fontWeight: "700", letterSpacing: 0.5 },
-});
+    submitBtn: {
+      marginTop: 32, height: 50, borderRadius: 14,
+      backgroundColor: colors.btnLight,
+      alignItems: "center", justifyContent: "center",
+    },
+    submitBtnText: { color: colors.btnLightText, fontSize: 15, fontWeight: "700", letterSpacing: 0.5 },
+  });
+}

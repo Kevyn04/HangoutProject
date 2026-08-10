@@ -1,4 +1,4 @@
-import React, { useState, useEffect, useRef, useCallback } from "react";
+import React, { useState, useEffect, useRef, useCallback, useMemo } from "react";
 import {
   View, Text, StyleSheet, FlatList, Pressable, TextInput,
   ActivityIndicator, KeyboardAvoidingView, Platform, Modal,
@@ -20,6 +20,8 @@ import {
 import { SkeletonBox } from "@/components/SkeletonBox";
 import { ErrorScreen } from "@/components/ErrorScreen";
 import { useAuth } from "@/services/auth-context";
+import { useTheme } from "@/services/theme-context";
+import type { ThemeColors } from "@/constants/theme";
 import { useToast } from "@/context/ToastContext";
 import { Ionicons } from "@expo/vector-icons";
 import * as Haptics from "expo-haptics";
@@ -42,7 +44,7 @@ function emojiForUser(username: string): string {
 }
 
 // ── TypingDots ────────────────────────────────────────────────────────
-function TypingDots() {
+function TypingDots({ colors }: { colors: ThemeColors }) {
   const d1 = useRef(new Animated.Value(0)).current;
   const d2 = useRef(new Animated.Value(0)).current;
   const d3 = useRef(new Animated.Value(0)).current;
@@ -66,7 +68,7 @@ function TypingDots() {
 
   const dotStyle = (v: Animated.Value) => ({
     width: 5, height: 5, borderRadius: 2.5,
-    backgroundColor: "rgba(255,255,255,0.9)",
+    backgroundColor: colors.text,
     marginHorizontal: 2,
     transform: [{ translateY: v.interpolate({ inputRange: [0, 1], outputRange: [0, -5] }) }],
   });
@@ -82,7 +84,7 @@ function TypingDots() {
 
 // ── MemberEmoji ───────────────────────────────────────────────────────
 function MemberEmoji({
-  username, emoji, isNew, isTyping, hasNewMsg, isCurrentUser, isHost,
+  username, emoji, isNew, isTyping, hasNewMsg, isCurrentUser, isHost, colors,
 }: {
   username: string;
   emoji?: string;
@@ -91,7 +93,9 @@ function MemberEmoji({
   hasNewMsg: boolean;
   isCurrentUser: boolean;
   isHost: boolean;
+  colors: ThemeColors;
 }) {
+  const vs = useMemo(() => buildVsStyles(colors), [colors]);
   const scale  = useRef(new Animated.Value(isNew ? 0 : 1)).current;
   const floatY = useRef(new Animated.Value(0)).current;
   const floatX = useRef(new Animated.Value(0)).current;
@@ -133,7 +137,7 @@ function MemberEmoji({
     >
       <View style={vs.indicatorRow}>
         {isTyping ? (
-          <TypingDots />
+          <TypingDots colors={colors} />
         ) : hasNewMsg ? (
           <Text style={vs.bulb}>💡</Text>
         ) : (
@@ -163,11 +167,13 @@ function MemberEmoji({
 // Compact map of everyone currently sharing their location. Coordinates
 // arrive via the Realtime UPDATE subscription, so markers move live.
 function LiveMemberMap({
-  members, me,
+  members, me, colors,
 }: {
   members: { username: string; latitude?: number; longitude?: number; profileEmoji?: string }[];
   me: string | null | undefined;
+  colors: ThemeColors;
 }) {
+  const lm = useMemo(() => buildLmStyles(colors), [colors]);
   const mapRef = useRef<MapView>(null);
   const coordsKey = members.map((m) => `${m.username}:${m.latitude}:${m.longitude}`).join("|");
 
@@ -211,20 +217,22 @@ function LiveMemberMap({
   );
 }
 
-const lm = StyleSheet.create({
-  wrap: {
-    height: 180, borderRadius: 14, overflow: "hidden",
-    borderWidth: 1, borderColor: "rgba(255,255,255,0.12)", marginBottom: 6,
-  },
-  map: { flex: 1 },
-  marker: {
-    width: 36, height: 36, borderRadius: 18,
-    backgroundColor: "#1a0808", alignItems: "center", justifyContent: "center",
-    borderWidth: 2, borderColor: "#7c3aed",
-  },
-  markerMe: { borderColor: "#dc2626" },
-  markerEmoji: { fontSize: 18 },
-});
+function buildLmStyles(colors: ThemeColors) {
+  return StyleSheet.create({
+    wrap: {
+      height: 180, borderRadius: 14, overflow: "hidden",
+      borderWidth: 1, borderColor: colors.border, marginBottom: 6,
+    },
+    map: { flex: 1 },
+    marker: {
+      width: 36, height: 36, borderRadius: 18,
+      backgroundColor: colors.bgMid, alignItems: "center", justifyContent: "center",
+      borderWidth: 2, borderColor: colors.purple,
+    },
+    markerMe: { borderColor: colors.red },
+    markerEmoji: { fontSize: 18 },
+  });
+}
 
 // ── Helpers ──────────────────────────────────────────────────────────
 function haversineKm(lat1: number, lon1: number, lat2: number, lon2: number): number {
@@ -275,6 +283,9 @@ export default function BubbleDetailScreen() {
   const { id } = useLocalSearchParams<{ id: string }>();
   const bubbleId = parseInt(id, 10);
   const { user } = useAuth();
+  const { colors } = useTheme();
+  const s = useMemo(() => buildStyles(colors), [colors]);
+  const vs = useMemo(() => buildVsStyles(colors), [colors]);
   const router = useRouter();
 
   const { showToast } = useToast();
@@ -759,10 +770,10 @@ export default function BubbleDetailScreen() {
           <Text style={s.headerName}>{bubble.name}</Text>
           <View style={{ flexDirection: "row", alignItems: "center", gap: 8 }}>
             <Pressable style={s.inviteBtn} onPress={handleShare}>
-              <Ionicons name="share-outline" size={16} color="rgba(255,255,255,0.7)" />
+              <Ionicons name="share-outline" size={16} color={colors.textSub} />
             </Pressable>
             <Pressable style={[s.inviteBtn, { paddingHorizontal: 10 }]} onPress={handleInvite}>
-              <Ionicons name="person-add-outline" size={16} color="rgba(255,255,255,0.7)" />
+              <Ionicons name="person-add-outline" size={16} color={colors.textSub} />
             </Pressable>
             {isHost ? (
               <Pressable style={s.endBtn} onPress={handleEndHangout}>
@@ -779,7 +790,7 @@ export default function BubbleDetailScreen() {
           {bubble.type && <View style={s.typeBadge}><Text style={s.typeBadgeText}>{bubble.type}</Text></View>}
           {bubble.meetTime && (
             <View style={{ flexDirection: "row", alignItems: "center", gap: 5 }}>
-              <Ionicons name="time-outline" size={12} color="rgba(255,255,255,0.5)" />
+              <Ionicons name="time-outline" size={12} color={colors.textSub} />
               <Text style={s.headerTime}>{bubble.meetTime}</Text>
             </View>
           )}
@@ -812,6 +823,7 @@ export default function BubbleDetailScreen() {
                 hasNewMsg={newMsgSenders.has(m.username)}
                 isCurrentUser={m.username === user}
                 isHost={m.username === bubble?.createdBy}
+                colors={colors}
               />
             ))}
           </View>
@@ -863,7 +875,7 @@ export default function BubbleDetailScreen() {
                   <View style={[s.toggleThumb, sharing && s.toggleThumbOn]} />
                 </View>
               </Pressable>
-              {sharingMembers.length > 0 && <LiveMemberMap members={sharingMembers} me={user} />}
+              {sharingMembers.length > 0 && <LiveMemberMap members={sharingMembers} me={user} colors={colors} />}
             </View>
           }
           renderItem={({ item: m }) => {
@@ -941,8 +953,8 @@ export default function BubbleDetailScreen() {
                     {!!msg.imageUrl && (
                       <Image source={{ uri: msg.imageUrl }} style={s.msgImage} contentFit="cover" transition={150} />
                     )}
-                    {!!msg.message && <Text style={s.msgText}>{msg.message}</Text>}
-                    <Text style={s.msgTime}>{fmtTime(msg.createdAt)}</Text>
+                    {!!msg.message && <Text style={[s.msgText, isMe && s.msgTextMe]}>{msg.message}</Text>}
+                    <Text style={[s.msgTime, isMe && s.msgTimeMe]}>{fmtTime(msg.createdAt)}</Text>
                   </View>
                 </Pressable>
               );
@@ -957,12 +969,12 @@ export default function BubbleDetailScreen() {
           ) : (
           <View style={s.inputRow}>
             <Pressable style={s.attachBtn} onPress={handleSendImage} disabled={sending}>
-              <Ionicons name="image-outline" size={22} color="rgba(255,255,255,0.6)" />
+              <Ionicons name="image-outline" size={22} color={colors.textSub} />
             </Pressable>
             <TextInput
               style={s.msgInput}
               placeholder="Message..."
-              placeholderTextColor="rgba(255,255,255,0.3)"
+              placeholderTextColor={colors.textGhost}
               value={msgInput}
               onChangeText={handleMsgInputChange}
               multiline
@@ -994,7 +1006,7 @@ export default function BubbleDetailScreen() {
             </Pressable>
           </View>
           {discLoading ? (
-            <ActivityIndicator color="#fff" style={{ marginTop: 20 }} />
+            <ActivityIndicator color={colors.text} style={{ marginTop: 20 }} />
           ) : (
             <FlatList
               data={discussions}
@@ -1022,14 +1034,14 @@ export default function BubbleDetailScreen() {
               <TextInput
                 style={s.newDiscInput}
                 placeholder="Title"
-                placeholderTextColor="rgba(255,255,255,0.3)"
+                placeholderTextColor={colors.textGhost}
                 value={newDiscTitle}
                 onChangeText={setNewDiscTitle}
               />
               <TextInput
                 style={[s.newDiscInput, { height: 80 }]}
                 placeholder="Body (optional)"
-                placeholderTextColor="rgba(255,255,255,0.3)"
+                placeholderTextColor={colors.textGhost}
                 value={newDiscBody}
                 onChangeText={setNewDiscBody}
                 multiline
@@ -1061,7 +1073,7 @@ export default function BubbleDetailScreen() {
               onPress={() => setReportReason(r)}
             >
               <Text style={[s.reportReasonText, reportReason === r && s.reportReasonTextActive]}>{r}</Text>
-              {reportReason === r && <Text style={{ color: "#dc2626" }}>✓</Text>}
+              {reportReason === r && <Text style={{ color: colors.red }}>✓</Text>}
             </Pressable>
           ))}
           <Pressable
@@ -1086,7 +1098,7 @@ export default function BubbleDetailScreen() {
             <TextInput
               style={s.chanNumberInput}
               placeholder="Channel number"
-              placeholderTextColor="rgba(255,255,255,0.3)"
+              placeholderTextColor={colors.textGhost}
               value={chanInput}
               onChangeText={setChanInput}
               keyboardType="number-pad"
@@ -1130,307 +1142,322 @@ export default function BubbleDetailScreen() {
 }
 
 // ── Visual Container Styles ───────────────────────────────────────────
-const vs = StyleSheet.create({
-  container: {
-    marginHorizontal: 16,
-    marginTop: 12,
-    marginBottom: 4,
-    borderRadius: 20,
-    backgroundColor: "rgba(255,255,255,0.04)",
-    borderWidth: 1,
-    borderColor: "rgba(255,255,255,0.1)",
-    padding: 12,
-    minHeight: 96,
-  },
-  grid: {
-    flexDirection: "row",
-    flexWrap: "wrap",
-    justifyContent: "center",
-    gap: 6,
-  },
-  slot: {
-    width: 72,
-    alignItems: "center",
-    paddingTop: 4,
-    paddingBottom: 8,
-  },
-  indicatorRow: {
-    height: 16,
-    justifyContent: "center",
-    alignItems: "center",
-    marginBottom: 4,
-  },
-  emojiCircleWrapper: {
-    alignItems: "center",
-  },
-  emojiCircle: {
-    width: 52, height: 52, borderRadius: 26,
-    backgroundColor: "rgba(255,255,255,0.07)",
-    alignItems: "center", justifyContent: "center",
-    borderWidth: 1, borderColor: "rgba(255,255,255,0.12)",
-  },
-  emojiCircleMe: {
-    borderWidth: 2,
-    borderColor: "rgba(220,38,38,0.8)",
-    backgroundColor: "rgba(220,38,38,0.08)",
-  },
-  emoji: { fontSize: 28 },
-  emojiName: {
-    color: "rgba(255,255,255,0.55)",
-    fontSize: 10, marginTop: 8,
-    textAlign: "center", width: 68,
-  },
-  emojiNameMe: { color: "rgba(255,255,255,0.85)", fontWeight: "700" },
-  bulb: { fontSize: 13, lineHeight: 16 },
-  emptyText: {
-    color: "rgba(255,255,255,0.25)",
-    fontSize: 13, textAlign: "center", padding: 24,
-  },
-  hostBadge: {
-    marginTop: 3,
-    backgroundColor: "#dc2626",
-    borderRadius: 5,
-    paddingHorizontal: 6,
-    paddingVertical: 2,
-  },
-  hostBadgeText: {
-    color: "#fff",
-    fontSize: 8,
-    fontWeight: "800",
-    letterSpacing: 0.8,
-  },
-});
+function buildVsStyles(colors: ThemeColors) {
+  return StyleSheet.create({
+    container: {
+      marginHorizontal: 16,
+      marginTop: 12,
+      marginBottom: 4,
+      borderRadius: 20,
+      backgroundColor: colors.cardFaint,
+      borderWidth: 1,
+      borderColor: colors.border,
+      padding: 12,
+      minHeight: 96,
+    },
+    grid: {
+      flexDirection: "row",
+      flexWrap: "wrap",
+      justifyContent: "center",
+      gap: 6,
+    },
+    slot: {
+      width: 72,
+      alignItems: "center",
+      paddingTop: 4,
+      paddingBottom: 8,
+    },
+    indicatorRow: {
+      height: 16,
+      justifyContent: "center",
+      alignItems: "center",
+      marginBottom: 4,
+    },
+    emojiCircleWrapper: {
+      alignItems: "center",
+    },
+    emojiCircle: {
+      width: 52, height: 52, borderRadius: 26,
+      backgroundColor: colors.card,
+      alignItems: "center", justifyContent: "center",
+      borderWidth: 1, borderColor: colors.border,
+    },
+    emojiCircleMe: {
+      borderWidth: 2,
+      borderColor: colors.redBorder,
+      backgroundColor: colors.redSubtle,
+    },
+    emoji: { fontSize: 28 },
+    emojiName: {
+      color: colors.textSub,
+      fontSize: 10, marginTop: 8,
+      textAlign: "center", width: 68,
+    },
+    emojiNameMe: { color: colors.text, fontWeight: "700" },
+    bulb: { fontSize: 13, lineHeight: 16 },
+    emptyText: {
+      color: colors.textGhost,
+      fontSize: 13, textAlign: "center", padding: 24,
+    },
+    hostBadge: {
+      marginTop: 3,
+      backgroundColor: colors.red,
+      borderRadius: 5,
+      paddingHorizontal: 6,
+      paddingVertical: 2,
+    },
+    // White text on the solid-red host badge — stays readable in both themes.
+    hostBadgeText: {
+      color: "#fff",
+      fontSize: 8,
+      fontWeight: "800",
+      letterSpacing: 0.8,
+    },
+  });
+}
 
 // ── Main Styles ───────────────────────────────────────────────────────
-const s = StyleSheet.create({
-  center: { flex: 1, alignItems: "center", justifyContent: "center" },
+function buildStyles(colors: ThemeColors) {
+  return StyleSheet.create({
+    center: { flex: 1, alignItems: "center", justifyContent: "center" },
 
-  // Header
-  header: { paddingHorizontal: 20, paddingTop: 16, paddingBottom: 12, borderBottomWidth: 1, borderColor: "rgba(255,255,255,0.08)" },
-  headerTop: { flexDirection: "row", alignItems: "center", justifyContent: "space-between", marginBottom: 6 },
-  headerName: { color: "#fff", fontSize: 22, fontWeight: "800", flex: 1 },
-  inviteBtn: {
-    backgroundColor: "rgba(255,255,255,0.07)", borderWidth: 1,
-    borderColor: "rgba(255,255,255,0.15)", borderRadius: 8,
-    padding: 7,
-  },
-  endBtn: {
-    backgroundColor: "rgba(220,38,38,0.15)", borderWidth: 1,
-    borderColor: "rgba(220,38,38,0.5)", borderRadius: 8,
-    paddingHorizontal: 12, paddingVertical: 5,
-  },
-  endBtnText: { color: "#dc2626", fontSize: 13, fontWeight: "700" },
-  leaveBtn: {
-    backgroundColor: "rgba(255,255,255,0.06)", borderWidth: 1,
-    borderColor: "rgba(255,255,255,0.2)", borderRadius: 8,
-    paddingHorizontal: 12, paddingVertical: 5,
-  },
-  leaveBtnText: { color: "rgba(255,255,255,0.6)", fontSize: 13, fontWeight: "700" },
-  headerMeta: { flexDirection: "row", alignItems: "center", gap: 8, flexWrap: "wrap" },
-  typeBadge: { backgroundColor: "rgba(124,58,237,0.3)", borderRadius: 6, paddingHorizontal: 8, paddingVertical: 2 },
-  typeBadgeText: { color: "#c4b5fd", fontSize: 11, fontWeight: "700" },
-  headerTime: { color: "rgba(255,255,255,0.55)", fontSize: 13 },
-  memberCount: { color: "rgba(255,255,255,0.35)", fontSize: 12 },
-  headerDesc: { color: "rgba(255,255,255,0.5)", fontSize: 13, marginTop: 6, lineHeight: 18 },
+    // Header
+    header: { paddingHorizontal: 20, paddingTop: 16, paddingBottom: 12, borderBottomWidth: 1, borderColor: colors.borderFaint },
+    headerTop: { flexDirection: "row", alignItems: "center", justifyContent: "space-between", marginBottom: 6 },
+    headerName: { color: colors.text, fontSize: 22, fontWeight: "800", flex: 1 },
+    inviteBtn: {
+      backgroundColor: colors.card, borderWidth: 1,
+      borderColor: colors.borderLight, borderRadius: 8,
+      padding: 7,
+    },
+    endBtn: {
+      backgroundColor: colors.redSubtle, borderWidth: 1,
+      borderColor: colors.redBorder, borderRadius: 8,
+      paddingHorizontal: 12, paddingVertical: 5,
+    },
+    endBtnText: { color: colors.red, fontSize: 13, fontWeight: "700" },
+    leaveBtn: {
+      backgroundColor: colors.card, borderWidth: 1,
+      borderColor: colors.borderLight, borderRadius: 8,
+      paddingHorizontal: 12, paddingVertical: 5,
+    },
+    leaveBtnText: { color: colors.textSub, fontSize: 13, fontWeight: "700" },
+    headerMeta: { flexDirection: "row", alignItems: "center", gap: 8, flexWrap: "wrap" },
+    // Fixed purple accent badge — same precedent as notifications.tsx's type icons.
+    typeBadge: { backgroundColor: "rgba(124,58,237,0.3)", borderRadius: 6, paddingHorizontal: 8, paddingVertical: 2 },
+    typeBadgeText: { color: "#c4b5fd", fontSize: 11, fontWeight: "700" },
+    headerTime: { color: colors.textSub, fontSize: 13 },
+    memberCount: { color: colors.textMuted, fontSize: 12 },
+    headerDesc: { color: colors.textSub, fontSize: 13, marginTop: 6, lineHeight: 18 },
 
-  // Tabs
-  tabs: { flexDirection: "row", borderBottomWidth: 1, borderColor: "rgba(255,255,255,0.08)" },
-  tab: { flex: 1, paddingVertical: 12, alignItems: "center" },
-  tabActive: { borderBottomWidth: 2, borderColor: "#dc2626" },
-  tabText: { color: "rgba(255,255,255,0.4)", fontSize: 14, fontWeight: "600" },
-  tabTextActive: { color: "#fff" },
-  tabBadge: { color: "#dc2626", fontWeight: "700" },
+    // Tabs
+    tabs: { flexDirection: "row", borderBottomWidth: 1, borderColor: colors.borderFaint },
+    tab: { flex: 1, paddingVertical: 12, alignItems: "center" },
+    tabActive: { borderBottomWidth: 2, borderColor: colors.red },
+    tabText: { color: colors.textMuted, fontSize: 14, fontWeight: "600" },
+    tabTextActive: { color: colors.text },
+    tabBadge: { color: colors.red, fontWeight: "700" },
 
-  // Members
-  listContent: { padding: 16, gap: 10 },
-  locationToggle: {
-    flexDirection: "row", alignItems: "center", justifyContent: "space-between",
-    backgroundColor: "rgba(255,255,255,0.05)", borderWidth: 1,
-    borderColor: "rgba(255,255,255,0.1)", borderRadius: 14, padding: 16, marginBottom: 6,
-  },
-  locationToggleOn: { borderColor: "rgba(34,197,94,0.4)", backgroundColor: "rgba(34,197,94,0.07)" },
-  locationToggleTitle: { color: "#fff", fontSize: 14, fontWeight: "700" },
-  locationToggleSub: { color: "rgba(255,255,255,0.4)", fontSize: 12, marginTop: 2 },
-  toggle: { width: 46, height: 26, borderRadius: 13, backgroundColor: "rgba(255,255,255,0.15)", justifyContent: "center", padding: 2 },
-  toggleOn: { backgroundColor: "#22c55e" },
-  toggleThumb: { width: 22, height: 22, borderRadius: 11, backgroundColor: "#fff" },
-  toggleThumbOn: { alignSelf: "flex-end" },
+    // Members
+    listContent: { padding: 16, gap: 10 },
+    locationToggle: {
+      flexDirection: "row", alignItems: "center", justifyContent: "space-between",
+      backgroundColor: colors.cardFaint, borderWidth: 1,
+      borderColor: colors.border, borderRadius: 14, padding: 16, marginBottom: 6,
+    },
+    // Fixed green accent for the "sharing" state — same precedent as notifications.tsx's type icons.
+    locationToggleOn: { borderColor: "rgba(34,197,94,0.4)", backgroundColor: "rgba(34,197,94,0.07)" },
+    locationToggleTitle: { color: colors.text, fontSize: 14, fontWeight: "700" },
+    locationToggleSub: { color: colors.textMuted, fontSize: 12, marginTop: 2 },
+    toggle: { width: 46, height: 26, borderRadius: 13, backgroundColor: colors.borderLight, justifyContent: "center", padding: 2 },
+    toggleOn: { backgroundColor: "#22c55e" },
+    // White thumb regardless of theme — standard toggle-knob convention.
+    toggleThumb: { width: 22, height: 22, borderRadius: 11, backgroundColor: "#fff" },
+    toggleThumbOn: { alignSelf: "flex-end" },
 
-  memberCard: {
-    flexDirection: "row", alignItems: "center", gap: 12,
-    backgroundColor: "rgba(255,255,255,0.05)", borderRadius: 12,
-    padding: 14, borderWidth: 1, borderColor: "rgba(255,255,255,0.08)",
-  },
-  memberCardMe: { borderColor: "rgba(220,38,38,0.3)", backgroundColor: "rgba(220,38,38,0.06)" },
-  memberAvatar: {
-    width: 40, height: 40, borderRadius: 20,
-    backgroundColor: "rgba(255,255,255,0.07)", alignItems: "center", justifyContent: "center",
-    borderWidth: 1, borderColor: "rgba(255,255,255,0.12)",
-  },
-  memberAvatarText: { fontSize: 20 },
-  memberName: { color: "#fff", fontSize: 14, fontWeight: "700" },
-  memberEta: { color: "rgba(255,255,255,0.45)", fontSize: 11, marginTop: 2 },
-  memberSharing: { color: "#22c55e", fontSize: 11, marginTop: 2 },
-  memberHidden: { color: "rgba(255,255,255,0.3)", fontSize: 11, marginTop: 2 },
-  dot: { width: 8, height: 8, borderRadius: 4 },
-  dotGreen: { backgroundColor: "#22c55e" },
-  dotGrey: { backgroundColor: "rgba(255,255,255,0.2)" },
+    memberCard: {
+      flexDirection: "row", alignItems: "center", gap: 12,
+      backgroundColor: colors.cardFaint, borderRadius: 12,
+      padding: 14, borderWidth: 1, borderColor: colors.borderFaint,
+    },
+    memberCardMe: { borderColor: colors.redBorder, backgroundColor: colors.redSubtle },
+    memberAvatar: {
+      width: 40, height: 40, borderRadius: 20,
+      backgroundColor: colors.card, alignItems: "center", justifyContent: "center",
+      borderWidth: 1, borderColor: colors.border,
+    },
+    memberAvatarText: { fontSize: 20 },
+    memberName: { color: colors.text, fontSize: 14, fontWeight: "700" },
+    memberEta: { color: colors.textMuted, fontSize: 11, marginTop: 2 },
+    memberSharing: { color: "#22c55e", fontSize: 11, marginTop: 2 },
+    memberHidden: { color: colors.textGhost, fontSize: 11, marginTop: 2 },
+    dot: { width: 8, height: 8, borderRadius: 4 },
+    dotGreen: { backgroundColor: "#22c55e" },
+    dotGrey: { backgroundColor: colors.borderLight },
 
-  // Chat — channel bar
-  channelBar: {
-    flexDirection: "row", alignItems: "center", justifyContent: "space-between",
-    paddingHorizontal: 16, paddingVertical: 10,
-    borderBottomWidth: 1, borderColor: "rgba(255,255,255,0.08)",
-    backgroundColor: "rgba(255,255,255,0.03)",
-  },
-  channelLabel: { color: "#fff", fontSize: 14, fontWeight: "700" },
-  channelMemberCount: { color: "rgba(255,255,255,0.4)", fontWeight: "400", fontSize: 12 },
-  channelSearchBtn: {
-    borderWidth: 1, borderColor: "rgba(220,38,38,0.4)",
-    borderRadius: 8, paddingHorizontal: 10, paddingVertical: 4,
-  },
-  channelSearchBtnText: { color: "#dc2626", fontSize: 12, fontWeight: "600" },
+    // Chat — channel bar
+    channelBar: {
+      flexDirection: "row", alignItems: "center", justifyContent: "space-between",
+      paddingHorizontal: 16, paddingVertical: 10,
+      borderBottomWidth: 1, borderColor: colors.borderFaint,
+      backgroundColor: colors.cardFaint,
+    },
+    channelLabel: { color: colors.text, fontSize: 14, fontWeight: "700" },
+    channelMemberCount: { color: colors.textMuted, fontWeight: "400", fontSize: 12 },
+    channelSearchBtn: {
+      borderWidth: 1, borderColor: colors.redBorder,
+      borderRadius: 8, paddingHorizontal: 10, paddingVertical: 4,
+    },
+    channelSearchBtnText: { color: colors.red, fontSize: 12, fontWeight: "600" },
 
-  // Chat — messages
-  msgList: { padding: 12, gap: 8, paddingBottom: 4 },
-  emptyChat: { color: "rgba(255,255,255,0.3)", textAlign: "center", marginTop: 40, fontSize: 14 },
-  msgRow: { flexDirection: "row", alignItems: "flex-end", gap: 8 },
-  msgRowMe: { flexDirection: "row-reverse" },
-  msgAvatar: {
-    width: 28, height: 28, borderRadius: 14,
-    backgroundColor: "rgba(255,255,255,0.07)", alignItems: "center", justifyContent: "center",
-    marginBottom: 2, borderWidth: 1, borderColor: "rgba(255,255,255,0.1)",
-  },
-  msgAvatarEmoji: { fontSize: 16 },
-  msgBubble: {
-    maxWidth: "75%", backgroundColor: "rgba(255,255,255,0.1)",
-    borderRadius: 14, borderBottomLeftRadius: 4, padding: 10, gap: 2,
-  },
-  msgBubbleMe: { backgroundColor: "#dc2626", borderBottomLeftRadius: 14, borderBottomRightRadius: 4 },
-  msgUsername: { color: "#c4b5fd", fontSize: 11, fontWeight: "700", marginBottom: 2 },
-  msgText: { color: "#fff", fontSize: 14, lineHeight: 20 },
-  msgImage: { width: 200, height: 200, borderRadius: 10, marginVertical: 2 },
-  msgTime: { color: "rgba(255,255,255,0.4)", fontSize: 10, alignSelf: "flex-end" },
-  attachBtn: { width: 40, height: 40, alignItems: "center", justifyContent: "center" },
+    // Chat — messages
+    msgList: { padding: 12, gap: 8, paddingBottom: 4 },
+    emptyChat: { color: colors.textGhost, textAlign: "center", marginTop: 40, fontSize: 14 },
+    msgRow: { flexDirection: "row", alignItems: "flex-end", gap: 8 },
+    msgRowMe: { flexDirection: "row-reverse" },
+    msgAvatar: {
+      width: 28, height: 28, borderRadius: 14,
+      backgroundColor: colors.card, alignItems: "center", justifyContent: "center",
+      marginBottom: 2, borderWidth: 1, borderColor: colors.border,
+    },
+    msgAvatarEmoji: { fontSize: 16 },
+    msgBubble: {
+      maxWidth: "75%", backgroundColor: colors.card,
+      borderRadius: 14, borderBottomLeftRadius: 4, padding: 10, gap: 2,
+    },
+    msgBubbleMe: { backgroundColor: colors.red, borderBottomLeftRadius: 14, borderBottomRightRadius: 4 },
+    // Only ever rendered in the themed "other" bubble — deeper purple keeps
+    // contrast on both light and dark card backgrounds.
+    msgUsername: { color: colors.purple, fontSize: 11, fontWeight: "700", marginBottom: 2 },
+    // Themed text for the default "other" bubble (themed card bg);
+    // msgTextMe/msgTimeMe below override for the solid-red "me" bubble.
+    msgText: { color: colors.text, fontSize: 14, lineHeight: 20 },
+    msgTextMe: { color: "#fff" },
+    msgImage: { width: 200, height: 200, borderRadius: 10, marginVertical: 2 },
+    msgTime: { color: colors.textMuted, fontSize: 10, alignSelf: "flex-end" },
+    msgTimeMe: { color: "rgba(255,255,255,0.7)" },
+    attachBtn: { width: 40, height: 40, alignItems: "center", justifyContent: "center" },
 
-  // Chat — input
-  inputRow: {
-    flexDirection: "row", alignItems: "flex-end", gap: 8,
-    paddingHorizontal: 12, paddingVertical: 8,
-    borderTopWidth: 1, borderColor: "rgba(255,255,255,0.08)",
-    backgroundColor: "#1a0808",
-  },
-  msgInput: {
-    flex: 1, backgroundColor: "rgba(255,255,255,0.08)", borderRadius: 20,
-    paddingHorizontal: 14, paddingVertical: 10, color: "#fff",
-    fontSize: 15, maxHeight: 100,
-  },
-  sendBtn: {
-    width: 40, height: 40, borderRadius: 20, backgroundColor: "#dc2626",
-    alignItems: "center", justifyContent: "center",
-  },
-  sendBtnDisabled: { opacity: 0.35 },
-  sendBtnText: { color: "#fff", fontSize: 20, fontWeight: "700", lineHeight: 22 },
+    // Chat — input
+    inputRow: {
+      flexDirection: "row", alignItems: "flex-end", gap: 8,
+      paddingHorizontal: 12, paddingVertical: 8,
+      borderTopWidth: 1, borderColor: colors.borderFaint,
+      backgroundColor: colors.bgMid,
+    },
+    msgInput: {
+      flex: 1, backgroundColor: colors.card, borderRadius: 20,
+      paddingHorizontal: 14, paddingVertical: 10, color: colors.text,
+      fontSize: 15, maxHeight: 100,
+    },
+    sendBtn: {
+      width: 40, height: 40, borderRadius: 20, backgroundColor: colors.red,
+      alignItems: "center", justifyContent: "center",
+    },
+    sendBtnDisabled: { opacity: 0.35 },
+    sendBtnText: { color: "#fff", fontSize: 20, fontWeight: "700", lineHeight: 22 },
 
-  concludedBanner: {
-    flexDirection: "row", alignItems: "center", gap: 6,
-    backgroundColor: "rgba(251,191,36,0.12)", borderBottomWidth: 1,
-    borderColor: "rgba(251,191,36,0.25)", paddingHorizontal: 16, paddingVertical: 8,
-  },
-  concludedBannerText: { color: "#fbbf24", fontSize: 13, fontWeight: "600" },
-  concludedInput: {
-    paddingHorizontal: 16, paddingVertical: 12,
-    borderTopWidth: 1, borderColor: "rgba(255,255,255,0.08)",
-    backgroundColor: "rgba(0,0,0,0.3)", alignItems: "center",
-  },
-  concludedInputText: { color: "rgba(255,255,255,0.35)", fontSize: 13, fontStyle: "italic" },
+    // Fixed amber accent — same precedent as notifications.tsx's type icons.
+    concludedBanner: {
+      flexDirection: "row", alignItems: "center", gap: 6,
+      backgroundColor: "rgba(251,191,36,0.12)", borderBottomWidth: 1,
+      borderColor: "rgba(251,191,36,0.25)", paddingHorizontal: 16, paddingVertical: 8,
+    },
+    concludedBannerText: { color: "#fbbf24", fontSize: 13, fontWeight: "600" },
+    concludedInput: {
+      paddingHorizontal: 16, paddingVertical: 12,
+      borderTopWidth: 1, borderColor: colors.borderFaint,
+      backgroundColor: colors.bgMid, alignItems: "center",
+    },
+    concludedInputText: { color: colors.textGhost, fontSize: 13, fontStyle: "italic" },
 
-  // Report modal
-  reportSheet: {
-    backgroundColor: "#1a0808", borderTopLeftRadius: 24, borderTopRightRadius: 24,
-    borderTopWidth: 1, borderColor: "rgba(255,255,255,0.08)",
-    padding: 20, paddingBottom: 36,
-  },
-  reportSheetTitle: { color: "#fff", fontSize: 18, fontWeight: "800", marginBottom: 4 },
-  reportSheetSub: { color: "rgba(255,255,255,0.4)", fontSize: 12, marginBottom: 16 },
-  reportReasonRow: {
-    flexDirection: "row", alignItems: "center", justifyContent: "space-between",
-    paddingVertical: 14, paddingHorizontal: 4,
-    borderBottomWidth: 1, borderColor: "rgba(255,255,255,0.06)",
-  },
-  reportReasonRowActive: { borderColor: "rgba(220,38,38,0.2)" },
-  reportReasonText: { color: "rgba(255,255,255,0.7)", fontSize: 15, fontWeight: "600" },
-  reportReasonTextActive: { color: "#dc2626" },
-  reportSubmitBtn: {
-    marginTop: 20, backgroundColor: "#dc2626", borderRadius: 14,
-    height: 48, alignItems: "center", justifyContent: "center",
-  },
-  reportSubmitBtnText: { color: "#fff", fontSize: 15, fontWeight: "700" },
+    // Report modal
+    reportSheet: {
+      backgroundColor: colors.bgMid, borderTopLeftRadius: 24, borderTopRightRadius: 24,
+      borderTopWidth: 1, borderColor: colors.borderFaint,
+      padding: 20, paddingBottom: 36,
+    },
+    reportSheetTitle: { color: colors.text, fontSize: 18, fontWeight: "800", marginBottom: 4 },
+    reportSheetSub: { color: colors.textMuted, fontSize: 12, marginBottom: 16 },
+    reportReasonRow: {
+      flexDirection: "row", alignItems: "center", justifyContent: "space-between",
+      paddingVertical: 14, paddingHorizontal: 4,
+      borderBottomWidth: 1, borderColor: colors.borderFaint,
+    },
+    reportReasonRowActive: { borderColor: colors.redBorder },
+    reportReasonText: { color: colors.textSub, fontSize: 15, fontWeight: "600" },
+    reportReasonTextActive: { color: colors.red },
+    reportSubmitBtn: {
+      marginTop: 20, backgroundColor: colors.red, borderRadius: 14,
+      height: 48, alignItems: "center", justifyContent: "center",
+    },
+    reportSubmitBtnText: { color: "#fff", fontSize: 15, fontWeight: "700" },
 
-  // Channel search modal
-  modalBackdrop: { flex: 1, backgroundColor: "rgba(0,0,0,0.5)" },
-  chanModal: {
-    backgroundColor: "#1a0808", borderTopLeftRadius: 24, borderTopRightRadius: 24,
-    borderTopWidth: 1, borderColor: "rgba(255,255,255,0.08)",
-    padding: 20, paddingBottom: 36, maxHeight: "70%",
-  },
-  chanModalHandle: { width: 40, height: 5, borderRadius: 3, backgroundColor: "rgba(255,255,255,0.3)", alignSelf: "center", marginBottom: 16 },
-  chanModalTitle: { color: "#fff", fontSize: 18, fontWeight: "800", marginBottom: 16 },
-  chanInputRow: { flexDirection: "row", alignItems: "center", gap: 8, marginBottom: 20 },
-  chanHash: { color: "rgba(255,255,255,0.5)", fontSize: 22, fontWeight: "700" },
-  chanNumberInput: {
-    flex: 1, backgroundColor: "rgba(255,255,255,0.07)", borderRadius: 12,
-    paddingHorizontal: 14, paddingVertical: 12, color: "#fff", fontSize: 18,
-    borderWidth: 1, borderColor: "rgba(255,255,255,0.12)",
-  },
-  chanGoBtn: { backgroundColor: "#dc2626", borderRadius: 12, paddingHorizontal: 18, paddingVertical: 12 },
-  chanGoBtnDisabled: { opacity: 0.4 },
-  chanGoBtnText: { color: "#fff", fontWeight: "700", fontSize: 15 },
-  chanSectionLabel: { color: "rgba(255,255,255,0.4)", fontSize: 11, letterSpacing: 1.2, textTransform: "uppercase", marginBottom: 8 },
-  chanItem: {
-    flexDirection: "row", alignItems: "center", justifyContent: "space-between",
-    paddingVertical: 14, paddingHorizontal: 4,
-    borderBottomWidth: 1, borderColor: "rgba(255,255,255,0.06)",
-  },
-  chanItemActive: {},
-  chanItemText: { color: "rgba(255,255,255,0.7)", fontSize: 16, fontWeight: "600" },
-  chanItemTextActive: { color: "#dc2626" },
-  chanItemCount: { color: "rgba(255,255,255,0.3)", fontSize: 12 },
+    // Channel search modal
+    modalBackdrop: { flex: 1, backgroundColor: "rgba(0,0,0,0.5)" },
+    chanModal: {
+      backgroundColor: colors.bgMid, borderTopLeftRadius: 24, borderTopRightRadius: 24,
+      borderTopWidth: 1, borderColor: colors.borderFaint,
+      padding: 20, paddingBottom: 36, maxHeight: "70%",
+    },
+    chanModalHandle: { width: 40, height: 5, borderRadius: 3, backgroundColor: colors.textGhost, alignSelf: "center", marginBottom: 16 },
+    chanModalTitle: { color: colors.text, fontSize: 18, fontWeight: "800", marginBottom: 16 },
+    chanInputRow: { flexDirection: "row", alignItems: "center", gap: 8, marginBottom: 20 },
+    chanHash: { color: colors.textSub, fontSize: 22, fontWeight: "700" },
+    chanNumberInput: {
+      flex: 1, backgroundColor: colors.card, borderRadius: 12,
+      paddingHorizontal: 14, paddingVertical: 12, color: colors.text, fontSize: 18,
+      borderWidth: 1, borderColor: colors.border,
+    },
+    chanGoBtn: { backgroundColor: colors.red, borderRadius: 12, paddingHorizontal: 18, paddingVertical: 12 },
+    chanGoBtnDisabled: { opacity: 0.4 },
+    chanGoBtnText: { color: "#fff", fontWeight: "700", fontSize: 15 },
+    chanSectionLabel: { color: colors.textMuted, fontSize: 11, letterSpacing: 1.2, textTransform: "uppercase", marginBottom: 8 },
+    chanItem: {
+      flexDirection: "row", alignItems: "center", justifyContent: "space-between",
+      paddingVertical: 14, paddingHorizontal: 4,
+      borderBottomWidth: 1, borderColor: colors.borderFaint,
+    },
+    chanItemActive: {},
+    chanItemText: { color: colors.textSub, fontSize: 16, fontWeight: "600" },
+    chanItemTextActive: { color: colors.red },
+    chanItemCount: { color: colors.textGhost, fontSize: 12 },
 
-  // Discussions
-  discHeader: { flexDirection: "row", alignItems: "center", justifyContent: "space-between", paddingHorizontal: 16, paddingVertical: 12 },
-  discHeaderTitle: { color: "rgba(255,255,255,0.6)", fontSize: 13, fontWeight: "700", letterSpacing: 1 },
-  discNewBtn: { backgroundColor: "#dc2626", borderRadius: 16, paddingHorizontal: 14, paddingVertical: 6 },
-  discNewBtnText: { color: "#fff", fontWeight: "700", fontSize: 13 },
-  discEmpty: { color: "rgba(255,255,255,0.4)", fontSize: 14, textAlign: "center", marginTop: 20 },
-  discCard: {
-    backgroundColor: "rgba(255,255,255,0.06)", borderRadius: 14,
-    borderWidth: 1, borderColor: "rgba(255,255,255,0.09)", padding: 14,
-  },
-  discCardTitle: { color: "#fff", fontSize: 16, fontWeight: "700", marginBottom: 4 },
-  discCardBody: { color: "rgba(255,255,255,0.55)", fontSize: 13, lineHeight: 18, marginBottom: 8 },
-  discCardMeta: { flexDirection: "row", justifyContent: "space-between" },
-  discCardMetaText: { color: "rgba(255,255,255,0.35)", fontSize: 11 },
-  newDiscSheet: {
-    position: "absolute", bottom: 0, left: 0, right: 0,
-    backgroundColor: "#1a0505", borderTopLeftRadius: 20, borderTopRightRadius: 20,
-    borderTopWidth: 1, borderColor: "rgba(255,255,255,0.1)",
-    padding: 20, gap: 12,
-  },
-  newDiscTitle: { color: "#fff", fontSize: 17, fontWeight: "800" },
-  newDiscInput: {
-    backgroundColor: "rgba(255,255,255,0.08)", borderRadius: 12,
-    borderWidth: 1, borderColor: "rgba(255,255,255,0.12)",
-    paddingHorizontal: 14, paddingVertical: 10, color: "#fff", fontSize: 15,
-  },
-  newDiscCancel: {
-    flex: 1, height: 44, borderRadius: 12, alignItems: "center", justifyContent: "center",
-    borderWidth: 1, borderColor: "rgba(255,255,255,0.2)",
-  },
-  newDiscCancelText: { color: "rgba(255,255,255,0.6)", fontWeight: "600" },
-  newDiscPost: {
-    flex: 1, height: 44, borderRadius: 12, alignItems: "center", justifyContent: "center",
-    backgroundColor: "#dc2626",
-  },
-  newDiscPostText: { color: "#fff", fontWeight: "700" },
-});
+    // Discussions
+    discHeader: { flexDirection: "row", alignItems: "center", justifyContent: "space-between", paddingHorizontal: 16, paddingVertical: 12 },
+    discHeaderTitle: { color: colors.textSub, fontSize: 13, fontWeight: "700", letterSpacing: 1 },
+    discNewBtn: { backgroundColor: colors.red, borderRadius: 16, paddingHorizontal: 14, paddingVertical: 6 },
+    discNewBtnText: { color: "#fff", fontWeight: "700", fontSize: 13 },
+    discEmpty: { color: colors.textMuted, fontSize: 14, textAlign: "center", marginTop: 20 },
+    discCard: {
+      backgroundColor: colors.card, borderRadius: 14,
+      borderWidth: 1, borderColor: colors.borderFaint, padding: 14,
+    },
+    discCardTitle: { color: colors.text, fontSize: 16, fontWeight: "700", marginBottom: 4 },
+    discCardBody: { color: colors.textSub, fontSize: 13, lineHeight: 18, marginBottom: 8 },
+    discCardMeta: { flexDirection: "row", justifyContent: "space-between" },
+    discCardMetaText: { color: colors.textGhost, fontSize: 11 },
+    newDiscSheet: {
+      position: "absolute", bottom: 0, left: 0, right: 0,
+      backgroundColor: colors.headerBg, borderTopLeftRadius: 20, borderTopRightRadius: 20,
+      borderTopWidth: 1, borderColor: colors.border,
+      padding: 20, gap: 12,
+    },
+    newDiscTitle: { color: colors.text, fontSize: 17, fontWeight: "800" },
+    newDiscInput: {
+      backgroundColor: colors.card, borderRadius: 12,
+      borderWidth: 1, borderColor: colors.border,
+      paddingHorizontal: 14, paddingVertical: 10, color: colors.text, fontSize: 15,
+    },
+    newDiscCancel: {
+      flex: 1, height: 44, borderRadius: 12, alignItems: "center", justifyContent: "center",
+      borderWidth: 1, borderColor: colors.borderLight,
+    },
+    newDiscCancelText: { color: colors.textSub, fontWeight: "600" },
+    newDiscPost: {
+      flex: 1, height: 44, borderRadius: 12, alignItems: "center", justifyContent: "center",
+      backgroundColor: colors.red,
+    },
+    newDiscPostText: { color: "#fff", fontWeight: "700" },
+  });
+}

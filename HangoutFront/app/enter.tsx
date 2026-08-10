@@ -1,4 +1,4 @@
-import React, { useRef, useEffect, useState, useCallback } from "react";
+import React, { useRef, useEffect, useState, useCallback, useMemo } from "react";
 import {
   View,
   Text,
@@ -15,6 +15,8 @@ import { useRouter } from "expo-router";
 import { useFocusEffect } from "@react-navigation/native";
 import { getEvents } from "@/services/api";
 import * as Location from "expo-location";
+import { useTheme } from "@/services/theme-context";
+import type { ThemeColors } from "@/constants/theme";
 
 const { height: SCREEN_H, width: SCREEN_W } = Dimensions.get("window");
 const SHEET_MAX_H = SCREEN_H * 0.75;
@@ -48,6 +50,8 @@ function getDistanceKm(
 
 export default function EnterScreen() {
   const router = useRouter();
+  const { colors } = useTheme();
+  const styles = useMemo(() => buildStyles(colors), [colors]);
   const [events, setEvents] = useState<Event[]>([]);
   const [loading, setLoading] = useState(true);
   const [userCoords, setUserCoords] = useState<{ latitude: number; longitude: number } | null>(null);
@@ -149,7 +153,7 @@ export default function EnterScreen() {
           </View>
           {locStatus === "loading" ? (
             <View style={styles.coordsWrap}>
-              <ActivityIndicator size="small" color="rgba(255,255,255,0.4)" />
+              <ActivityIndicator size="small" color={colors.textMuted} />
               <Text style={styles.mapLabel}>Locating you...</Text>
             </View>
           ) : locStatus === "denied" ? (
@@ -165,7 +169,7 @@ export default function EnterScreen() {
             </View>
           ) : (
             <View style={styles.coordsWrap}>
-              <ActivityIndicator size="small" color="rgba(255,255,255,0.4)" />
+              <ActivityIndicator size="small" color={colors.textMuted} />
               <Text style={styles.mapLabel}>Getting coordinates...</Text>
             </View>
           )}
@@ -194,7 +198,7 @@ export default function EnterScreen() {
           showsVerticalScrollIndicator={false}
         >
           {loading ? (
-            <ActivityIndicator size="large" color="white" style={{ marginTop: 30 }} />
+            <ActivityIndicator size="large" color={colors.text} style={{ marginTop: 30 }} />
           ) : events.length === 0 ? (
             <Text style={styles.emptyText}>No events nearby yet.</Text>
           ) : (
@@ -258,170 +262,172 @@ export default function EnterScreen() {
   );
 }
 
-const styles = StyleSheet.create({
-  container: {
-    flex: 1,
-    backgroundColor: "#0d1117",
-  },
+function buildStyles(colors: ThemeColors) {
+  return StyleSheet.create({
+    container: {
+      flex: 1,
+      backgroundColor: colors.bgDeep,
+    },
 
-  // Map placeholder
-  mapContainer: {
-    ...StyleSheet.absoluteFillObject,
-  },
-  mapBg: {
-    flex: 1,
-    backgroundColor: "#131a24",
-  },
-  gridLineH: {
-    position: "absolute",
-    left: 0,
-    right: 0,
-    height: 1,
-    backgroundColor: "rgba(255,255,255,0.04)",
-  },
-  gridLineV: {
-    position: "absolute",
-    top: 0,
-    bottom: 0,
-    width: 1,
-    backgroundColor: "rgba(255,255,255,0.04)",
-  },
-  markerWrap: {
-    position: "absolute",
-    top: "35%",
-    left: "50%",
-    alignItems: "center",
-    marginLeft: -16,
-  },
-  marker: {
-    width: 32,
-    height: 32,
-    borderRadius: 16,
-    borderWidth: 3,
-    borderColor: "#dc2626",
-    backgroundColor: "rgba(220,38,38,0.2)",
-  },
-  markerDot: {
-    width: 8,
-    height: 8,
-    borderRadius: 4,
-    backgroundColor: "#dc2626",
-    marginTop: -20,
-  },
-  coordsWrap: {
-    position: "absolute",
-    top: "42%",
-    alignSelf: "center",
-    alignItems: "center",
-    gap: 6,
-  },
-  coordsText: {
-    fontSize: 15,
-    color: "rgba(255,255,255,0.5)",
-    letterSpacing: 1,
-    fontFamily: "Cinzel_700Bold",
-  },
-  mapLabel: {
-    fontSize: 13,
-    color: "rgba(255,255,255,0.2)",
-    letterSpacing: 2,
-  },
+    // Map placeholder
+    mapContainer: {
+      ...StyleSheet.absoluteFillObject,
+    },
+    mapBg: {
+      flex: 1,
+      backgroundColor: colors.bgMid,
+    },
+    gridLineH: {
+      position: "absolute",
+      left: 0,
+      right: 0,
+      height: 1,
+      backgroundColor: colors.cardFaint,
+    },
+    gridLineV: {
+      position: "absolute",
+      top: 0,
+      bottom: 0,
+      width: 1,
+      backgroundColor: colors.cardFaint,
+    },
+    markerWrap: {
+      position: "absolute",
+      top: "35%",
+      left: "50%",
+      alignItems: "center",
+      marginLeft: -16,
+    },
+    marker: {
+      width: 32,
+      height: 32,
+      borderRadius: 16,
+      borderWidth: 3,
+      borderColor: colors.red,
+      backgroundColor: colors.redSubtle,
+    },
+    markerDot: {
+      width: 8,
+      height: 8,
+      borderRadius: 4,
+      backgroundColor: colors.red,
+      marginTop: -20,
+    },
+    coordsWrap: {
+      position: "absolute",
+      top: "42%",
+      alignSelf: "center",
+      alignItems: "center",
+      gap: 6,
+    },
+    coordsText: {
+      fontSize: 15,
+      color: colors.textSub,
+      letterSpacing: 1,
+      fontFamily: "Cinzel_700Bold",
+    },
+    mapLabel: {
+      fontSize: 13,
+      color: colors.textGhost,
+      letterSpacing: 2,
+    },
 
-  // Sheet
-  sheet: {
-    position: "absolute",
-    bottom: 0,
-    left: 0,
-    right: 0,
-    backgroundColor: "#1a0808",
-    borderTopLeftRadius: 20,
-    borderTopRightRadius: 20,
-    borderTopWidth: 1,
-    borderColor: "rgba(255,255,255,0.08)",
-  },
-  handleArea: {
-    alignItems: "center",
-    paddingVertical: 12,
-  },
-  handle: {
-    width: 40,
-    height: 5,
-    borderRadius: 3,
-    backgroundColor: "rgba(255,255,255,0.3)",
-  },
-  sheetHeader: {
-    paddingHorizontal: 20,
-    paddingBottom: 12,
-  },
-  sheetTitle: {
-    fontSize: 16,
-    fontFamily: "Cinzel_700Bold",
-    letterSpacing: 1.5,
-    color: "rgba(255,255,255,0.85)",
-  },
-  sheetScroll: {
-    flex: 1,
-  },
-  sheetList: {
-    paddingHorizontal: 20,
-    paddingBottom: 30,
-  },
+    // Sheet
+    sheet: {
+      position: "absolute",
+      bottom: 0,
+      left: 0,
+      right: 0,
+      backgroundColor: colors.bgMid,
+      borderTopLeftRadius: 20,
+      borderTopRightRadius: 20,
+      borderTopWidth: 1,
+      borderColor: colors.borderFaint,
+    },
+    handleArea: {
+      alignItems: "center",
+      paddingVertical: 12,
+    },
+    handle: {
+      width: 40,
+      height: 5,
+      borderRadius: 3,
+      backgroundColor: colors.textGhost,
+    },
+    sheetHeader: {
+      paddingHorizontal: 20,
+      paddingBottom: 12,
+    },
+    sheetTitle: {
+      fontSize: 16,
+      fontFamily: "Cinzel_700Bold",
+      letterSpacing: 1.5,
+      color: colors.text,
+    },
+    sheetScroll: {
+      flex: 1,
+    },
+    sheetList: {
+      paddingHorizontal: 20,
+      paddingBottom: 30,
+    },
 
-  // Cards (same style as home screen)
-  card: {
-    padding: 18,
-    borderRadius: 14,
-    borderWidth: 1,
-    borderColor: "rgba(255,255,255,0.12)",
-    backgroundColor: "rgba(255,255,255,0.07)",
-    marginBottom: 14,
-    gap: 6,
-  },
-  cardPressed: {
-    opacity: 0.7,
-  },
-  cardTitle: {
-    fontSize: 20,
-    fontWeight: "700",
-    color: "#fff",
-    marginBottom: 4,
-  },
-  cardRow: {
-    flexDirection: "row",
-    justifyContent: "space-between",
-    alignItems: "center",
-  },
-  cardLabel: {
-    fontSize: 13,
-    color: "rgba(255,255,255,0.5)",
-    fontFamily: "Cinzel_700Bold",
-    letterSpacing: 1,
-  },
-  cardValue: {
-    fontSize: 15,
-    color: "rgba(255,255,255,0.9)",
-  },
-  cardFooter: {
-    flexDirection: "row",
-    justifyContent: "space-between",
-    alignItems: "center",
-    marginTop: 6,
-  },
-  createdBy: {
-    fontSize: 13,
-    color: "rgba(255,255,255,0.4)",
-    fontStyle: "italic",
-  },
-  distText: {
-    fontSize: 12,
-    color: "rgba(220,38,38,0.7)",
-    fontFamily: "Cinzel_700Bold",
-    letterSpacing: 0.5,
-  },
-  emptyText: {
-    fontSize: 15,
-    color: "rgba(255,255,255,0.5)",
-    textAlign: "center",
-    paddingVertical: 20,
-  },
-});
+    // Cards (same style as home screen)
+    card: {
+      padding: 18,
+      borderRadius: 14,
+      borderWidth: 1,
+      borderColor: colors.border,
+      backgroundColor: colors.card,
+      marginBottom: 14,
+      gap: 6,
+    },
+    cardPressed: {
+      opacity: 0.7,
+    },
+    cardTitle: {
+      fontSize: 20,
+      fontWeight: "700",
+      color: colors.text,
+      marginBottom: 4,
+    },
+    cardRow: {
+      flexDirection: "row",
+      justifyContent: "space-between",
+      alignItems: "center",
+    },
+    cardLabel: {
+      fontSize: 13,
+      color: colors.textSub,
+      fontFamily: "Cinzel_700Bold",
+      letterSpacing: 1,
+    },
+    cardValue: {
+      fontSize: 15,
+      color: colors.text,
+    },
+    cardFooter: {
+      flexDirection: "row",
+      justifyContent: "space-between",
+      alignItems: "center",
+      marginTop: 6,
+    },
+    createdBy: {
+      fontSize: 13,
+      color: colors.textMuted,
+      fontStyle: "italic",
+    },
+    distText: {
+      fontSize: 12,
+      color: colors.red,
+      fontFamily: "Cinzel_700Bold",
+      letterSpacing: 0.5,
+    },
+    emptyText: {
+      fontSize: 15,
+      color: colors.textSub,
+      textAlign: "center",
+      paddingVertical: 20,
+    },
+  });
+}

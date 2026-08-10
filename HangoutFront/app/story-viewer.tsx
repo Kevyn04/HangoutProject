@@ -1,4 +1,4 @@
-import React, { useCallback, useEffect, useRef, useState } from "react";
+import React, { useCallback, useEffect, useMemo, useRef, useState } from "react";
 import {
   ActivityIndicator, Alert, Animated, Dimensions, Pressable,
   StyleSheet, Text, View,
@@ -9,6 +9,8 @@ import { useLocalSearchParams, useRouter } from "expo-router";
 import AsyncStorage from "@react-native-async-storage/async-storage";
 import { deleteStory, getActiveStories, Story } from "@/services/api";
 import { useAuth } from "@/services/auth-context";
+import { useTheme } from "@/services/theme-context";
+import type { ThemeColors } from "@/constants/theme";
 import { useToast } from "@/context/ToastContext";
 
 const SEEN_KEY = "@hangout/seen_stories";
@@ -37,6 +39,8 @@ function timeAgo(dateStr: string): string {
 export default function StoryViewerScreen() {
   const { username } = useLocalSearchParams<{ username: string }>();
   const { user } = useAuth();
+  const { colors } = useTheme();
+  const s = useMemo(() => buildStyles(colors), [colors]);
   const { showToast } = useToast();
   const router = useRouter();
 
@@ -126,7 +130,7 @@ export default function StoryViewerScreen() {
   if (loading || !story) {
     return (
       <View style={s.container}>
-        <ActivityIndicator size="large" color="#fff" style={{ flex: 1 }} />
+        <ActivityIndicator size="large" color={colors.text} style={{ flex: 1 }} />
       </View>
     );
   }
@@ -182,33 +186,40 @@ export default function StoryViewerScreen() {
   );
 }
 
-const s = StyleSheet.create({
-  container: { flex: 1, backgroundColor: "#000" },
-  leftZone: { position: "absolute", left: 0, top: 0, bottom: 0, width: SCREEN_W / 3 },
-  rightZone: { position: "absolute", right: 0, top: 0, bottom: 0, width: (SCREEN_W / 3) * 2 },
+function buildStyles(colors: ThemeColors) {
+  return StyleSheet.create({
+    // Themed — this is the loading-state background, briefly visible before
+    // the story photo covers the screen.
+    container: { flex: 1, backgroundColor: colors.bgDeep },
+    leftZone: { position: "absolute", left: 0, top: 0, bottom: 0, width: SCREEN_W / 3 },
+    rightZone: { position: "absolute", right: 0, top: 0, bottom: 0, width: (SCREEN_W / 3) * 2 },
 
-  progressRow: {
-    position: "absolute", top: 54, left: 12, right: 12,
-    flexDirection: "row", gap: 4,
-  },
-  progressTrack: {
-    flex: 1, height: 3, borderRadius: 2,
-    backgroundColor: "rgba(255,255,255,0.25)", overflow: "hidden",
-  },
-  progressFill: { height: "100%", backgroundColor: "#fff", width: "0%" },
+    // Everything below overlays an arbitrary user photo, not app chrome — stays
+    // dark-translucent regardless of theme for legibility, same precedent as
+    // map.tsx's floating chips and the cover-photo overlays in create.tsx/edit-event.tsx.
+    progressRow: {
+      position: "absolute", top: 54, left: 12, right: 12,
+      flexDirection: "row", gap: 4,
+    },
+    progressTrack: {
+      flex: 1, height: 3, borderRadius: 2,
+      backgroundColor: "rgba(255,255,255,0.25)", overflow: "hidden",
+    },
+    progressFill: { height: "100%", backgroundColor: "#fff", width: "0%" },
 
-  header: {
-    position: "absolute", top: 66, left: 16, right: 12,
-    flexDirection: "row", alignItems: "center", gap: 8,
-  },
-  username: { color: "#fff", fontSize: 15, fontWeight: "800" },
-  time: { color: "rgba(255,255,255,0.6)", fontSize: 12 },
-  headerBtn: { padding: 8 },
+    header: {
+      position: "absolute", top: 66, left: 16, right: 12,
+      flexDirection: "row", alignItems: "center", gap: 8,
+    },
+    username: { color: "#fff", fontSize: 15, fontWeight: "800" },
+    time: { color: "rgba(255,255,255,0.6)", fontSize: 12 },
+    headerBtn: { padding: 8 },
 
-  captionBox: {
-    position: "absolute", bottom: 48, left: 20, right: 20,
-    backgroundColor: "rgba(0,0,0,0.55)", borderRadius: 14,
-    paddingHorizontal: 14, paddingVertical: 10,
-  },
-  caption: { color: "#fff", fontSize: 15, lineHeight: 21, textAlign: "center" },
-});
+    captionBox: {
+      position: "absolute", bottom: 48, left: 20, right: 20,
+      backgroundColor: "rgba(0,0,0,0.55)", borderRadius: 14,
+      paddingHorizontal: 14, paddingVertical: 10,
+    },
+    caption: { color: "#fff", fontSize: 15, lineHeight: 21, textAlign: "center" },
+  });
+}

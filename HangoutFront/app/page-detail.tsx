@@ -1,4 +1,4 @@
-import React, { useState, useCallback } from "react";
+import React, { useState, useCallback, useMemo } from "react";
 import {
   View, Text, StyleSheet, ScrollView, Pressable, TextInput,
   ActivityIndicator, StatusBar, RefreshControl, Modal, Alert,
@@ -7,6 +7,8 @@ import { useLocalSearchParams, useRouter } from "expo-router";
 import { useFocusEffect } from "@react-navigation/native";
 import { Ionicons } from "@expo/vector-icons";
 import { useAuth } from "@/services/auth-context";
+import { useTheme } from "@/services/theme-context";
+import type { ThemeColors } from "@/constants/theme";
 import {
   getPage, getPageContent, toggleFollow,
   getPagePosts, createPagePost, deletePagePost, PagePost,
@@ -43,6 +45,8 @@ export default function PageDetailScreen() {
   const { id } = useLocalSearchParams<{ id: string }>();
   const pageId = parseInt(id, 10);
   const { user } = useAuth();
+  const { colors } = useTheme();
+  const s = useMemo(() => buildStyles(colors), [colors]);
   const router = useRouter();
   const { showToast } = useToast();
 
@@ -198,11 +202,15 @@ export default function PageDetailScreen() {
 
   return (
     <ScreenBackground style={s.container}>
-      <StatusBar barStyle="light-content" backgroundColor="transparent" translucent />
+      <StatusBar
+        barStyle={colors.statusBarStyle === "light" ? "light-content" : "dark-content"}
+        backgroundColor="transparent"
+        translucent
+      />
       <ScrollView
         contentContainerStyle={s.scroll}
         showsVerticalScrollIndicator={false}
-        refreshControl={<RefreshControl refreshing={refreshing} onRefresh={handleRefresh} tintColor="#dc2626" colors={["#dc2626"]} />}
+        refreshControl={<RefreshControl refreshing={refreshing} onRefresh={handleRefresh} tintColor={colors.red} colors={[colors.red]} />}
       >
 
         {/* Hero */}
@@ -266,7 +274,7 @@ export default function PageDetailScreen() {
                 </View>
               )}
               <Pressable style={s.modsBtn} onPress={() => setShowMods(true)}>
-                <Ionicons name="shield-checkmark-outline" size={15} color="rgba(255,255,255,0.7)" />
+                <Ionicons name="shield-checkmark-outline" size={15} color={colors.textSub} />
                 <Text style={s.modsBtnText}>
                   Moderators ({moderators.length})
                 </Text>
@@ -302,7 +310,7 @@ export default function PageDetailScreen() {
                 <TextInput
                   style={s.composerInput}
                   placeholder="Share an update with your followers…"
-                  placeholderTextColor="rgba(255,255,255,0.3)"
+                  placeholderTextColor={colors.textGhost}
                   value={postInput}
                   onChangeText={setPostInput}
                   multiline
@@ -336,7 +344,7 @@ export default function PageDetailScreen() {
                         <Text style={s.postTime}>{timeAgo(p.createdAt)}</Text>
                         {canDelete && (
                           <Pressable onPress={() => handleDeletePost(p)} hitSlop={8}>
-                            <Ionicons name="trash-outline" size={14} color="rgba(255,255,255,0.4)" />
+                            <Ionicons name="trash-outline" size={14} color={colors.textMuted} />
                           </Pressable>
                         )}
                       </View>
@@ -361,7 +369,7 @@ export default function PageDetailScreen() {
                   style={s.contentCard}
                   onPress={() => router.push({ pathname: "/event-details", params: { id: e.id } })}
                 >
-                  <View style={[s.contentDot, { backgroundColor: "#dc2626" }]}>
+                  <View style={[s.contentDot, { backgroundColor: colors.red }]}>
                     <Text style={s.contentDotText}>{(e.title ?? "E").charAt(0).toUpperCase()}</Text>
                   </View>
                   <View style={s.contentInfo}>
@@ -386,7 +394,7 @@ export default function PageDetailScreen() {
                   style={s.contentCard}
                   onPress={() => router.push({ pathname: "/bubble-detail", params: { id: b.id } })}
                 >
-                  <View style={[s.contentDot, { backgroundColor: "#7c3aed" }]}>
+                  <View style={[s.contentDot, { backgroundColor: colors.purple }]}>
                     <Text style={s.contentDotText}>{b.name.charAt(0).toUpperCase()}</Text>
                   </View>
                   <View style={s.contentInfo}>
@@ -415,7 +423,7 @@ export default function PageDetailScreen() {
             <TextInput
               style={s.modInput}
               placeholder="Add by username"
-              placeholderTextColor="rgba(255,255,255,0.3)"
+              placeholderTextColor={colors.textGhost}
               autoCapitalize="none"
               value={modInput}
               onChangeText={setModInput}
@@ -438,7 +446,7 @@ export default function PageDetailScreen() {
               <View key={m} style={s.modRow}>
                 <Text style={s.modName}>@{m}</Text>
                 <Pressable onPress={() => handleRemoveModerator(m)} disabled={modBusy} hitSlop={8}>
-                  <Ionicons name="close-circle-outline" size={20} color="rgba(220,38,38,0.8)" />
+                  <Ionicons name="close-circle-outline" size={20} color={colors.red} />
                 </Pressable>
               </View>
             ))
@@ -449,109 +457,114 @@ export default function PageDetailScreen() {
   );
 }
 
-const s = StyleSheet.create({
-  container: { flex: 1 },
-  center: { flex: 1, alignItems: "center", justifyContent: "center" },
-  scroll: { paddingBottom: 40 },
+function buildStyles(colors: ThemeColors) {
+  return StyleSheet.create({
+    container: { flex: 1 },
+    center: { flex: 1, alignItems: "center", justifyContent: "center" },
+    scroll: { paddingBottom: 40 },
 
-  hero: { alignItems: "center", padding: 24, gap: 10, borderBottomWidth: 1, borderColor: "rgba(255,255,255,0.08)" },
-  avatar: { width: 90, height: 90, borderRadius: 45, alignItems: "center", justifyContent: "center", marginBottom: 4 },
-  avatarText: { color: "#fff", fontSize: 38, fontWeight: "700" },
-  name: { color: "#fff", fontSize: 24, fontWeight: "800", textAlign: "center" },
-  heroMeta: { flexDirection: "row", alignItems: "center", gap: 10 },
-  catBadge: { borderRadius: 8, paddingHorizontal: 10, paddingVertical: 3 },
-  catBadgeText: { fontSize: 12, fontWeight: "700" },
-  followerCount: { color: "rgba(255,255,255,0.5)", fontSize: 14 },
-  hostedBy: { color: "rgba(255,255,255,0.4)", fontSize: 13 },
-  description: { color: "rgba(255,255,255,0.65)", fontSize: 14, lineHeight: 20, textAlign: "center", marginTop: 4 },
+    hero: { alignItems: "center", padding: 24, gap: 10, borderBottomWidth: 1, borderColor: colors.borderFaint },
+    avatar: { width: 90, height: 90, borderRadius: 45, alignItems: "center", justifyContent: "center", marginBottom: 4 },
+    // White text on the page's own arbitrary avatarColor — stays fixed regardless
+    // of app theme, same convention as UserAvatar elsewhere.
+    avatarText: { color: "#fff", fontSize: 38, fontWeight: "700" },
+    name: { color: colors.text, fontSize: 24, fontWeight: "800", textAlign: "center" },
+    heroMeta: { flexDirection: "row", alignItems: "center", gap: 10 },
+    catBadge: { borderRadius: 8, paddingHorizontal: 10, paddingVertical: 3 },
+    catBadgeText: { fontSize: 12, fontWeight: "700" },
+    followerCount: { color: colors.textSub, fontSize: 14 },
+    hostedBy: { color: colors.textMuted, fontSize: 13 },
+    description: { color: colors.textSub, fontSize: 14, lineHeight: 20, textAlign: "center", marginTop: 4 },
 
-  followBtn: {
-    paddingHorizontal: 32, paddingVertical: 10, borderRadius: 24,
-    borderWidth: 1.5, borderColor: "#dc2626", marginTop: 4,
-  },
-  followBtnText: { color: "#dc2626", fontSize: 15, fontWeight: "700" },
-  followingBtn: { backgroundColor: "rgba(220,38,38,0.12)" },
-  followingBtnText: { color: "rgba(220,38,38,0.8)" },
+    followBtn: {
+      paddingHorizontal: 32, paddingVertical: 10, borderRadius: 24,
+      borderWidth: 1.5, borderColor: colors.red, marginTop: 4,
+    },
+    followBtnText: { color: colors.red, fontSize: 15, fontWeight: "700" },
+    followingBtn: { backgroundColor: colors.redSubtle },
+    followingBtnText: { color: colors.red },
 
-  analyticsRow: {
-    flexDirection: "row", width: "100%", marginTop: 8,
-    backgroundColor: "rgba(255,255,255,0.05)", borderRadius: 14,
-    borderWidth: 1, borderColor: "rgba(255,255,255,0.1)", paddingVertical: 12,
-  },
-  analyticsCell: { flex: 1, alignItems: "center", gap: 2 },
-  analyticsNum: { color: "#fff", fontSize: 17, fontWeight: "800" },
-  analyticsLabel: { color: "rgba(255,255,255,0.4)", fontSize: 10, letterSpacing: 0.6, textTransform: "uppercase" },
+    analyticsRow: {
+      flexDirection: "row", width: "100%", marginTop: 8,
+      backgroundColor: colors.cardFaint, borderRadius: 14,
+      borderWidth: 1, borderColor: colors.border, paddingVertical: 12,
+    },
+    analyticsCell: { flex: 1, alignItems: "center", gap: 2 },
+    analyticsNum: { color: colors.text, fontSize: 17, fontWeight: "800" },
+    analyticsLabel: { color: colors.textMuted, fontSize: 10, letterSpacing: 0.6, textTransform: "uppercase" },
 
-  modsBtn: {
-    flexDirection: "row", alignItems: "center", gap: 6,
-    borderWidth: 1, borderColor: "rgba(255,255,255,0.2)",
-    borderRadius: 20, paddingHorizontal: 14, paddingVertical: 7, marginTop: 2,
-  },
-  modsBtnText: { color: "rgba(255,255,255,0.7)", fontSize: 13, fontWeight: "600" },
+    modsBtn: {
+      flexDirection: "row", alignItems: "center", gap: 6,
+      borderWidth: 1, borderColor: colors.borderLight,
+      borderRadius: 20, paddingHorizontal: 14, paddingVertical: 7, marginTop: 2,
+    },
+    modsBtnText: { color: colors.textSub, fontSize: 13, fontWeight: "600" },
 
-  tabs: { flexDirection: "row", borderBottomWidth: 1, borderColor: "rgba(255,255,255,0.08)" },
-  tab: { flex: 1, paddingVertical: 14, alignItems: "center" },
-  tabActive: { borderBottomWidth: 2, borderColor: "#dc2626" },
-  tabText: { color: "rgba(255,255,255,0.4)", fontSize: 14, fontWeight: "600" },
-  tabTextActive: { color: "#fff" },
+    tabs: { flexDirection: "row", borderBottomWidth: 1, borderColor: colors.borderFaint },
+    tab: { flex: 1, paddingVertical: 14, alignItems: "center" },
+    tabActive: { borderBottomWidth: 2, borderColor: colors.red },
+    tabText: { color: colors.textMuted, fontSize: 14, fontWeight: "600" },
+    tabTextActive: { color: colors.text },
 
-  contentList: { padding: 20, gap: 12 },
-  contentCard: {
-    flexDirection: "row", alignItems: "center", gap: 12,
-    backgroundColor: "rgba(255,255,255,0.05)", borderRadius: 12,
-    padding: 14, borderWidth: 1, borderColor: "rgba(255,255,255,0.08)",
-  },
-  contentDot: { width: 40, height: 40, borderRadius: 20, alignItems: "center", justifyContent: "center" },
-  contentDotText: { color: "#fff", fontSize: 15, fontWeight: "700" },
-  contentInfo: { flex: 1 },
-  contentName: { color: "#fff", fontSize: 14, fontWeight: "700" },
-  contentMeta: { color: "rgba(255,255,255,0.4)", fontSize: 12, marginTop: 2 },
+    contentList: { padding: 20, gap: 12 },
+    contentCard: {
+      flexDirection: "row", alignItems: "center", gap: 12,
+      backgroundColor: colors.cardFaint, borderRadius: 12,
+      padding: 14, borderWidth: 1, borderColor: colors.borderFaint,
+    },
+    contentDot: { width: 40, height: 40, borderRadius: 20, alignItems: "center", justifyContent: "center" },
+    // White text on a fixed red/purple dot background — unaffected by theme.
+    contentDotText: { color: "#fff", fontSize: 15, fontWeight: "700" },
+    contentInfo: { flex: 1 },
+    contentName: { color: colors.text, fontSize: 14, fontWeight: "700" },
+    contentMeta: { color: colors.textMuted, fontSize: 12, marginTop: 2 },
 
-  // Posts
-  composer: {
-    backgroundColor: "rgba(255,255,255,0.05)", borderRadius: 14,
-    borderWidth: 1, borderColor: "rgba(255,255,255,0.1)", padding: 12, gap: 10,
-  },
-  composerInput: { color: "#fff", fontSize: 14, minHeight: 44, maxHeight: 120, textAlignVertical: "top" },
-  composerBtn: {
-    alignSelf: "flex-end", backgroundColor: "#dc2626", borderRadius: 18,
-    paddingHorizontal: 20, paddingVertical: 8,
-  },
-  composerBtnText: { color: "#fff", fontWeight: "700", fontSize: 13 },
-  postCard: {
-    backgroundColor: "rgba(255,255,255,0.05)", borderRadius: 14,
-    borderWidth: 1, borderColor: "rgba(255,255,255,0.09)", padding: 14, gap: 8,
-  },
-  postHeader: { flexDirection: "row", alignItems: "center", justifyContent: "space-between" },
-  postAuthor: { color: "#c4b5fd", fontSize: 13, fontWeight: "700" },
-  postTime: { color: "rgba(255,255,255,0.3)", fontSize: 11 },
-  postContent: { color: "rgba(255,255,255,0.85)", fontSize: 14, lineHeight: 20 },
+    // Posts
+    composer: {
+      backgroundColor: colors.cardFaint, borderRadius: 14,
+      borderWidth: 1, borderColor: colors.border, padding: 12, gap: 10,
+    },
+    composerInput: { color: colors.text, fontSize: 14, minHeight: 44, maxHeight: 120, textAlignVertical: "top" },
+    composerBtn: {
+      alignSelf: "flex-end", backgroundColor: colors.red, borderRadius: 18,
+      paddingHorizontal: 20, paddingVertical: 8,
+    },
+    composerBtnText: { color: "#fff", fontWeight: "700", fontSize: 13 },
+    postCard: {
+      backgroundColor: colors.cardFaint, borderRadius: 14,
+      borderWidth: 1, borderColor: colors.borderFaint, padding: 14, gap: 8,
+    },
+    postHeader: { flexDirection: "row", alignItems: "center", justifyContent: "space-between" },
+    postAuthor: { color: colors.purple, fontSize: 13, fontWeight: "700" },
+    postTime: { color: colors.textGhost, fontSize: 11 },
+    postContent: { color: colors.text, fontSize: 14, lineHeight: 20 },
 
-  // Moderator modal
-  modalBackdrop: { flex: 1, backgroundColor: "rgba(0,0,0,0.5)" },
-  modSheet: {
-    backgroundColor: "#1a0808", borderTopLeftRadius: 24, borderTopRightRadius: 24,
-    borderTopWidth: 1, borderColor: "rgba(255,255,255,0.08)",
-    padding: 20, paddingBottom: 40, maxHeight: "70%",
-  },
-  modHandle: { width: 40, height: 5, borderRadius: 3, backgroundColor: "rgba(255,255,255,0.3)", alignSelf: "center", marginBottom: 16 },
-  modTitle: { color: "#fff", fontSize: 18, fontWeight: "800", marginBottom: 4 },
-  modSub: { color: "rgba(255,255,255,0.4)", fontSize: 12, marginBottom: 16 },
-  modInputRow: { flexDirection: "row", gap: 8, marginBottom: 16 },
-  modInput: {
-    flex: 1, backgroundColor: "rgba(255,255,255,0.07)", borderRadius: 12,
-    borderWidth: 1, borderColor: "rgba(255,255,255,0.12)",
-    paddingHorizontal: 14, paddingVertical: 10, color: "#fff", fontSize: 15,
-  },
-  modAddBtn: {
-    backgroundColor: "#dc2626", borderRadius: 12,
-    paddingHorizontal: 18, alignItems: "center", justifyContent: "center",
-  },
-  modAddBtnText: { color: "#fff", fontWeight: "700", fontSize: 14 },
-  modEmpty: { color: "rgba(255,255,255,0.35)", fontSize: 13, fontStyle: "italic", textAlign: "center", paddingVertical: 10 },
-  modRow: {
-    flexDirection: "row", alignItems: "center", justifyContent: "space-between",
-    paddingVertical: 12, borderBottomWidth: 1, borderColor: "rgba(255,255,255,0.06)",
-  },
-  modName: { color: "#fff", fontSize: 15, fontWeight: "600" },
-});
+    // Moderator modal
+    modalBackdrop: { flex: 1, backgroundColor: "rgba(0,0,0,0.5)" },
+    modSheet: {
+      backgroundColor: colors.bgMid, borderTopLeftRadius: 24, borderTopRightRadius: 24,
+      borderTopWidth: 1, borderColor: colors.borderFaint,
+      padding: 20, paddingBottom: 40, maxHeight: "70%",
+    },
+    modHandle: { width: 40, height: 5, borderRadius: 3, backgroundColor: colors.textGhost, alignSelf: "center", marginBottom: 16 },
+    modTitle: { color: colors.text, fontSize: 18, fontWeight: "800", marginBottom: 4 },
+    modSub: { color: colors.textMuted, fontSize: 12, marginBottom: 16 },
+    modInputRow: { flexDirection: "row", gap: 8, marginBottom: 16 },
+    modInput: {
+      flex: 1, backgroundColor: colors.card, borderRadius: 12,
+      borderWidth: 1, borderColor: colors.border,
+      paddingHorizontal: 14, paddingVertical: 10, color: colors.text, fontSize: 15,
+    },
+    modAddBtn: {
+      backgroundColor: colors.red, borderRadius: 12,
+      paddingHorizontal: 18, alignItems: "center", justifyContent: "center",
+    },
+    modAddBtnText: { color: "#fff", fontWeight: "700", fontSize: 14 },
+    modEmpty: { color: colors.textMuted, fontSize: 13, fontStyle: "italic", textAlign: "center", paddingVertical: 10 },
+    modRow: {
+      flexDirection: "row", alignItems: "center", justifyContent: "space-between",
+      paddingVertical: 12, borderBottomWidth: 1, borderColor: colors.borderFaint,
+    },
+    modName: { color: colors.text, fontSize: 15, fontWeight: "600" },
+  });
+}

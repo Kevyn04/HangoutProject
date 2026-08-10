@@ -1,4 +1,4 @@
-import React, { useState, useRef, useCallback } from "react";
+import React, { useState, useRef, useCallback, useMemo } from "react";
 import {
   View, Text, StyleSheet, TextInput, FlatList, Pressable,
   ActivityIndicator, Keyboard, Alert,
@@ -9,6 +9,8 @@ import * as Haptics from "expo-haptics";
 import { searchUsers, sendInvite } from "@/services/api";
 import { ScreenBackground } from "@/components/ScreenBackground";
 import { useAuth } from "@/services/auth-context";
+import { useTheme } from "@/services/theme-context";
+import type { ThemeColors } from "@/constants/theme";
 import { useToast } from "@/context/ToastContext";
 import { UserAvatar } from "@/components/UserAvatar";
 
@@ -17,6 +19,8 @@ type UserResult = { username: string; bio: string; avatarColor: string; profileE
 export default function InviteUserScreen() {
   const router   = useRouter();
   const { user } = useAuth();
+  const { colors } = useTheme();
+  const s = useMemo(() => buildStyles(colors), [colors]);
   const { showToast } = useToast();
   const { bubbleId, eventId, name } = useLocalSearchParams<{
     bubbleId?: string; eventId?: string; name?: string;
@@ -72,7 +76,7 @@ export default function InviteUserScreen() {
       {/* Header */}
       <View style={s.header}>
         <Pressable style={s.backBtn} onPress={() => { Keyboard.dismiss(); router.back(); }}>
-          <Ionicons name="arrow-back" size={22} color="#fff" />
+          <Ionicons name="arrow-back" size={22} color={colors.text} />
         </Pressable>
         <View style={{ flex: 1 }}>
           <Text style={s.headerTitle}>Invite Someone</Text>
@@ -83,11 +87,11 @@ export default function InviteUserScreen() {
       {/* Search bar */}
       <View style={s.searchBarWrap}>
         <View style={s.searchBar}>
-          <Ionicons name="search" size={16} color="rgba(255,255,255,0.4)" />
+          <Ionicons name="search" size={16} color={colors.textMuted} />
           <TextInput
             style={s.searchInput}
             placeholder="Search by username…"
-            placeholderTextColor="rgba(255,255,255,0.3)"
+            placeholderTextColor={colors.textGhost}
             value={query}
             onChangeText={handleChange}
             autoFocus
@@ -95,7 +99,7 @@ export default function InviteUserScreen() {
           />
           {query.length > 0 && (
             <Pressable onPress={() => { setQuery(""); setResults([]); }}>
-              <Ionicons name="close-circle" size={18} color="rgba(255,255,255,0.4)" />
+              <Ionicons name="close-circle" size={18} color={colors.textMuted} />
             </Pressable>
           )}
         </View>
@@ -103,12 +107,12 @@ export default function InviteUserScreen() {
 
       {/* Results */}
       {loading ? (
-        <ActivityIndicator color="#dc2626" style={{ marginTop: 30 }} />
+        <ActivityIndicator color={colors.red} style={{ marginTop: 30 }} />
       ) : results.length === 0 && query.length > 0 ? (
         <Text style={s.empty}>No users found for "{query}"</Text>
       ) : results.length === 0 ? (
         <View style={s.hint}>
-          <Ionicons name="person-add-outline" size={40} color="rgba(255,255,255,0.1)" />
+          <Ionicons name="person-add-outline" size={40} color={colors.borderLight} />
           <Text style={s.hintText}>Search for a friend by their username</Text>
         </View>
       ) : (
@@ -148,55 +152,58 @@ export default function InviteUserScreen() {
   );
 }
 
-const s = StyleSheet.create({
-  container: { flex: 1, paddingTop: 56 },
+function buildStyles(colors: ThemeColors) {
+  return StyleSheet.create({
+    container: { flex: 1, paddingTop: 56 },
 
-  header: {
-    flexDirection: "row", alignItems: "center",
-    paddingHorizontal: 16, paddingBottom: 14, gap: 12,
-  },
-  backBtn: { padding: 4 },
-  headerTitle: { color: "#fff", fontSize: 20, fontWeight: "700" },
-  headerSub: { color: "rgba(255,255,255,0.45)", fontSize: 13, marginTop: 1 },
+    header: {
+      flexDirection: "row", alignItems: "center",
+      paddingHorizontal: 16, paddingBottom: 14, gap: 12,
+    },
+    backBtn: { padding: 4 },
+    headerTitle: { color: colors.text, fontSize: 20, fontWeight: "700" },
+    headerSub: { color: colors.textSub, fontSize: 13, marginTop: 1 },
 
-  searchBarWrap: { paddingHorizontal: 16, paddingBottom: 12 },
-  searchBar: {
-    flexDirection: "row", alignItems: "center", gap: 8,
-    backgroundColor: "rgba(255,255,255,0.08)", borderRadius: 14,
-    paddingHorizontal: 12, paddingVertical: 10,
-    borderWidth: 1, borderColor: "rgba(255,255,255,0.12)",
-  },
-  searchInput: { flex: 1, color: "#fff", fontSize: 15 },
+    searchBarWrap: { paddingHorizontal: 16, paddingBottom: 12 },
+    searchBar: {
+      flexDirection: "row", alignItems: "center", gap: 8,
+      backgroundColor: colors.card, borderRadius: 14,
+      paddingHorizontal: 12, paddingVertical: 10,
+      borderWidth: 1, borderColor: colors.border,
+    },
+    searchInput: { flex: 1, color: colors.text, fontSize: 15 },
 
-  list: { padding: 16, gap: 10 },
+    list: { padding: 16, gap: 10 },
 
-  card: {
-    flexDirection: "row", alignItems: "center", gap: 12,
-    backgroundColor: "rgba(255,255,255,0.05)", borderRadius: 14, padding: 14,
-    borderWidth: 1, borderColor: "rgba(255,255,255,0.08)",
-  },
-  avatar: {
-    width: 44, height: 44, borderRadius: 22,
-    alignItems: "center", justifyContent: "center",
-  },
-  avatarEmoji: { fontSize: 22 },
-  avatarLetter: { color: "#fff", fontSize: 18, fontWeight: "700" },
-  cardName: { color: "#fff", fontSize: 15, fontWeight: "700" },
-  cardBio: { color: "rgba(255,255,255,0.4)", fontSize: 12, marginTop: 2 },
+    card: {
+      flexDirection: "row", alignItems: "center", gap: 12,
+      backgroundColor: colors.cardFaint, borderRadius: 14, padding: 14,
+      borderWidth: 1, borderColor: colors.borderFaint,
+    },
+    avatar: {
+      width: 44, height: 44, borderRadius: 22,
+      alignItems: "center", justifyContent: "center",
+    },
+    avatarEmoji: { fontSize: 22 },
+    avatarLetter: { color: "#fff", fontSize: 18, fontWeight: "700" },
+    cardName: { color: colors.text, fontSize: 15, fontWeight: "700" },
+    cardBio: { color: colors.textMuted, fontSize: 12, marginTop: 2 },
 
-  inviteBtn: {
-    backgroundColor: "#dc2626", borderRadius: 10,
-    paddingHorizontal: 14, paddingVertical: 8, minWidth: 72, alignItems: "center",
-  },
-  invitedBtn: { backgroundColor: "rgba(34,197,94,0.2)", borderWidth: 1, borderColor: "rgba(34,197,94,0.4)" },
-  inviteBtnText: { color: "#fff", fontWeight: "700", fontSize: 13 },
-  invitedBtnText: { color: "#22c55e" },
+    inviteBtn: {
+      backgroundColor: colors.red, borderRadius: 10,
+      paddingHorizontal: 14, paddingVertical: 8, minWidth: 72, alignItems: "center",
+    },
+    // Fixed green accent for the "invited" state — same precedent as notifications.tsx's type icons.
+    invitedBtn: { backgroundColor: "rgba(34,197,94,0.2)", borderWidth: 1, borderColor: "rgba(34,197,94,0.4)" },
+    inviteBtnText: { color: "#fff", fontWeight: "700", fontSize: 13 },
+    invitedBtnText: { color: "#22c55e" },
 
-  hint: { flex: 1, alignItems: "center", justifyContent: "center", gap: 12, paddingHorizontal: 40 },
-  hintText: { color: "rgba(255,255,255,0.25)", fontSize: 14, textAlign: "center" },
+    hint: { flex: 1, alignItems: "center", justifyContent: "center", gap: 12, paddingHorizontal: 40 },
+    hintText: { color: colors.textGhost, fontSize: 14, textAlign: "center" },
 
-  empty: {
-    color: "rgba(255,255,255,0.3)", fontSize: 14, textAlign: "center",
-    marginTop: 40, fontStyle: "italic",
-  },
-});
+    empty: {
+      color: colors.textGhost, fontSize: 14, textAlign: "center",
+      marginTop: 40, fontStyle: "italic",
+    },
+  });
+}

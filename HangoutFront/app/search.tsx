@@ -1,4 +1,4 @@
-import React, { useState, useRef, useCallback } from "react";
+import React, { useState, useRef, useCallback, useMemo } from "react";
 import {
   View, Text, StyleSheet, TextInput, FlatList, Pressable,
   ActivityIndicator, Keyboard,
@@ -9,6 +9,8 @@ import * as Haptics from "expo-haptics";
 import { searchUsers, searchEvents, searchBubbles } from "@/services/api";
 import { ScreenBackground } from "@/components/ScreenBackground";
 import { useAuth } from "@/services/auth-context";
+import { useTheme } from "@/services/theme-context";
+import type { ThemeColors } from "@/constants/theme";
 import { UserAvatar } from "@/components/UserAvatar";
 
 type SearchTab = "users" | "events" | "bubbles";
@@ -20,6 +22,8 @@ type BubbleResult = { id: number; name: string; description?: string; type?: str
 export default function SearchScreen() {
   const router   = useRouter();
   const { user } = useAuth();
+  const { colors } = useTheme();
+  const s = useMemo(() => buildStyles(colors), [colors]);
 
   const [query, setQuery]       = useState("");
   const [tab, setTab]           = useState<SearchTab>("users");
@@ -79,14 +83,14 @@ export default function SearchScreen() {
       {/* Header */}
       <View style={s.header}>
         <Pressable style={s.backBtn} onPress={() => { Keyboard.dismiss(); router.back(); }}>
-          <Ionicons name="arrow-back" size={22} color="#fff" />
+          <Ionicons name="arrow-back" size={22} color={colors.text} />
         </Pressable>
         <View style={s.searchBar}>
-          <Ionicons name="search" size={16} color="rgba(255,255,255,0.4)" />
+          <Ionicons name="search" size={16} color={colors.textMuted} />
           <TextInput
             style={s.searchInput}
             placeholder="Search users, events, bubbles…"
-            placeholderTextColor="rgba(255,255,255,0.3)"
+            placeholderTextColor={colors.textGhost}
             value={query}
             onChangeText={handleChange}
             autoFocus
@@ -95,7 +99,7 @@ export default function SearchScreen() {
           />
           {query.length > 0 && (
             <Pressable onPress={handleClear}>
-              <Ionicons name="close-circle" size={18} color="rgba(255,255,255,0.4)" />
+              <Ionicons name="close-circle" size={18} color={colors.textMuted} />
             </Pressable>
           )}
         </View>
@@ -121,15 +125,15 @@ export default function SearchScreen() {
 
       {/* Results */}
       {loading ? (
-        <ActivityIndicator color="#dc2626" style={{ marginTop: 40 }} />
+        <ActivityIndicator color={colors.red} style={{ marginTop: 40 }} />
       ) : searchError ? (
         <View style={s.hint}>
-          <Ionicons name="cloud-offline-outline" size={40} color="rgba(255,255,255,0.1)" />
+          <Ionicons name="cloud-offline-outline" size={40} color={colors.borderLight} />
           <Text style={s.hintText}>Search failed. Check your connection and try again.</Text>
         </View>
       ) : !searched ? (
         <View style={s.hint}>
-          <Ionicons name="search" size={40} color="rgba(255,255,255,0.1)" />
+          <Ionicons name="search" size={40} color={colors.borderLight} />
           <Text style={s.hintText}>Search for people, events, and bubbles</Text>
         </View>
       ) : tab === "users" ? (
@@ -153,7 +157,7 @@ export default function SearchScreen() {
                   <Text style={s.cardSub} numberOfLines={1}>{item.bio}</Text>
                 ) : null}
               </View>
-              <Ionicons name="chevron-forward" size={16} color="rgba(255,255,255,0.2)" />
+              <Ionicons name="chevron-forward" size={16} color={colors.borderLight} />
             </Pressable>
           )}
         />
@@ -179,12 +183,12 @@ export default function SearchScreen() {
               }}
             >
               <View style={s.eventIcon}>
-                <Ionicons name="calendar" size={20} color="#dc2626" />
+                <Ionicons name="calendar" size={20} color={colors.red} />
               </View>
               <View style={{ flex: 1 }}>
                 <Text style={s.cardTitle} numberOfLines={1}>{item.title}</Text>
                 <View style={{ flexDirection: "row", alignItems: "center", gap: 4, marginTop: 2 }}>
-                  <Ionicons name="location-outline" size={11} color="rgba(255,255,255,0.35)" />
+                  <Ionicons name="location-outline" size={11} color={colors.textGhost} />
                   <Text style={s.cardSub} numberOfLines={1}>{item.location}</Text>
                 </View>
               </View>
@@ -218,7 +222,7 @@ export default function SearchScreen() {
                   {item.type ? ` · ${item.type}` : ""}
                 </Text>
               </View>
-              <Ionicons name="chevron-forward" size={16} color="rgba(255,255,255,0.2)" />
+              <Ionicons name="chevron-forward" size={16} color={colors.borderLight} />
             </Pressable>
           )}
         />
@@ -227,66 +231,68 @@ export default function SearchScreen() {
   );
 }
 
-const s = StyleSheet.create({
-  container: { flex: 1, paddingTop: 56 },
+function buildStyles(colors: ThemeColors) {
+  return StyleSheet.create({
+    container: { flex: 1, paddingTop: 56 },
 
-  header: { flexDirection: "row", alignItems: "center", paddingHorizontal: 16, paddingBottom: 12, gap: 10 },
-  backBtn: { padding: 4 },
-  searchBar: {
-    flex: 1, flexDirection: "row", alignItems: "center", gap: 8,
-    backgroundColor: "rgba(255,255,255,0.08)", borderRadius: 14,
-    paddingHorizontal: 12, paddingVertical: 10,
-    borderWidth: 1, borderColor: "rgba(255,255,255,0.12)",
-  },
-  searchInput: { flex: 1, color: "#fff", fontSize: 15 },
+    header: { flexDirection: "row", alignItems: "center", paddingHorizontal: 16, paddingBottom: 12, gap: 10 },
+    backBtn: { padding: 4 },
+    searchBar: {
+      flex: 1, flexDirection: "row", alignItems: "center", gap: 8,
+      backgroundColor: colors.card, borderRadius: 14,
+      paddingHorizontal: 12, paddingVertical: 10,
+      borderWidth: 1, borderColor: colors.border,
+    },
+    searchInput: { flex: 1, color: colors.text, fontSize: 15 },
 
-  tabs: {
-    flexDirection: "row", borderBottomWidth: 1,
-    borderColor: "rgba(255,255,255,0.08)", marginBottom: 4,
-  },
-  tab: { flex: 1, paddingVertical: 12, alignItems: "center" },
-  tabActive: { borderBottomWidth: 2, borderColor: "#dc2626" },
-  tabText: { color: "rgba(255,255,255,0.4)", fontSize: 13, fontWeight: "600" },
-  tabTextActive: { color: "#fff" },
-  tabCount: { color: "rgba(255,255,255,0.35)" },
-  tabCountActive: { color: "#dc2626" },
+    tabs: {
+      flexDirection: "row", borderBottomWidth: 1,
+      borderColor: colors.borderFaint, marginBottom: 4,
+    },
+    tab: { flex: 1, paddingVertical: 12, alignItems: "center" },
+    tabActive: { borderBottomWidth: 2, borderColor: colors.red },
+    tabText: { color: colors.textMuted, fontSize: 13, fontWeight: "600" },
+    tabTextActive: { color: colors.text },
+    tabCount: { color: colors.textGhost },
+    tabCountActive: { color: colors.red },
 
-  list: { padding: 16, gap: 10 },
+    list: { padding: 16, gap: 10 },
 
-  card: {
-    flexDirection: "row", alignItems: "center", gap: 12,
-    backgroundColor: "rgba(255,255,255,0.05)", borderRadius: 14, padding: 14,
-    borderWidth: 1, borderColor: "rgba(255,255,255,0.08)",
-  },
-  avatar: {
-    width: 44, height: 44, borderRadius: 22,
-    alignItems: "center", justifyContent: "center",
-  },
-  avatarEmoji: { fontSize: 22 },
-  avatarLetter: { color: "#fff", fontSize: 18, fontWeight: "700" },
+    card: {
+      flexDirection: "row", alignItems: "center", gap: 12,
+      backgroundColor: colors.cardFaint, borderRadius: 14, padding: 14,
+      borderWidth: 1, borderColor: colors.borderFaint,
+    },
+    avatar: {
+      width: 44, height: 44, borderRadius: 22,
+      alignItems: "center", justifyContent: "center",
+    },
+    avatarEmoji: { fontSize: 22 },
+    avatarLetter: { color: "#fff", fontSize: 18, fontWeight: "700" },
 
-  eventIcon: {
-    width: 44, height: 44, borderRadius: 22,
-    backgroundColor: "rgba(220,38,38,0.15)", alignItems: "center", justifyContent: "center",
-    borderWidth: 1, borderColor: "rgba(220,38,38,0.3)",
-  },
-  bubbleIcon: {
-    width: 44, height: 44, borderRadius: 22,
-    backgroundColor: "#7c3aed", alignItems: "center", justifyContent: "center",
-  },
-  bubbleLetter: { color: "#fff", fontSize: 18, fontWeight: "700" },
+    eventIcon: {
+      width: 44, height: 44, borderRadius: 22,
+      backgroundColor: colors.redSubtle, alignItems: "center", justifyContent: "center",
+      borderWidth: 1, borderColor: colors.redBorder,
+    },
+    bubbleIcon: {
+      width: 44, height: 44, borderRadius: 22,
+      backgroundColor: colors.purple, alignItems: "center", justifyContent: "center",
+    },
+    bubbleLetter: { color: "#fff", fontSize: 18, fontWeight: "700" },
 
-  cardTitle: { color: "#fff", fontSize: 15, fontWeight: "700" },
-  cardSub: { color: "rgba(255,255,255,0.4)", fontSize: 12, marginTop: 2 },
+    cardTitle: { color: colors.text, fontSize: 15, fontWeight: "700" },
+    cardSub: { color: colors.textMuted, fontSize: 12, marginTop: 2 },
 
-  typeBadge: { backgroundColor: "rgba(220,38,38,0.2)", borderRadius: 6, paddingHorizontal: 8, paddingVertical: 3 },
-  typeBadgeText: { color: "#fca5a5", fontSize: 11, fontWeight: "700" },
+    typeBadge: { backgroundColor: colors.redSubtle, borderRadius: 6, paddingHorizontal: 8, paddingVertical: 3 },
+    typeBadgeText: { color: colors.red, fontSize: 11, fontWeight: "700" },
 
-  hint: { flex: 1, alignItems: "center", justifyContent: "center", gap: 12, paddingHorizontal: 40 },
-  hintText: { color: "rgba(255,255,255,0.25)", fontSize: 14, textAlign: "center" },
+    hint: { flex: 1, alignItems: "center", justifyContent: "center", gap: 12, paddingHorizontal: 40 },
+    hintText: { color: colors.textGhost, fontSize: 14, textAlign: "center" },
 
-  empty: {
-    color: "rgba(255,255,255,0.3)", fontSize: 14, textAlign: "center",
-    marginTop: 40, fontStyle: "italic",
-  },
-});
+    empty: {
+      color: colors.textGhost, fontSize: 14, textAlign: "center",
+      marginTop: 40, fontStyle: "italic",
+    },
+  });
+}

@@ -1,4 +1,4 @@
-import React, { useState, useCallback } from "react";
+import React, { useState, useCallback, useMemo } from "react";
 import {
   View, Text, StyleSheet, FlatList, Pressable,
   ActivityIndicator, Alert, RefreshControl,
@@ -7,6 +7,8 @@ import { useFocusEffect, useRouter } from "expo-router";
 import { Ionicons } from "@expo/vector-icons";
 import * as Haptics from "expo-haptics";
 import { useAuth } from "@/services/auth-context";
+import { useTheme } from "@/services/theme-context";
+import type { ThemeColors } from "@/constants/theme";
 import {
   getNotifications, markAllNotificationsRead, markNotificationRead,
   getMyInvites, respondToInvite, joinBubble, joinEvent,
@@ -59,6 +61,8 @@ function typeIcon(type: string): { name: string; color: string; bg: string } {
 
 export default function NotificationsScreen() {
   const { user } = useAuth();
+  const { colors } = useTheme();
+  const s = useMemo(() => buildStyles(colors), [colors]);
   const router   = useRouter();
 
   const [notifications, setNotifications] = useState<Notification[]>([]);
@@ -157,7 +161,7 @@ export default function NotificationsScreen() {
       {/* Header */}
       <View style={s.header}>
         <Pressable style={s.backBtn} onPress={() => router.back()}>
-          <Ionicons name="arrow-back" size={22} color="#fff" />
+          <Ionicons name="arrow-back" size={22} color={colors.text} />
         </Pressable>
         <Text style={s.headerTitle}>Notifications</Text>
         {unreadCount > 0 && (
@@ -181,10 +185,10 @@ export default function NotificationsScreen() {
         </View>
       ) : loadError ? (
         <View style={{ flex: 1, alignItems: "center", justifyContent: "center", gap: 14 }}>
-          <Ionicons name="cloud-offline-outline" size={48} color="rgba(255,255,255,0.15)" />
-          <Text style={{ color: "rgba(255,255,255,0.5)", fontSize: 15, textAlign: "center" }}>Couldn't load notifications.</Text>
-          <Pressable style={{ paddingHorizontal: 24, paddingVertical: 10, borderRadius: 14, borderWidth: 1, borderColor: "rgba(220,38,38,0.5)", backgroundColor: "rgba(220,38,38,0.1)" }} onPress={() => load()}>
-            <Text style={{ color: "#dc2626", fontWeight: "700" }}>Try Again</Text>
+          <Ionicons name="cloud-offline-outline" size={48} color={colors.borderLight} />
+          <Text style={{ color: colors.textSub, fontSize: 15, textAlign: "center" }}>Couldn't load notifications.</Text>
+          <Pressable style={{ paddingHorizontal: 24, paddingVertical: 10, borderRadius: 14, borderWidth: 1, borderColor: colors.redBorder, backgroundColor: colors.redSubtle }} onPress={() => load()}>
+            <Text style={{ color: colors.red, fontWeight: "700" }}>Try Again</Text>
           </Pressable>
         </View>
       ) : (
@@ -197,7 +201,7 @@ export default function NotificationsScreen() {
             item._type === "invite" ? `inv_${item.invite.id}` : `notif_${item.notif.id}`
           }
           contentContainerStyle={s.list}
-          refreshControl={<RefreshControl refreshing={refreshing} onRefresh={handleRefresh} tintColor="#dc2626" colors={["#dc2626"]} />}
+          refreshControl={<RefreshControl refreshing={refreshing} onRefresh={handleRefresh} tintColor={colors.red} colors={[colors.red]} />}
           ListEmptyComponent={
             <EmptyState
               icon="notifications-outline"
@@ -274,57 +278,60 @@ export default function NotificationsScreen() {
   );
 }
 
-const s = StyleSheet.create({
-  container: { flex: 1, paddingTop: 56 },
+function buildStyles(colors: ThemeColors) {
+  return StyleSheet.create({
+    container: { flex: 1, paddingTop: 56 },
 
-  header: {
-    flexDirection: "row", alignItems: "center",
-    paddingHorizontal: 16, paddingBottom: 12, gap: 12,
-  },
-  backBtn: { padding: 4 },
-  headerTitle: { color: "#fff", fontSize: 22, fontWeight: "700", flex: 1 },
-  markAllBtn: {
-    backgroundColor: "rgba(255,255,255,0.07)", borderRadius: 10,
-    paddingHorizontal: 12, paddingVertical: 6,
-    borderWidth: 1, borderColor: "rgba(255,255,255,0.12)",
-  },
-  markAllText: { color: "rgba(255,255,255,0.6)", fontSize: 12, fontWeight: "600" },
+    header: {
+      flexDirection: "row", alignItems: "center",
+      paddingHorizontal: 16, paddingBottom: 12, gap: 12,
+    },
+    backBtn: { padding: 4 },
+    headerTitle: { color: colors.text, fontSize: 22, fontWeight: "700", flex: 1 },
+    markAllBtn: {
+      backgroundColor: colors.card, borderRadius: 10,
+      paddingHorizontal: 12, paddingVertical: 6,
+      borderWidth: 1, borderColor: colors.border,
+    },
+    markAllText: { color: colors.textSub, fontSize: 12, fontWeight: "600" },
 
-  list: { padding: 16, gap: 10 },
+    list: { padding: 16, gap: 10 },
 
-  notifCard: {
-    flexDirection: "row", alignItems: "flex-start", gap: 12,
-    backgroundColor: "rgba(255,255,255,0.05)", borderRadius: 16, padding: 14,
-    borderWidth: 1, borderColor: "rgba(255,255,255,0.08)",
-  },
-  unread: { borderColor: "rgba(220,38,38,0.3)", backgroundColor: "rgba(220,38,38,0.05)" },
-  inviteCard: { borderColor: "rgba(245,158,11,0.25)", backgroundColor: "rgba(245,158,11,0.05)" },
+    notifCard: {
+      flexDirection: "row", alignItems: "flex-start", gap: 12,
+      backgroundColor: colors.cardFaint, borderRadius: 16, padding: 14,
+      borderWidth: 1, borderColor: colors.borderFaint,
+    },
+    unread: { borderColor: colors.redBorder, backgroundColor: colors.redSubtle },
+    // Fixed amber accent — same precedent as typeIcon()'s type-based colors above.
+    inviteCard: { borderColor: "rgba(245,158,11,0.25)", backgroundColor: "rgba(245,158,11,0.05)" },
 
-  iconCircle: {
-    width: 42, height: 42, borderRadius: 21,
-    alignItems: "center", justifyContent: "center",
-    flexShrink: 0,
-  },
+    iconCircle: {
+      width: 42, height: 42, borderRadius: 21,
+      alignItems: "center", justifyContent: "center",
+      flexShrink: 0,
+    },
 
-  notifTitle: { color: "#fff", fontSize: 14, fontWeight: "600", lineHeight: 20 },
-  bold: { fontWeight: "800" },
-  notifBody: { color: "rgba(255,255,255,0.55)", fontSize: 13, lineHeight: 18 },
-  notifTime: { color: "rgba(255,255,255,0.3)", fontSize: 11, marginTop: 2 },
-  unreadDot: { width: 8, height: 8, borderRadius: 4, backgroundColor: "#dc2626", marginTop: 6 },
+    notifTitle: { color: colors.text, fontSize: 14, fontWeight: "600", lineHeight: 20 },
+    bold: { fontWeight: "800" },
+    notifBody: { color: colors.textSub, fontSize: 13, lineHeight: 18 },
+    notifTime: { color: colors.textGhost, fontSize: 11, marginTop: 2 },
+    unreadDot: { width: 8, height: 8, borderRadius: 4, backgroundColor: colors.red, marginTop: 6 },
 
-  inviteActions: { flexDirection: "row", gap: 8, marginTop: 10 },
-  declineBtn: {
-    flex: 1, height: 36, borderRadius: 10, alignItems: "center", justifyContent: "center",
-    borderWidth: 1, borderColor: "rgba(255,255,255,0.2)",
-  },
-  declineBtnText: { color: "rgba(255,255,255,0.55)", fontWeight: "600", fontSize: 13 },
-  acceptBtn: {
-    flex: 1, height: 36, borderRadius: 10, alignItems: "center", justifyContent: "center",
-    backgroundColor: "#dc2626",
-  },
-  acceptBtnText: { color: "#fff", fontWeight: "700", fontSize: 13 },
+    inviteActions: { flexDirection: "row", gap: 8, marginTop: 10 },
+    declineBtn: {
+      flex: 1, height: 36, borderRadius: 10, alignItems: "center", justifyContent: "center",
+      borderWidth: 1, borderColor: colors.borderLight,
+    },
+    declineBtnText: { color: colors.textSub, fontWeight: "600", fontSize: 13 },
+    acceptBtn: {
+      flex: 1, height: 36, borderRadius: 10, alignItems: "center", justifyContent: "center",
+      backgroundColor: colors.red,
+    },
+    acceptBtnText: { color: "#fff", fontWeight: "700", fontSize: 13 },
 
-  empty: { flex: 1, alignItems: "center", justifyContent: "center", padding: 40, gap: 12, marginTop: 60 },
-  emptyText: { color: "rgba(255,255,255,0.4)", fontSize: 16, fontWeight: "600", textAlign: "center" },
-  emptySubText: { color: "rgba(255,255,255,0.25)", fontSize: 13, textAlign: "center", lineHeight: 18 },
-});
+    empty: { flex: 1, alignItems: "center", justifyContent: "center", padding: 40, gap: 12, marginTop: 60 },
+    emptyText: { color: colors.textMuted, fontSize: 16, fontWeight: "600", textAlign: "center" },
+    emptySubText: { color: colors.textGhost, fontSize: 13, textAlign: "center", lineHeight: 18 },
+  });
+}

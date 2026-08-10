@@ -1,4 +1,4 @@
-import React, { useState } from "react";
+import React, { useState, useMemo } from "react";
 import {
   View, Text, TextInput, StyleSheet, Pressable,
   ActivityIndicator, KeyboardAvoidingView, Platform, ScrollView, Modal,
@@ -9,7 +9,8 @@ import { LinearGradient } from "expo-linear-gradient";
 import { useFonts, Cinzel_700Bold } from "@expo-google-fonts/cinzel";
 import { useLocalSearchParams, useRouter } from "expo-router";
 import { updateEvent, uploadEventCover } from "@/services/api";
-import { AppColors } from "@/constants/theme";
+import { useTheme } from "@/services/theme-context";
+import type { ThemeColors } from "@/constants/theme";
 import DateTimePicker from "@react-native-community/datetimepicker";
 
 function formatEventDate(d: Date): string {
@@ -21,6 +22,8 @@ function formatEventDate(d: Date): string {
 
 export default function EditEventScreen() {
   const router = useRouter();
+  const { colors } = useTheme();
+  const s = useMemo(() => buildStyles(colors), [colors]);
   const params = useLocalSearchParams<{ id: string; title: string; location: string; time: string; createdBy: string; coverUrl?: string }>();
 
   const [title, setTitle]       = useState(params.title ?? "");
@@ -45,7 +48,7 @@ export default function EditEventScreen() {
 
   const [fontsLoaded] = useFonts({ Cinzel_700Bold });
   if (!fontsLoaded) {
-    return <View style={s.loading}><ActivityIndicator size="large" color="white" /></View>;
+    return <View style={s.loading}><ActivityIndicator size="large" color={colors.text} /></View>;
   }
 
   const onDateChange = (_: any, selected?: Date) => {
@@ -105,7 +108,7 @@ export default function EditEventScreen() {
 
   return (
     <View style={s.container}>
-      <LinearGradient colors={AppColors.gradient} style={StyleSheet.absoluteFill} />
+      <LinearGradient colors={colors.gradient} style={StyleSheet.absoluteFill} />
       <KeyboardAvoidingView style={{ flex: 1 }} behavior={Platform.OS === "ios" ? "padding" : undefined}>
         <ScrollView contentContainerStyle={s.scroll} keyboardShouldPersistTaps="handled">
           <Text style={s.heading}>Edit Event</Text>
@@ -113,7 +116,7 @@ export default function EditEventScreen() {
           <Text style={s.label}>Title</Text>
           <TextInput
             style={s.input}
-            placeholderTextColor={AppColors.textGhost}
+            placeholderTextColor={colors.textGhost}
             returnKeyType="next"
             onSubmitEditing={() => locationRef.current?.focus()}
             value={title}
@@ -124,7 +127,7 @@ export default function EditEventScreen() {
           <TextInput
             ref={locationRef}
             style={s.input}
-            placeholderTextColor={AppColors.textGhost}
+            placeholderTextColor={colors.textGhost}
             returnKeyType="done"
             value={location}
             onChangeText={(v) => { setLocation(v); setError(""); }}
@@ -135,7 +138,7 @@ export default function EditEventScreen() {
             style={[s.input, s.inputPressable]}
             onPress={() => { setAndroidStep("date"); setShowDatePicker(true); }}
           >
-            <Text style={{ color: AppColors.text, fontSize: 16 }}>{formatEventDate(eventDate)}</Text>
+            <Text style={{ color: colors.text, fontSize: 16 }}>{formatEventDate(eventDate)}</Text>
           </Pressable>
 
           {Platform.OS === "android" && showDatePicker && (
@@ -165,7 +168,7 @@ export default function EditEventScreen() {
             onPress={handleSubmit} disabled={submitting}
           >
             {submitting
-              ? <ActivityIndicator color={AppColors.btnLightText} />
+              ? <ActivityIndicator color={colors.btnLightText} />
               : <Text style={s.submitBtnText}>Save</Text>
             }
           </Pressable>
@@ -184,7 +187,7 @@ export default function EditEventScreen() {
             </View>
             <DateTimePicker
               value={eventDate} mode="datetime" display="spinner"
-              onChange={onDateChange} textColor="#fff"
+              onChange={onDateChange} textColor={colors.text}
               style={{ height: 200 }}
             />
           </View>
@@ -194,33 +197,37 @@ export default function EditEventScreen() {
   );
 }
 
-const s = StyleSheet.create({
-  container: { flex: 1 },
-  loading: { flex: 1, backgroundColor: AppColors.bgDeep, alignItems: "center", justifyContent: "center" },
-  scroll: { padding: 24, paddingTop: 20, paddingBottom: 40 },
-  heading: { fontSize: 28, fontFamily: "Cinzel_700Bold", color: AppColors.text, letterSpacing: 1, marginBottom: 30 },
-  label: { fontSize: 14, fontFamily: "Cinzel_700Bold", letterSpacing: 1, color: AppColors.textSub, marginBottom: 8 },
-  input: {
-    height: 48, borderRadius: 14, borderWidth: 1,
-    borderColor: AppColors.border, backgroundColor: AppColors.card,
-    paddingHorizontal: 16, fontSize: 16, color: AppColors.text, marginBottom: 20,
-  },
-  inputPressable: { justifyContent: "center" },
-  coverPicker: { height: 150, borderRadius: 14, overflow: "hidden", marginBottom: 20, borderWidth: 1, borderColor: AppColors.border },
-  coverEmpty: { flex: 1, alignItems: "center", justifyContent: "center", backgroundColor: AppColors.card },
-  coverEmptyText: { color: "rgba(255,255,255,0.4)", fontSize: 13 },
-  coverOverlay: {
-    position: "absolute", bottom: 0, left: 0, right: 0,
-    backgroundColor: "rgba(0,0,0,0.45)", paddingVertical: 5, alignItems: "center",
-  },
-  coverOverlayText: { color: "rgba(255,255,255,0.8)", fontSize: 12, fontWeight: "600" },
-  errorText: { color: AppColors.red, fontSize: 13, marginBottom: 16, lineHeight: 18 },
-  submitBtn: { height: 48, borderRadius: 14, alignItems: "center", justifyContent: "center", backgroundColor: AppColors.btnLight, marginTop: 10 },
-  submitBtnText: { fontSize: 14, letterSpacing: 1.5, color: AppColors.btnLightText, fontFamily: "Cinzel_700Bold" },
-  disabled: { opacity: 0.6 },
-  pickerBackdrop: { flex: 1, backgroundColor: "rgba(0,0,0,0.5)" },
-  pickerSheet: { backgroundColor: "#1a0808", borderTopLeftRadius: 20, borderTopRightRadius: 20, paddingBottom: 32 },
-  pickerHeader: { flexDirection: "row", justifyContent: "space-between", alignItems: "center", padding: 16 },
-  pickerTitle: { color: "#fff", fontSize: 16, fontWeight: "700" },
-  pickerDone: { color: "#dc2626", fontSize: 16, fontWeight: "700" },
-});
+function buildStyles(colors: ThemeColors) {
+  return StyleSheet.create({
+    container: { flex: 1 },
+    loading: { flex: 1, backgroundColor: colors.bgDeep, alignItems: "center", justifyContent: "center" },
+    scroll: { padding: 24, paddingTop: 20, paddingBottom: 40 },
+    heading: { fontSize: 28, fontFamily: "Cinzel_700Bold", color: colors.text, letterSpacing: 1, marginBottom: 30 },
+    label: { fontSize: 14, fontFamily: "Cinzel_700Bold", letterSpacing: 1, color: colors.textSub, marginBottom: 8 },
+    input: {
+      height: 48, borderRadius: 14, borderWidth: 1,
+      borderColor: colors.border, backgroundColor: colors.card,
+      paddingHorizontal: 16, fontSize: 16, color: colors.text, marginBottom: 20,
+    },
+    inputPressable: { justifyContent: "center" },
+    coverPicker: { height: 150, borderRadius: 14, overflow: "hidden", marginBottom: 20, borderWidth: 1, borderColor: colors.border },
+    coverEmpty: { flex: 1, alignItems: "center", justifyContent: "center", backgroundColor: colors.card },
+    coverEmptyText: { color: colors.textMuted, fontSize: 13 },
+    // Overlay sits atop the live cover photo — stays dark-translucent regardless of
+    // theme for legibility, same precedent as map.tsx's floating chips.
+    coverOverlay: {
+      position: "absolute", bottom: 0, left: 0, right: 0,
+      backgroundColor: "rgba(0,0,0,0.45)", paddingVertical: 5, alignItems: "center",
+    },
+    coverOverlayText: { color: "rgba(255,255,255,0.8)", fontSize: 12, fontWeight: "600" },
+    errorText: { color: colors.red, fontSize: 13, marginBottom: 16, lineHeight: 18 },
+    submitBtn: { height: 48, borderRadius: 14, alignItems: "center", justifyContent: "center", backgroundColor: colors.btnLight, marginTop: 10 },
+    submitBtnText: { fontSize: 14, letterSpacing: 1.5, color: colors.btnLightText, fontFamily: "Cinzel_700Bold" },
+    disabled: { opacity: 0.6 },
+    pickerBackdrop: { flex: 1, backgroundColor: "rgba(0,0,0,0.5)" },
+    pickerSheet: { backgroundColor: colors.bgMid, borderTopLeftRadius: 20, borderTopRightRadius: 20, paddingBottom: 32 },
+    pickerHeader: { flexDirection: "row", justifyContent: "space-between", alignItems: "center", padding: 16 },
+    pickerTitle: { color: colors.text, fontSize: 16, fontWeight: "700" },
+    pickerDone: { color: colors.red, fontSize: 16, fontWeight: "700" },
+  });
+}

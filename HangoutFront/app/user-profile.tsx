@@ -1,4 +1,4 @@
-import React, { useState, useCallback } from "react";
+import React, { useState, useCallback, useMemo } from "react";
 import {
   View, Text, StyleSheet, ScrollView, Pressable,
   Modal, Alert, RefreshControl,
@@ -6,6 +6,8 @@ import {
 import { useLocalSearchParams, useRouter } from "expo-router";
 import { useFocusEffect } from "@react-navigation/native";
 import { useAuth } from "@/services/auth-context";
+import { useTheme } from "@/services/theme-context";
+import type { ThemeColors } from "@/constants/theme";
 import {
   getProfile, getUserBubbles, getUserRatings,
   toggleUserFollow, canRateUser, submitRating,
@@ -27,7 +29,10 @@ const RATING_REASONS = [
 
 const REPORT_REASONS = ["Spam", "Harassment", "Inappropriate behavior", "Fake profile", "Other"];
 
-function Stars({ value, size = 14 }: { value: number; size?: number }) {
+// Filled-star amber is a fixed brand accent (unaffected by theme, same
+// precedent as notifications.tsx's type-icon accents); only the empty-star
+// track color needs to adapt, so these take `colors` as a prop.
+function Stars({ value, size = 14, colors }: { value: number; size?: number; colors: ThemeColors }) {
   return (
     <View style={{ flexDirection: "row", gap: 3 }}>
       {[1, 2, 3, 4, 5].map((i) => (
@@ -35,14 +40,14 @@ function Stars({ value, size = 14 }: { value: number; size?: number }) {
           key={i}
           name={i <= Math.round(value) ? "star" : "star-outline"}
           size={size}
-          color={i <= Math.round(value) ? "#fbbf24" : "rgba(255,255,255,0.2)"}
+          color={i <= Math.round(value) ? "#fbbf24" : colors.borderLight}
         />
       ))}
     </View>
   );
 }
 
-function StarPicker({ value, onChange }: { value: number; onChange: (v: number) => void }) {
+function StarPicker({ value, onChange, colors }: { value: number; onChange: (v: number) => void; colors: ThemeColors }) {
   return (
     <View style={{ flexDirection: "row", gap: 8, justifyContent: "center" }}>
       {[1, 2, 3, 4, 5].map((i) => (
@@ -50,7 +55,7 @@ function StarPicker({ value, onChange }: { value: number; onChange: (v: number) 
           <Ionicons
             name={i <= value ? "star" : "star-outline"}
             size={40}
-            color={i <= value ? "#fbbf24" : "rgba(255,255,255,0.2)"}
+            color={i <= value ? "#fbbf24" : colors.borderLight}
           />
         </Pressable>
       ))}
@@ -74,6 +79,8 @@ type ProfileData = {
 export default function UserProfileScreen() {
   const { username } = useLocalSearchParams<{ username: string }>();
   const { user } = useAuth();
+  const { colors } = useTheme();
+  const s = useMemo(() => buildStyles(colors), [colors]);
   const router = useRouter();
   const { showToast } = useToast();
 
@@ -264,7 +271,7 @@ export default function UserProfileScreen() {
       <ScrollView
         contentContainerStyle={s.scroll}
         showsVerticalScrollIndicator={false}
-        refreshControl={<RefreshControl refreshing={refreshing} onRefresh={handleRefresh} tintColor="#dc2626" colors={["#dc2626"]} />}
+        refreshControl={<RefreshControl refreshing={refreshing} onRefresh={handleRefresh} tintColor={colors.red} colors={[colors.red]} />}
       >
 
         {/* Hero */}
@@ -318,7 +325,7 @@ export default function UserProfileScreen() {
                     router.push({ pathname: "/dm-chat", params: { partner: username } });
                   }}
                 >
-                  <Ionicons name="chatbubble-outline" size={15} color="#fff" />
+                  <Ionicons name="chatbubble-outline" size={15} color={colors.text} />
                   <Text style={s.messageBtnText}>Message</Text>
                 </Pressable>
 
@@ -337,12 +344,12 @@ export default function UserProfileScreen() {
                   style={[s.blockBtn, isBlocked && s.blockBtnActive, blockLoading && { opacity: 0.5 }]}
                   onPress={handleBlock} disabled={blockLoading}
                 >
-                  <Ionicons name={isBlocked ? "remove-circle" : "remove-circle-outline"} size={14} color={isBlocked ? "#dc2626" : "rgba(255,255,255,0.4)"} />
-                  <Text style={[s.modBtnText, isBlocked && { color: "#dc2626" }]}>{isBlocked ? "Unblock" : "Block"}</Text>
+                  <Ionicons name={isBlocked ? "remove-circle" : "remove-circle-outline"} size={14} color={isBlocked ? colors.red : colors.textMuted} />
+                  <Text style={[s.modBtnText, isBlocked && { color: colors.red }]}>{isBlocked ? "Unblock" : "Block"}</Text>
                 </Pressable>
 
                 <Pressable style={s.reportBtn} onPress={() => { setReportReason(null); setReportModal(true); }}>
-                  <Ionicons name="flag-outline" size={14} color="rgba(255,255,255,0.4)" />
+                  <Ionicons name="flag-outline" size={14} color={colors.textMuted} />
                   <Text style={s.modBtnText}>Report</Text>
                 </Pressable>
               </View>
@@ -355,7 +362,7 @@ export default function UserProfileScreen() {
           <View style={s.section}>
             <View style={s.sectionHeader}>
               <Text style={s.sectionTitle}>What people say</Text>
-              <Stars value={profile.avgRating} />
+              <Stars value={profile.avgRating} colors={colors} />
             </View>
             <View style={s.reasonsWrap}>
               {reasons.map((r: any) => (
@@ -377,7 +384,7 @@ export default function UserProfileScreen() {
                 key={b.id} style={s.bubbleRow}
                 onPress={() => router.push({ pathname: "/bubble-detail", params: { id: b.id } })}
               >
-                <View style={[s.dot, { backgroundColor: "#7c3aed" }]}>
+                <View style={[s.dot, { backgroundColor: colors.purple }]}>
                   <Text style={s.dotText}>{b.name.charAt(0).toUpperCase()}</Text>
                 </View>
                 <View style={{ flex: 1 }}>
@@ -430,7 +437,7 @@ export default function UserProfileScreen() {
           <Text style={s.modalTitle}>Rate @{username}</Text>
           <Text style={s.modalSub}>Your rating is anonymous</Text>
 
-          <StarPicker value={starValue} onChange={setStarValue} />
+          <StarPicker value={starValue} onChange={setStarValue} colors={colors} />
 
           <Text style={s.reasonLabel}>What stood out?</Text>
           <View style={s.reasonGrid}>
@@ -458,114 +465,117 @@ export default function UserProfileScreen() {
   );
 }
 
-const s = StyleSheet.create({
-  container: { flex: 1 },
-  center: { flex: 1, alignItems: "center", justifyContent: "center" },
-  scroll: { paddingBottom: 40 },
+function buildStyles(colors: ThemeColors) {
+  return StyleSheet.create({
+    container: { flex: 1 },
+    center: { flex: 1, alignItems: "center", justifyContent: "center" },
+    scroll: { paddingBottom: 40 },
 
-  hero: { alignItems: "center", padding: 24, gap: 12, borderBottomWidth: 1, borderColor: "rgba(255,255,255,0.08)" },
-  avatar: { width: 90, height: 90, borderRadius: 45, alignItems: "center", justifyContent: "center" },
-  avatarText: { color: "#fff", fontSize: 38, fontWeight: "700" },
-  name: { color: "#fff", fontSize: 22, fontWeight: "700" },
-  pronouns: { color: "rgba(255,255,255,0.45)", fontSize: 13, fontWeight: "600", marginTop: -6 },
-  bio: { color: "rgba(255,255,255,0.55)", fontSize: 14, lineHeight: 20, textAlign: "center" },
+    hero: { alignItems: "center", padding: 24, gap: 12, borderBottomWidth: 1, borderColor: colors.borderFaint },
+    avatar: { width: 90, height: 90, borderRadius: 45, alignItems: "center", justifyContent: "center" },
+    avatarText: { color: "#fff", fontSize: 38, fontWeight: "700" },
+    name: { color: colors.text, fontSize: 22, fontWeight: "700" },
+    pronouns: { color: colors.textMuted, fontSize: 13, fontWeight: "600", marginTop: -6 },
+    bio: { color: colors.textSub, fontSize: 14, lineHeight: 20, textAlign: "center" },
 
-  statsRow: {
-    flexDirection: "row", alignItems: "center",
-    backgroundColor: "rgba(255,255,255,0.05)", borderRadius: 14,
-    borderWidth: 1, borderColor: "rgba(255,255,255,0.08)",
-    paddingVertical: 14, paddingHorizontal: 20, width: "100%",
-  },
-  statItem: { flex: 1, alignItems: "center", gap: 2 },
-  statDiv: { width: 1, height: 32, backgroundColor: "rgba(255,255,255,0.1)" },
-  statVal: { color: "#fff", fontSize: 20, fontWeight: "700" },
-  statLbl: { color: "rgba(255,255,255,0.4)", fontSize: 11 },
+    statsRow: {
+      flexDirection: "row", alignItems: "center",
+      backgroundColor: colors.cardFaint, borderRadius: 14,
+      borderWidth: 1, borderColor: colors.borderFaint,
+      paddingVertical: 14, paddingHorizontal: 20, width: "100%",
+    },
+    statItem: { flex: 1, alignItems: "center", gap: 2 },
+    statDiv: { width: 1, height: 32, backgroundColor: colors.border },
+    statVal: { color: colors.text, fontSize: 20, fontWeight: "700" },
+    statLbl: { color: colors.textMuted, fontSize: 11 },
 
-  actionRow: { flexDirection: "row", gap: 10 },
-  moderationRow: { flexDirection: "row", gap: 10, marginTop: 4 },
-  blockBtn: {
-    flexDirection: "row", alignItems: "center", gap: 5,
-    paddingHorizontal: 14, paddingVertical: 7, borderRadius: 20,
-    borderWidth: 1, borderColor: "rgba(255,255,255,0.15)",
-    backgroundColor: "rgba(255,255,255,0.05)",
-  },
-  blockBtnActive: { borderColor: "rgba(220,38,38,0.4)", backgroundColor: "rgba(220,38,38,0.08)" },
-  reportBtn: {
-    flexDirection: "row", alignItems: "center", gap: 5,
-    paddingHorizontal: 14, paddingVertical: 7, borderRadius: 20,
-    borderWidth: 1, borderColor: "rgba(255,255,255,0.15)",
-    backgroundColor: "rgba(255,255,255,0.05)",
-  },
-  modBtnText: { color: "rgba(255,255,255,0.4)", fontSize: 13, fontWeight: "600" },
-  followBtn: {
-    paddingHorizontal: 20, paddingVertical: 10, borderRadius: 24,
-    borderWidth: 1.5, borderColor: "#dc2626",
-  },
-  followBtnText: { color: "#dc2626", fontSize: 14, fontWeight: "700" },
-  followingBtn: { backgroundColor: "rgba(220,38,38,0.12)" },
-  followingBtnText: { color: "rgba(220,38,38,0.8)" },
-  messageBtn: {
-    flexDirection: "row", alignItems: "center", gap: 6,
-    paddingHorizontal: 16, paddingVertical: 10, borderRadius: 24,
-    backgroundColor: "rgba(255,255,255,0.1)", borderWidth: 1.5, borderColor: "rgba(255,255,255,0.2)",
-  },
-  messageBtnText: { color: "#fff", fontSize: 14, fontWeight: "700" },
-  rateBtn: {
-    paddingHorizontal: 20, paddingVertical: 10, borderRadius: 24,
-    backgroundColor: "rgba(251,191,36,0.15)",
-    borderWidth: 1.5, borderColor: "rgba(251,191,36,0.5)",
-  },
-  rateBtnText: { color: "#fbbf24", fontSize: 14, fontWeight: "700" },
+    actionRow: { flexDirection: "row", gap: 10 },
+    moderationRow: { flexDirection: "row", gap: 10, marginTop: 4 },
+    blockBtn: {
+      flexDirection: "row", alignItems: "center", gap: 5,
+      paddingHorizontal: 14, paddingVertical: 7, borderRadius: 20,
+      borderWidth: 1, borderColor: colors.borderLight,
+      backgroundColor: colors.cardFaint,
+    },
+    blockBtnActive: { borderColor: colors.redBorder, backgroundColor: colors.redSubtle },
+    reportBtn: {
+      flexDirection: "row", alignItems: "center", gap: 5,
+      paddingHorizontal: 14, paddingVertical: 7, borderRadius: 20,
+      borderWidth: 1, borderColor: colors.borderLight,
+      backgroundColor: colors.cardFaint,
+    },
+    modBtnText: { color: colors.textMuted, fontSize: 13, fontWeight: "600" },
+    followBtn: {
+      paddingHorizontal: 20, paddingVertical: 10, borderRadius: 24,
+      borderWidth: 1.5, borderColor: colors.red,
+    },
+    followBtnText: { color: colors.red, fontSize: 14, fontWeight: "700" },
+    followingBtn: { backgroundColor: colors.redSubtle },
+    followingBtnText: { color: colors.red },
+    messageBtn: {
+      flexDirection: "row", alignItems: "center", gap: 6,
+      paddingHorizontal: 16, paddingVertical: 10, borderRadius: 24,
+      backgroundColor: colors.card, borderWidth: 1.5, borderColor: colors.borderLight,
+    },
+    messageBtnText: { color: colors.text, fontSize: 14, fontWeight: "700" },
+    // Amber rate button is a fixed brand accent, same precedent as notifications.tsx's type icons.
+    rateBtn: {
+      paddingHorizontal: 20, paddingVertical: 10, borderRadius: 24,
+      backgroundColor: "rgba(251,191,36,0.15)",
+      borderWidth: 1.5, borderColor: "rgba(251,191,36,0.5)",
+    },
+    rateBtnText: { color: "#fbbf24", fontSize: 14, fontWeight: "700" },
 
-  section: {
-    margin: 16, marginBottom: 0,
-    backgroundColor: "rgba(255,255,255,0.05)", borderRadius: 14,
-    padding: 16, borderWidth: 1, borderColor: "rgba(255,255,255,0.08)", gap: 10,
-  },
-  sectionHeader: { flexDirection: "row", justifyContent: "space-between", alignItems: "center" },
-  sectionTitle: { color: "#fff", fontSize: 15, fontWeight: "700" },
-  reasonsWrap: { flexDirection: "row", flexWrap: "wrap", gap: 8 },
-  reasonTag: {
-    flexDirection: "row", alignItems: "center", gap: 6,
-    backgroundColor: "rgba(220,38,38,0.1)", borderRadius: 20,
-    paddingHorizontal: 12, paddingVertical: 5,
-    borderWidth: 1, borderColor: "rgba(220,38,38,0.25)",
-  },
-  reasonText: { color: "#fff", fontSize: 12, fontWeight: "600" },
-  reasonCount: { color: "#dc2626", fontSize: 12, fontWeight: "700" },
+    section: {
+      margin: 16, marginBottom: 0,
+      backgroundColor: colors.cardFaint, borderRadius: 14,
+      padding: 16, borderWidth: 1, borderColor: colors.borderFaint, gap: 10,
+    },
+    sectionHeader: { flexDirection: "row", justifyContent: "space-between", alignItems: "center" },
+    sectionTitle: { color: colors.text, fontSize: 15, fontWeight: "700" },
+    reasonsWrap: { flexDirection: "row", flexWrap: "wrap", gap: 8 },
+    reasonTag: {
+      flexDirection: "row", alignItems: "center", gap: 6,
+      backgroundColor: colors.redSubtle, borderRadius: 20,
+      paddingHorizontal: 12, paddingVertical: 5,
+      borderWidth: 1, borderColor: colors.redBorder,
+    },
+    reasonText: { color: colors.text, fontSize: 12, fontWeight: "600" },
+    reasonCount: { color: colors.red, fontSize: 12, fontWeight: "700" },
 
-  bubbleRow: {
-    flexDirection: "row", alignItems: "center", gap: 12, paddingVertical: 8,
-    borderBottomWidth: 1, borderBottomColor: "rgba(255,255,255,0.06)",
-  },
-  dot: { width: 36, height: 36, borderRadius: 18, alignItems: "center", justifyContent: "center" },
-  dotText: { color: "#fff", fontSize: 14, fontWeight: "700" },
-  bubbleName: { color: "#fff", fontSize: 14, fontWeight: "600" },
-  bubbleMeta: { color: "rgba(255,255,255,0.4)", fontSize: 12, marginTop: 2 },
+    bubbleRow: {
+      flexDirection: "row", alignItems: "center", gap: 12, paddingVertical: 8,
+      borderBottomWidth: 1, borderBottomColor: colors.borderFaint,
+    },
+    dot: { width: 36, height: 36, borderRadius: 18, alignItems: "center", justifyContent: "center" },
+    dotText: { color: "#fff", fontSize: 14, fontWeight: "700" },
+    bubbleName: { color: colors.text, fontSize: 14, fontWeight: "600" },
+    bubbleMeta: { color: colors.textMuted, fontSize: 12, marginTop: 2 },
 
-  // Modal
-  backdrop: { flex: 1, backgroundColor: "rgba(0,0,0,0.6)" },
-  modal: {
-    backgroundColor: "#1a0808", borderTopLeftRadius: 24, borderTopRightRadius: 24,
-    borderTopWidth: 1, borderColor: "rgba(255,255,255,0.08)",
-    padding: 24, paddingBottom: 40, gap: 16,
-  },
-  modalHandle: { width: 40, height: 5, borderRadius: 3, backgroundColor: "rgba(255,255,255,0.3)", alignSelf: "center", marginBottom: 4 },
-  modalTitle: { color: "#fff", fontSize: 20, fontWeight: "800", textAlign: "center" },
-  modalSub: { color: "rgba(255,255,255,0.4)", fontSize: 13, textAlign: "center", marginTop: -8 },
-  reasonLabel: { color: "rgba(255,255,255,0.6)", fontSize: 13, fontWeight: "600" },
-  reasonGrid: { flexDirection: "row", flexWrap: "wrap", gap: 8 },
-  reasonChip: {
-    paddingHorizontal: 14, paddingVertical: 8, borderRadius: 20,
-    backgroundColor: "rgba(255,255,255,0.06)",
-    borderWidth: 1, borderColor: "rgba(255,255,255,0.12)",
-  },
-  reasonChipActive: { backgroundColor: "rgba(220,38,38,0.15)", borderColor: "#dc2626" },
-  reasonChipText: { color: "rgba(255,255,255,0.5)", fontSize: 13, fontWeight: "600" },
-  reasonChipTextActive: { color: "#dc2626" },
-  submitRatingBtn: {
-    height: 50, borderRadius: 14, backgroundColor: "rgba(255,255,255,0.92)",
-    alignItems: "center", justifyContent: "center",
-  },
-  submitRatingText: { color: "#0b0b0f", fontSize: 15, fontWeight: "700" },
-});
+    // Modal
+    backdrop: { flex: 1, backgroundColor: "rgba(0,0,0,0.6)" },
+    modal: {
+      backgroundColor: colors.bgMid, borderTopLeftRadius: 24, borderTopRightRadius: 24,
+      borderTopWidth: 1, borderColor: colors.borderFaint,
+      padding: 24, paddingBottom: 40, gap: 16,
+    },
+    modalHandle: { width: 40, height: 5, borderRadius: 3, backgroundColor: colors.textGhost, alignSelf: "center", marginBottom: 4 },
+    modalTitle: { color: colors.text, fontSize: 20, fontWeight: "800", textAlign: "center" },
+    modalSub: { color: colors.textMuted, fontSize: 13, textAlign: "center", marginTop: -8 },
+    reasonLabel: { color: colors.textSub, fontSize: 13, fontWeight: "600" },
+    reasonGrid: { flexDirection: "row", flexWrap: "wrap", gap: 8 },
+    reasonChip: {
+      paddingHorizontal: 14, paddingVertical: 8, borderRadius: 20,
+      backgroundColor: colors.cardFaint,
+      borderWidth: 1, borderColor: colors.border,
+    },
+    reasonChipActive: { backgroundColor: colors.redSubtle, borderColor: colors.red },
+    reasonChipText: { color: colors.textSub, fontSize: 13, fontWeight: "600" },
+    reasonChipTextActive: { color: colors.red },
+    submitRatingBtn: {
+      height: 50, borderRadius: 14, backgroundColor: colors.btnLight,
+      alignItems: "center", justifyContent: "center",
+    },
+    submitRatingText: { color: colors.btnLightText, fontSize: 15, fontWeight: "700" },
+  });
+}

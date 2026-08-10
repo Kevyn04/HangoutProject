@@ -98,23 +98,17 @@ function AppContent() {
           <Stack.Screen name="choose-username" options={{ headerShown: false }} />
           <Stack.Screen name="create" options={{ presentation: 'modal', title: 'New Hangout', headerStyle: { backgroundColor: colors.headerBg }, headerTintColor: colors.headerTint }} />
           <Stack.Screen name="event-details" options={{ title: 'Event Details', headerStyle: { backgroundColor: colors.headerBg }, headerTintColor: colors.headerTint }} />
-          {/* TODO(theme-phase-2): edit-event screen body isn't theme-aware yet — header left dark intentionally */}
-          <Stack.Screen name="edit-event" options={{ presentation: 'modal', title: 'Edit Hangout', headerStyle: { backgroundColor: '#1a0505' }, headerTintColor: '#fff' }} />
-          {/* TODO(theme-phase-2): enter screen isn't theme-aware yet */}
-          <Stack.Screen name="enter" options={{ title: 'Explore', headerStyle: { backgroundColor: '#131a24' }, headerTintColor: '#fff' }} />
+          <Stack.Screen name="edit-event" options={{ presentation: 'modal', title: 'Edit Hangout', headerStyle: { backgroundColor: colors.headerBg }, headerTintColor: colors.headerTint }} />
+          <Stack.Screen name="enter" options={{ title: 'Explore', headerStyle: { backgroundColor: colors.headerBgEnter }, headerTintColor: colors.headerTint }} />
           <Stack.Screen name="create-bubble" options={{ presentation: 'modal', title: 'New Bubble', headerStyle: { backgroundColor: colors.headerBgAlt }, headerTintColor: colors.headerTint }} />
           <Stack.Screen name="bubble-detail" options={{ title: 'Bubble', headerStyle: { backgroundColor: colors.headerBgAlt }, headerTintColor: colors.headerTint }} />
           <Stack.Screen name="page-detail" options={{ title: 'Page', headerStyle: { backgroundColor: colors.headerBgAlt }, headerTintColor: colors.headerTint }} />
           <Stack.Screen name="user-profile" options={{ title: 'Profile', headerStyle: { backgroundColor: colors.headerBgAlt }, headerTintColor: colors.headerTint }} />
-          {/* TODO(theme-phase-2): event-chat screen isn't theme-aware yet */}
-          <Stack.Screen name="event-chat" options={{ title: 'Event Chat', headerStyle: { backgroundColor: '#0f0305' }, headerTintColor: '#fff' }} />
-          {/* TODO(theme-phase-2): discussion-detail screen isn't theme-aware yet */}
-          <Stack.Screen name="discussion-detail" options={{ title: 'Discussion', headerStyle: { backgroundColor: '#0f0305' }, headerTintColor: '#fff' }} />
+          <Stack.Screen name="event-chat" options={{ title: 'Event Chat', headerStyle: { backgroundColor: colors.headerBgAlt }, headerTintColor: colors.headerTint }} />
+          <Stack.Screen name="discussion-detail" options={{ title: 'Discussion', headerStyle: { backgroundColor: colors.headerBgAlt }, headerTintColor: colors.headerTint }} />
           <Stack.Screen name="create-page" options={{ presentation: 'modal', title: 'New Page', headerStyle: { backgroundColor: colors.headerBgAlt }, headerTintColor: colors.headerTint }} />
-          {/* TODO(theme-phase-2): signin screen isn't theme-aware yet */}
-          <Stack.Screen name="signin" options={{ presentation: 'modal', title: 'Sign In', headerStyle: { backgroundColor: '#1a0505' }, headerTintColor: '#fff' }} />
-          {/* TODO(theme-phase-2): signup screen isn't theme-aware yet */}
-          <Stack.Screen name="signup" options={{ presentation: 'modal', title: 'Sign Up', headerStyle: { backgroundColor: '#1a0505' }, headerTintColor: '#fff' }} />
+          <Stack.Screen name="signin" options={{ presentation: 'modal', title: 'Sign In', headerStyle: { backgroundColor: colors.headerBg }, headerTintColor: colors.headerTint }} />
+          <Stack.Screen name="signup" options={{ presentation: 'modal', title: 'Sign Up', headerStyle: { backgroundColor: colors.headerBg }, headerTintColor: colors.headerTint }} />
           <Stack.Screen name="modal" options={{ presentation: 'modal', title: 'Modal' }} />
           <Stack.Screen name="notifications" options={{ headerShown: false }} />
           <Stack.Screen name="search" options={{ headerShown: false }} />

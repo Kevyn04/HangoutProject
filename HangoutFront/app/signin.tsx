@@ -1,4 +1,4 @@
-import React, { useState, useRef } from "react";
+import React, { useState, useRef, useMemo } from "react";
 import {
   View, Text, TextInput, StyleSheet, Pressable,
   ActivityIndicator, KeyboardAvoidingView, Platform, ScrollView, Alert,
@@ -9,12 +9,15 @@ import { useRouter } from "expo-router";
 import * as AppleAuthentication from "expo-apple-authentication";
 import { signIn, signInWithApple, signInWithGoogle } from "@/services/api";
 import { useAuth } from "@/services/auth-context";
-import { AppColors } from "@/constants/theme";
+import { useTheme } from "@/services/theme-context";
+import type { ThemeColors } from "@/constants/theme";
 import { TurnstileModal, captchaEnabled } from "@/components/TurnstileModal";
 
 export default function SignInScreen() {
   const router = useRouter();
   const { login } = useAuth();
+  const { colors } = useTheme();
+  const styles = useMemo(() => buildStyles(colors), [colors]);
   const [username, setUsername] = useState("");
   const [password, setPassword] = useState("");
   const [showPassword, setShowPassword] = useState(false);
@@ -29,7 +32,7 @@ export default function SignInScreen() {
   if (!fontsLoaded) {
     return (
       <View style={styles.loadingContainer}>
-        <ActivityIndicator size="large" color="white" />
+        <ActivityIndicator size="large" color={colors.text} />
       </View>
     );
   }
@@ -101,7 +104,7 @@ export default function SignInScreen() {
 
   return (
     <View style={styles.container}>
-      <LinearGradient colors={AppColors.gradient} style={StyleSheet.absoluteFill} />
+      <LinearGradient colors={colors.gradient} style={StyleSheet.absoluteFill} />
 
       <KeyboardAvoidingView style={{ flex: 1 }} behavior={Platform.OS === "ios" ? "padding" : undefined}>
         <ScrollView contentContainerStyle={styles.scroll}>
@@ -122,7 +125,7 @@ export default function SignInScreen() {
             disabled={!!oauthLoading}
           >
             {oauthLoading === "google"
-              ? <ActivityIndicator color="#1a1a1a" size="small" />
+              ? <ActivityIndicator color={colors.btnLightText} size="small" />
               : <>
                   <Text style={styles.googleG}>G</Text>
                   <Text style={styles.googleBtnText}>Continue with Google</Text>
@@ -142,7 +145,7 @@ export default function SignInScreen() {
           <TextInput
             style={styles.input}
             placeholder="Enter your username"
-            placeholderTextColor={AppColors.textGhost}
+            placeholderTextColor={colors.textGhost}
             autoCapitalize="none"
             autoComplete="username"
             textContentType="username"
@@ -158,7 +161,7 @@ export default function SignInScreen() {
               ref={passwordRef}
               style={[styles.input, styles.passwordInput]}
               placeholder="Enter your password"
-              placeholderTextColor={AppColors.textGhost}
+              placeholderTextColor={colors.textGhost}
               secureTextEntry={!showPassword}
               autoComplete="password"
               textContentType="password"
@@ -184,7 +187,7 @@ export default function SignInScreen() {
             disabled={submitting || !!oauthLoading}
           >
             {submitting
-              ? <ActivityIndicator color={AppColors.btnLightText} />
+              ? <ActivityIndicator color={colors.btnLightText} />
               : <Text style={styles.submitBtnText}>Sign In</Text>
             }
           </Pressable>
@@ -200,52 +203,54 @@ export default function SignInScreen() {
   );
 }
 
-const styles = StyleSheet.create({
-  container: { flex: 1 },
-  loadingContainer: { flex: 1, backgroundColor: AppColors.bgDeep, alignItems: "center", justifyContent: "center" },
-  scroll: { padding: 24, paddingTop: 20, paddingBottom: 40 },
-  heading: {
-    fontSize: 28, fontFamily: "Cinzel_700Bold",
-    color: AppColors.text, letterSpacing: 1, marginBottom: 24,
-  },
+function buildStyles(colors: ThemeColors) {
+  return StyleSheet.create({
+    container: { flex: 1 },
+    loadingContainer: { flex: 1, backgroundColor: colors.bgDeep, alignItems: "center", justifyContent: "center" },
+    scroll: { padding: 24, paddingTop: 20, paddingBottom: 40 },
+    heading: {
+      fontSize: 28, fontFamily: "Cinzel_700Bold",
+      color: colors.text, letterSpacing: 1, marginBottom: 24,
+    },
 
-  appleBtn: { width: "100%", height: 48, marginBottom: 12 },
+    appleBtn: { width: "100%", height: 48, marginBottom: 12 },
 
-  googleBtn: {
-    flexDirection: "row", alignItems: "center", justifyContent: "center",
-    height: 48, borderRadius: 14, backgroundColor: "#fff",
-    gap: 10, marginBottom: 24,
-  },
-  googleG: { fontSize: 18, fontWeight: "700", color: "#4285F4" },
-  googleBtnText: { fontSize: 15, fontWeight: "600", color: "#1a1a1a" },
+    googleBtn: {
+      flexDirection: "row", alignItems: "center", justifyContent: "center",
+      height: 48, borderRadius: 14, backgroundColor: "#fff",
+      gap: 10, marginBottom: 24,
+    },
+    googleG: { fontSize: 18, fontWeight: "700", color: "#4285F4" },
+    googleBtnText: { fontSize: 15, fontWeight: "600", color: "#1a1a1a" },
 
-  dividerRow: { flexDirection: "row", alignItems: "center", gap: 12, marginBottom: 24 },
-  dividerLine: { flex: 1, height: 1, backgroundColor: AppColors.border },
-  dividerText: { fontSize: 13, color: AppColors.textMuted },
+    dividerRow: { flexDirection: "row", alignItems: "center", gap: 12, marginBottom: 24 },
+    dividerLine: { flex: 1, height: 1, backgroundColor: colors.border },
+    dividerText: { fontSize: 13, color: colors.textMuted },
 
-  label: {
-    fontSize: 14, fontFamily: "Cinzel_700Bold",
-    letterSpacing: 1, color: AppColors.textSub, marginBottom: 8,
-  },
-  input: {
-    height: 48, borderRadius: 14, borderWidth: 1,
-    borderColor: AppColors.border, backgroundColor: AppColors.card,
-    paddingHorizontal: 16, fontSize: 16, color: AppColors.text, marginBottom: 20,
-  },
-  passwordRow: { position: "relative", marginBottom: 20 },
-  passwordInput: { marginBottom: 0, paddingRight: 72 },
-  eyeBtn: {
-    position: "absolute", right: 0, top: 0,
-    height: 48, paddingHorizontal: 16,
-    alignItems: "center", justifyContent: "center",
-  },
-  eyeBtnText: { fontSize: 12, fontFamily: "Cinzel_700Bold", letterSpacing: 0.5, color: AppColors.textMuted },
-  errorText: { color: AppColors.red, fontSize: 13, marginBottom: 16, lineHeight: 18 },
-  submitBtn: {
-    height: 48, borderRadius: 14,
-    alignItems: "center", justifyContent: "center",
-    backgroundColor: AppColors.btnLight, marginTop: 10,
-  },
-  submitBtnText: { fontSize: 14, letterSpacing: 1.5, color: AppColors.btnLightText, fontFamily: "Cinzel_700Bold" },
-  disabled: { opacity: 0.6 },
-});
+    label: {
+      fontSize: 14, fontFamily: "Cinzel_700Bold",
+      letterSpacing: 1, color: colors.textSub, marginBottom: 8,
+    },
+    input: {
+      height: 48, borderRadius: 14, borderWidth: 1,
+      borderColor: colors.border, backgroundColor: colors.card,
+      paddingHorizontal: 16, fontSize: 16, color: colors.text, marginBottom: 20,
+    },
+    passwordRow: { position: "relative", marginBottom: 20 },
+    passwordInput: { marginBottom: 0, paddingRight: 72 },
+    eyeBtn: {
+      position: "absolute", right: 0, top: 0,
+      height: 48, paddingHorizontal: 16,
+      alignItems: "center", justifyContent: "center",
+    },
+    eyeBtnText: { fontSize: 12, fontFamily: "Cinzel_700Bold", letterSpacing: 0.5, color: colors.textMuted },
+    errorText: { color: colors.red, fontSize: 13, marginBottom: 16, lineHeight: 18 },
+    submitBtn: {
+      height: 48, borderRadius: 14,
+      alignItems: "center", justifyContent: "center",
+      backgroundColor: colors.btnLight, marginTop: 10,
+    },
+    submitBtnText: { fontSize: 14, letterSpacing: 1.5, color: colors.btnLightText, fontFamily: "Cinzel_700Bold" },
+    disabled: { opacity: 0.6 },
+  });
+}

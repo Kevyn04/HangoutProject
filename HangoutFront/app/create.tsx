@@ -1,4 +1,4 @@
-import React, { useState, useEffect, useRef } from "react";
+import React, { useState, useEffect, useRef, useMemo } from "react";
 import {
   View, Text, TextInput, StyleSheet, Pressable, ActivityIndicator,
   KeyboardAvoidingView, Platform, ScrollView, Modal, FlatList,
@@ -11,7 +11,8 @@ import { useRouter } from "expo-router";
 import { createEvent, uploadEventCover } from "@/services/api";
 import { useAuth } from "@/services/auth-context";
 import * as Location from "expo-location";
-import { AppColors } from "@/constants/theme";
+import { useTheme } from "@/services/theme-context";
+import type { ThemeColors } from "@/constants/theme";
 import MapView, { Marker, PROVIDER_GOOGLE, PROVIDER_DEFAULT } from "react-native-maps";
 import DateTimePicker from "@react-native-community/datetimepicker";
 
@@ -32,6 +33,8 @@ const EVENT_TYPES = ["Hangout", "Munchies", "Secret Location", "Sports", "Games"
 export default function CreateScreen() {
   const router = useRouter();
   const { user } = useAuth();
+  const { colors } = useTheme();
+  const s = useMemo(() => buildStyles(colors), [colors]);
   const [title, setTitle] = useState("");
   const [location, setLocation] = useState("");
   const [eventType, setEventType] = useState<string>("Hangout");
@@ -66,7 +69,7 @@ export default function CreateScreen() {
 
   const [fontsLoaded] = useFonts({ Cinzel_700Bold });
   if (!fontsLoaded) {
-    return <View style={s.loading}><ActivityIndicator size="large" color="white" /></View>;
+    return <View style={s.loading}><ActivityIndicator size="large" color={colors.text} /></View>;
   }
 
   const onDateChange = (_: any, selected?: Date) => {
@@ -129,7 +132,7 @@ export default function CreateScreen() {
 
   return (
     <View style={s.container}>
-      <LinearGradient colors={AppColors.gradient} style={StyleSheet.absoluteFill} />
+      <LinearGradient colors={colors.gradient} style={StyleSheet.absoluteFill} />
       <KeyboardAvoidingView style={{ flex: 1 }} behavior={Platform.OS === "ios" ? "padding" : undefined}>
         <ScrollView contentContainerStyle={s.scroll} keyboardShouldPersistTaps="handled">
           <Text style={s.heading}>Create Event</Text>
@@ -138,7 +141,7 @@ export default function CreateScreen() {
           <TextInput
             style={s.input}
             placeholder="e.g. Friday Night Chill"
-            placeholderTextColor={AppColors.textGhost}
+            placeholderTextColor={colors.textGhost}
             returnKeyType="next"
             onSubmitEditing={() => locationRef.current?.focus()}
             value={title}
@@ -150,7 +153,7 @@ export default function CreateScreen() {
             ref={locationRef}
             style={s.input}
             placeholder="e.g. Bloomsburg"
-            placeholderTextColor={AppColors.textGhost}
+            placeholderTextColor={colors.textGhost}
             returnKeyType="done"
             value={location}
             onChangeText={(v) => { setLocation(v); setError(""); }}
@@ -174,7 +177,7 @@ export default function CreateScreen() {
             style={[s.input, s.inputPressable]}
             onPress={() => { setAndroidStep("date"); setShowDatePicker(true); }}
           >
-            <Text style={{ color: AppColors.text, fontSize: 16 }}>{formatEventDate(eventDate)}</Text>
+            <Text style={{ color: colors.text, fontSize: 16 }}>{formatEventDate(eventDate)}</Text>
           </Pressable>
 
           {Platform.OS === "android" && showDatePicker && (
@@ -225,7 +228,7 @@ export default function CreateScreen() {
             onPress={handleSubmit} disabled={submitting}
           >
             {submitting
-              ? <ActivityIndicator color={AppColors.btnLightText} />
+              ? <ActivityIndicator color={colors.btnLightText} />
               : <Text style={s.submitBtnText}>Create</Text>
             }
           </Pressable>
@@ -245,7 +248,7 @@ export default function CreateScreen() {
             </View>
             <DateTimePicker
               value={eventDate} mode="datetime" display="spinner"
-              onChange={onDateChange} textColor="#fff"
+              onChange={onDateChange} textColor={colors.text}
               style={{ height: 200 }}
             />
           </View>
@@ -279,55 +282,60 @@ export default function CreateScreen() {
   );
 }
 
-const s = StyleSheet.create({
-  container: { flex: 1 },
-  loading: { flex: 1, backgroundColor: AppColors.bgDeep, alignItems: "center", justifyContent: "center" },
-  scroll: { padding: 24, paddingTop: 20, paddingBottom: 40 },
-  heading: { fontSize: 28, fontFamily: "Cinzel_700Bold", color: AppColors.text, letterSpacing: 1, marginBottom: 30 },
-  label: { fontSize: 14, fontFamily: "Cinzel_700Bold", letterSpacing: 1, color: AppColors.textSub, marginBottom: 8 },
-  input: {
-    height: 48, borderRadius: 14, borderWidth: 1,
-    borderColor: AppColors.border, backgroundColor: AppColors.card,
-    paddingHorizontal: 16, fontSize: 16, color: AppColors.text, marginBottom: 20,
-  },
-  inputPressable: { justifyContent: "center" },
-  errorText: { color: AppColors.red, fontSize: 13, marginBottom: 16, lineHeight: 18 },
-  submitBtn: { height: 48, borderRadius: 14, alignItems: "center", justifyContent: "center", backgroundColor: AppColors.btnLight, marginTop: 10 },
-  submitBtnText: { fontSize: 14, letterSpacing: 1.5, color: AppColors.btnLightText, fontFamily: "Cinzel_700Bold" },
-  disabled: { opacity: 0.6 },
+function buildStyles(colors: ThemeColors) {
+  return StyleSheet.create({
+    container: { flex: 1 },
+    loading: { flex: 1, backgroundColor: colors.bgDeep, alignItems: "center", justifyContent: "center" },
+    scroll: { padding: 24, paddingTop: 20, paddingBottom: 40 },
+    heading: { fontSize: 28, fontFamily: "Cinzel_700Bold", color: colors.text, letterSpacing: 1, marginBottom: 30 },
+    label: { fontSize: 14, fontFamily: "Cinzel_700Bold", letterSpacing: 1, color: colors.textSub, marginBottom: 8 },
+    input: {
+      height: 48, borderRadius: 14, borderWidth: 1,
+      borderColor: colors.border, backgroundColor: colors.card,
+      paddingHorizontal: 16, fontSize: 16, color: colors.text, marginBottom: 20,
+    },
+    inputPressable: { justifyContent: "center" },
+    errorText: { color: colors.red, fontSize: 13, marginBottom: 16, lineHeight: 18 },
+    submitBtn: { height: 48, borderRadius: 14, alignItems: "center", justifyContent: "center", backgroundColor: colors.btnLight, marginTop: 10 },
+    submitBtnText: { fontSize: 14, letterSpacing: 1.5, color: colors.btnLightText, fontFamily: "Cinzel_700Bold" },
+    disabled: { opacity: 0.6 },
 
-  mapPreview: { height: 130, borderRadius: 14, overflow: "hidden", marginBottom: 20, borderWidth: 1, borderColor: AppColors.border },
-  coverPicker: { height: 150, borderRadius: 14, overflow: "hidden", marginBottom: 20, borderWidth: 1, borderColor: AppColors.border },
-  mapEmpty: { flex: 1, alignItems: "center", justifyContent: "center", backgroundColor: AppColors.card },
-  mapEmptyText: { color: "rgba(255,255,255,0.4)", fontSize: 13 },
-  mapOverlay: {
-    position: "absolute", bottom: 0, left: 0, right: 0,
-    backgroundColor: "rgba(0,0,0,0.45)", paddingVertical: 5, alignItems: "center",
-  },
-  mapOverlayText: { color: "rgba(255,255,255,0.8)", fontSize: 12, fontWeight: "600" },
+    mapPreview: { height: 130, borderRadius: 14, overflow: "hidden", marginBottom: 20, borderWidth: 1, borderColor: colors.border },
+    coverPicker: { height: 150, borderRadius: 14, overflow: "hidden", marginBottom: 20, borderWidth: 1, borderColor: colors.border },
+    mapEmpty: { flex: 1, alignItems: "center", justifyContent: "center", backgroundColor: colors.card },
+    mapEmptyText: { color: colors.textMuted, fontSize: 13 },
+    // Overlay sits atop a live cover photo/map preview — stays dark-translucent
+    // regardless of theme for legibility, same precedent as map.tsx's floating chips.
+    mapOverlay: {
+      position: "absolute", bottom: 0, left: 0, right: 0,
+      backgroundColor: "rgba(0,0,0,0.45)", paddingVertical: 5, alignItems: "center",
+    },
+    mapOverlayText: { color: "rgba(255,255,255,0.8)", fontSize: 12, fontWeight: "600" },
 
-  pickerBackdrop: { flex: 1, backgroundColor: "rgba(0,0,0,0.5)" },
-  pickerSheet: { backgroundColor: "#1a0808", borderTopLeftRadius: 20, borderTopRightRadius: 20, paddingBottom: 32 },
-  pickerHeader: { flexDirection: "row", justifyContent: "space-between", alignItems: "center", padding: 16 },
-  pickerTitle: { color: "#fff", fontSize: 16, fontWeight: "700" },
-  pickerDone: { color: "#dc2626", fontSize: 16, fontWeight: "700" },
+    pickerBackdrop: { flex: 1, backgroundColor: "rgba(0,0,0,0.5)" },
+    pickerSheet: { backgroundColor: colors.bgMid, borderTopLeftRadius: 20, borderTopRightRadius: 20, paddingBottom: 32 },
+    pickerHeader: { flexDirection: "row", justifyContent: "space-between", alignItems: "center", padding: 16 },
+    pickerTitle: { color: colors.text, fontSize: 16, fontWeight: "700" },
+    pickerDone: { color: colors.red, fontSize: 16, fontWeight: "700" },
 
-  mapModalHeader: {
-    position: "absolute", top: 56, left: 16, right: 16,
-    flexDirection: "row", alignItems: "center", justifyContent: "space-between",
-    backgroundColor: "rgba(18,3,3,0.88)", borderRadius: 14, paddingHorizontal: 16, paddingVertical: 12,
-    borderWidth: 1, borderColor: "rgba(255,255,255,0.1)",
-  },
-  mapModalTitle: { color: "#fff", fontSize: 14, fontWeight: "600" },
-  mapModalDone: { backgroundColor: "#dc2626", borderRadius: 10, paddingHorizontal: 16, paddingVertical: 8 },
-  mapModalDoneText: { color: "#fff", fontWeight: "700", fontSize: 14 },
+    // Overlays a live MapView — stays dark-translucent regardless of theme, same precedent as above.
+    mapModalHeader: {
+      position: "absolute", top: 56, left: 16, right: 16,
+      flexDirection: "row", alignItems: "center", justifyContent: "space-between",
+      backgroundColor: "rgba(18,3,3,0.88)", borderRadius: 14, paddingHorizontal: 16, paddingVertical: 12,
+      borderWidth: 1, borderColor: "rgba(255,255,255,0.1)",
+    },
+    mapModalTitle: { color: "#fff", fontSize: 14, fontWeight: "600" },
+    mapModalDone: { backgroundColor: "#dc2626", borderRadius: 10, paddingHorizontal: 16, paddingVertical: 8 },
+    mapModalDoneText: { color: "#fff", fontWeight: "700", fontSize: 14 },
 
-  typeChip: {
-    paddingHorizontal: 16, paddingVertical: 9, borderRadius: 20,
-    borderWidth: 1, borderColor: AppColors.border,
-    backgroundColor: AppColors.card,
-  },
-  typeChipActive: { backgroundColor: AppColors.red, borderColor: AppColors.red },
-  typeChipText: { color: AppColors.textSub, fontSize: 14, fontWeight: "600" },
-  typeChipTextActive: { color: "#fff" },
-});
+    typeChip: {
+      paddingHorizontal: 16, paddingVertical: 9, borderRadius: 20,
+      borderWidth: 1, borderColor: colors.border,
+      backgroundColor: colors.card,
+    },
+    typeChipActive: { backgroundColor: colors.red, borderColor: colors.red },
+    typeChipText: { color: colors.textSub, fontSize: 14, fontWeight: "600" },
+    typeChipTextActive: { color: "#fff" },
+  });
+}

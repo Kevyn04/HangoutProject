@@ -1,4 +1,4 @@
-import React, { useState, useRef, useCallback } from "react";
+import React, { useState, useRef, useCallback, useMemo } from "react";
 import {
   View,
   Text,
@@ -19,6 +19,8 @@ import { useRouter } from "expo-router";
 import * as Location from "expo-location";
 import { createBubble } from "@/services/api";
 import { useAuth } from "@/services/auth-context";
+import { useTheme } from "@/services/theme-context";
+import type { ThemeColors } from "@/constants/theme";
 
 // ── Constants ────────────────────────────────────────────────────────
 const BLOOMSBURG_REGION = {
@@ -63,10 +65,11 @@ const VISIBLE = 5;
 const PAD = Math.floor(VISIBLE / 2);
 
 function ScrollColumn({
-  items, initialIndex = 0, onChange, width = 64,
+  items, initialIndex = 0, onChange, width = 64, colors,
 }: {
-  items: string[]; initialIndex?: number; onChange: (v: string) => void; width?: number;
+  items: string[]; initialIndex?: number; onChange: (v: string) => void; width?: number; colors: ThemeColors;
 }) {
+  const col = useMemo(() => buildColStyles(colors), [colors]);
   const selectedRef = useRef(initialIndex);
   const padded = ["", "", ...items, "", ""];
 
@@ -107,28 +110,31 @@ function ScrollColumn({
   );
 }
 
-const col = StyleSheet.create({
-  wrap:      { alignItems: "center", overflow: "hidden" },
-  highlight: {
-    position: "absolute", top: ITEM_H * PAD, left: 0, right: 0, height: ITEM_H,
-    backgroundColor: "rgba(220,38,38,0.15)",
-    borderTopWidth: 1, borderBottomWidth: 1, borderColor: "rgba(220,38,38,0.4)",
-    borderRadius: 8, zIndex: 1,
-  },
-  item:     { height: ITEM_H, alignItems: "center", justifyContent: "center" },
-  text:     { fontSize: 20, color: "rgba(255,255,255,0.3)", fontWeight: "500" },
-  selected: { color: "#fff", fontSize: 22, fontWeight: "700" },
-});
+function buildColStyles(colors: ThemeColors) {
+  return StyleSheet.create({
+    wrap:      { alignItems: "center", overflow: "hidden" },
+    highlight: {
+      position: "absolute", top: ITEM_H * PAD, left: 0, right: 0, height: ITEM_H,
+      backgroundColor: colors.redSubtle,
+      borderTopWidth: 1, borderBottomWidth: 1, borderColor: colors.redBorder,
+      borderRadius: 8, zIndex: 1,
+    },
+    item:     { height: ITEM_H, alignItems: "center", justifyContent: "center" },
+    text:     { fontSize: 20, color: colors.textGhost, fontWeight: "500" },
+    selected: { color: colors.text, fontSize: 22, fontWeight: "700" },
+  });
+}
 
 // ── Map Picker Modal ─────────────────────────────────────────────────
 type Coord = { latitude: number; longitude: number };
 
 function MapPickerModal({
-  visible, initialCoord, onConfirm, onClose,
+  visible, initialCoord, onConfirm, onClose, colors,
 }: {
   visible: boolean; initialCoord?: Coord;
-  onConfirm: (c: Coord) => void; onClose: () => void;
+  onConfirm: (c: Coord) => void; onClose: () => void; colors: ThemeColors;
 }) {
+  const mp = useMemo(() => buildMpStyles(colors), [colors]);
   const [pin, setPin] = useState<Coord | null>(initialCoord ?? null);
 
   return (
@@ -154,7 +160,7 @@ function MapPickerModal({
           }
           onPress={(e) => setPin(e.nativeEvent.coordinate)}
         >
-          {pin && <Marker coordinate={pin} pinColor="#dc2626" />}
+          {pin && <Marker coordinate={pin} pinColor={colors.red} />}
         </MapView>
 
         {/* Footer */}
@@ -177,23 +183,28 @@ function MapPickerModal({
   );
 }
 
-const mp = StyleSheet.create({
-  container:        { flex: 1, backgroundColor: "#0f0305" },
-  header:           { flexDirection: "row", alignItems: "center", justifyContent: "space-between", paddingHorizontal: 16, paddingTop: 56, paddingBottom: 12, backgroundColor: "#0f0305" },
-  headerBtn:        { width: 70 },
-  headerBtnText:    { color: "#dc2626", fontSize: 16 },
-  headerTitle:      { color: "#fff", fontSize: 16, fontWeight: "700" },
-  footer:           { backgroundColor: "#1a0808", padding: 20, paddingBottom: 36, gap: 12, borderTopWidth: 1, borderColor: "rgba(255,255,255,0.08)" },
-  footerHint:       { color: "rgba(255,255,255,0.55)", fontSize: 13, textAlign: "center" },
-  confirmBtn:       { backgroundColor: "#dc2626", borderRadius: 14, height: 48, alignItems: "center", justifyContent: "center" },
-  confirmBtnDisabled: { opacity: 0.4 },
-  confirmBtnText:   { color: "#fff", fontSize: 15, fontWeight: "700" },
-});
+function buildMpStyles(colors: ThemeColors) {
+  return StyleSheet.create({
+    container:        { flex: 1, backgroundColor: colors.headerBgAlt },
+    header:           { flexDirection: "row", alignItems: "center", justifyContent: "space-between", paddingHorizontal: 16, paddingTop: 56, paddingBottom: 12, backgroundColor: colors.headerBgAlt },
+    headerBtn:        { width: 70 },
+    headerBtnText:    { color: colors.red, fontSize: 16 },
+    headerTitle:      { color: colors.text, fontSize: 16, fontWeight: "700" },
+    footer:           { backgroundColor: colors.bgMid, padding: 20, paddingBottom: 36, gap: 12, borderTopWidth: 1, borderColor: colors.borderFaint },
+    footerHint:       { color: colors.textSub, fontSize: 13, textAlign: "center" },
+    confirmBtn:       { backgroundColor: colors.red, borderRadius: 14, height: 48, alignItems: "center", justifyContent: "center" },
+    confirmBtnDisabled: { opacity: 0.4 },
+    // White text on the solid-red confirm button — stays readable in both themes.
+    confirmBtnText:   { color: "#fff", fontSize: 15, fontWeight: "700" },
+  });
+}
 
 // ── Main Screen ──────────────────────────────────────────────────────
 export default function CreateBubbleScreen() {
   const router = useRouter();
   const { user } = useAuth();
+  const { colors } = useTheme();
+  const s = useMemo(() => buildStyles(colors), [colors]);
 
   // Core fields
   const [name, setName]               = useState("");
@@ -340,7 +351,7 @@ export default function CreateBubbleScreen() {
         <TextInput
           style={s.input}
           placeholder="e.g. Downtown Crew"
-          placeholderTextColor="rgba(255,255,255,0.25)"
+          placeholderTextColor={colors.textGhost}
           value={name}
           onChangeText={setName}
         />
@@ -358,10 +369,10 @@ export default function CreateBubbleScreen() {
         {/* Time */}
         <Text style={s.label}>Meet Time</Text>
         <View style={s.pickerCard}>
-          <ScrollColumn items={HOURS}   initialIndex={11} onChange={setHour}   width={60} />
+          <ScrollColumn items={HOURS}   initialIndex={11} onChange={setHour}   width={60} colors={colors} />
           <Text style={s.colon}>:</Text>
-          <ScrollColumn items={MINUTES} initialIndex={0}  onChange={setMinute} width={60} />
-          <ScrollColumn items={PERIODS} initialIndex={1}  onChange={setPeriod} width={56} />
+          <ScrollColumn items={MINUTES} initialIndex={0}  onChange={setMinute} width={60} colors={colors} />
+          <ScrollColumn items={PERIODS} initialIndex={1}  onChange={setPeriod} width={56} colors={colors} />
         </View>
 
         {/* Location */}
@@ -376,7 +387,7 @@ export default function CreateBubbleScreen() {
             accessibilityRole="button"
           >
             {gpsLoading
-              ? <ActivityIndicator color="#fff" size="small" />
+              ? <ActivityIndicator color={colors.text} size="small" />
               : <Text style={[s.locModeBtnText, locationMode === "gps" && s.locModeBtnTextActive]}>📍 GPS</Text>
             }
           </Pressable>
@@ -409,7 +420,7 @@ export default function CreateBubbleScreen() {
               <TextInput
                 style={[s.input, { flex: 1 }]}
                 placeholder="123 Main St, Bloomsburg PA"
-                placeholderTextColor="rgba(255,255,255,0.25)"
+                placeholderTextColor={colors.textGhost}
                 value={addressInput}
                 onChangeText={handleAddressChange}
                 onSubmitEditing={handleAddressSearch}
@@ -508,7 +519,7 @@ export default function CreateBubbleScreen() {
         <TextInput
           style={s.input}
           placeholder="Leave blank for unlimited"
-          placeholderTextColor="rgba(255,255,255,0.25)"
+          placeholderTextColor={colors.textGhost}
           value={maxMembers}
           onChangeText={(v) => setMaxMembers(v.replace(/[^0-9]/g, ""))}
           keyboardType="number-pad"
@@ -519,7 +530,7 @@ export default function CreateBubbleScreen() {
         <TextInput
           style={[s.input, s.inputMulti]}
           placeholder="What's this bubble about? Where exactly? Bring anything?"
-          placeholderTextColor="rgba(255,255,255,0.25)"
+          placeholderTextColor={colors.textGhost}
           value={description}
           onChangeText={setDescription}
           multiline
@@ -552,123 +563,131 @@ export default function CreateBubbleScreen() {
           setLocationMode("map");
         }}
         onClose={() => setMapPickerVisible(false)}
+        colors={colors}
       />
     </>
   );
 }
 
 // ── Styles ───────────────────────────────────────────────────────────
-const s = StyleSheet.create({
-  container: { flex: 1, backgroundColor: "#0f0305" },
-  content:   { padding: 20, paddingBottom: 48, gap: 8 },
+function buildStyles(colors: ThemeColors) {
+  return StyleSheet.create({
+    container: { flex: 1, backgroundColor: colors.headerBgAlt },
+    content:   { padding: 20, paddingBottom: 48, gap: 8 },
 
-  label: {
-    color: "rgba(255,255,255,0.55)", fontSize: 11, letterSpacing: 1.3,
-    fontWeight: "600", marginTop: 16, marginBottom: 6, textTransform: "uppercase",
-  },
+    label: {
+      color: colors.textSub, fontSize: 11, letterSpacing: 1.3,
+      fontWeight: "600", marginTop: 16, marginBottom: 6, textTransform: "uppercase",
+    },
 
-  input: {
-    backgroundColor: "rgba(255,255,255,0.07)", borderWidth: 1,
-    borderColor: "rgba(255,255,255,0.12)", borderRadius: 12,
-    paddingHorizontal: 16, paddingVertical: 14, color: "#fff", fontSize: 16,
-  },
-  inputMulti: { minHeight: 100, paddingTop: 14 },
+    input: {
+      backgroundColor: colors.card, borderWidth: 1,
+      borderColor: colors.border, borderRadius: 12,
+      paddingHorizontal: 16, paddingVertical: 14, color: colors.text, fontSize: 16,
+    },
+    inputMulti: { minHeight: 100, paddingTop: 14 },
 
-  // Type chips
-  chipRow: { gap: 8, paddingVertical: 4 },
-  chip: {
-    paddingHorizontal: 14, paddingVertical: 8, borderRadius: 20,
-    borderWidth: 1, borderColor: "rgba(255,255,255,0.2)", backgroundColor: "rgba(255,255,255,0.05)",
-  },
-  chipActive:       { backgroundColor: "#dc2626", borderColor: "#dc2626" },
-  chipPurple:       { borderColor: "rgba(124,58,237,0.4)" },
-  chipPurpleActive: { backgroundColor: "#7c3aed", borderColor: "#7c3aed" },
-  chipText:         { color: "rgba(255,255,255,0.55)", fontSize: 13, fontWeight: "600" },
-  chipTextActive:   { color: "#fff" },
+    // Type chips
+    chipRow: { gap: 8, paddingVertical: 4 },
+    chip: {
+      paddingHorizontal: 14, paddingVertical: 8, borderRadius: 20,
+      borderWidth: 1, borderColor: colors.borderLight, backgroundColor: colors.cardFaint,
+    },
+    chipActive:       { backgroundColor: colors.red, borderColor: colors.red },
+    chipPurple:       { borderColor: "rgba(124,58,237,0.4)" },
+    chipPurpleActive: { backgroundColor: colors.purple, borderColor: colors.purple },
+    chipText:         { color: colors.textSub, fontSize: 13, fontWeight: "600" },
+    // White text on solid brand-color chip backgrounds — stays readable in both themes.
+    chipTextActive:   { color: "#fff" },
 
-  // Time picker
-  pickerCard: {
-    flexDirection: "row", alignItems: "center", justifyContent: "center",
-    backgroundColor: "rgba(255,255,255,0.04)", borderWidth: 1,
-    borderColor: "rgba(255,255,255,0.1)", borderRadius: 16, paddingVertical: 8, gap: 4,
-  },
-  colon: { color: "rgba(255,255,255,0.5)", fontSize: 26, fontWeight: "700", marginBottom: 4 },
+    // Time picker
+    pickerCard: {
+      flexDirection: "row", alignItems: "center", justifyContent: "center",
+      backgroundColor: colors.cardFaint, borderWidth: 1,
+      borderColor: colors.border, borderRadius: 16, paddingVertical: 8, gap: 4,
+    },
+    colon: { color: colors.textSub, fontSize: 26, fontWeight: "700", marginBottom: 4 },
 
-  // Location mode buttons
-  locModeRow: { flexDirection: "row", gap: 8 },
-  locModeBtn: {
-    flex: 1, paddingVertical: 12, borderRadius: 12, alignItems: "center",
-    borderWidth: 1, borderColor: "rgba(255,255,255,0.15)", backgroundColor: "rgba(255,255,255,0.05)",
-  },
-  locModeBtnActive:    { borderColor: "#dc2626", backgroundColor: "rgba(220,38,38,0.15)" },
-  locModeBtnText:      { color: "rgba(255,255,255,0.55)", fontSize: 13, fontWeight: "600" },
-  locModeBtnTextActive:{ color: "#fff" },
+    // Location mode buttons
+    locModeRow: { flexDirection: "row", gap: 8 },
+    locModeBtn: {
+      flex: 1, paddingVertical: 12, borderRadius: 12, alignItems: "center",
+      borderWidth: 1, borderColor: colors.borderLight, backgroundColor: colors.cardFaint,
+    },
+    locModeBtnActive:    { borderColor: colors.red, backgroundColor: colors.redSubtle },
+    locModeBtnText:      { color: colors.textSub, fontSize: 13, fontWeight: "600" },
+    // Active state sits on a translucent red tint, not solid red — needs themed
+    // (not white) text to stay legible against the lighter tint in light mode.
+    locModeBtnTextActive:{ color: colors.red },
 
-  // Address row
-  addressRow:    { flexDirection: "row", gap: 8, marginTop: 8 },
-  searchBtn:     {
-    backgroundColor: "#dc2626", borderRadius: 12,
-    paddingHorizontal: 16, alignItems: "center", justifyContent: "center",
-  },
-  searchBtnText: { color: "#fff", fontWeight: "700", fontSize: 14 },
-  addressError:  { color: "rgba(220,38,38,0.8)", fontSize: 12, marginTop: 4 },
+    // Address row
+    addressRow:    { flexDirection: "row", gap: 8, marginTop: 8 },
+    searchBtn:     {
+      backgroundColor: colors.red, borderRadius: 12,
+      paddingHorizontal: 16, alignItems: "center", justifyContent: "center",
+    },
+    searchBtnText: { color: "#fff", fontWeight: "700", fontSize: 14 },
+    addressError:  { color: colors.red, fontSize: 12, marginTop: 4 },
 
-  // Autocomplete suggestions
-  suggestionsBox: {
-    backgroundColor: "#1a0808",
-    borderWidth: 1,
-    borderColor: "rgba(255,255,255,0.12)",
-    borderRadius: 12,
-    marginTop: 4,
-    overflow: "hidden",
-  },
-  suggestionItem: {
-    paddingHorizontal: 14,
-    paddingVertical: 12,
-  },
-  suggestionDivider: {
-    borderBottomWidth: 1,
-    borderBottomColor: "rgba(255,255,255,0.07)",
-  },
-  suggestionPressed: {
-    backgroundColor: "rgba(220,38,38,0.12)",
-  },
-  suggestionText: {
-    color: "rgba(255,255,255,0.85)",
-    fontSize: 13,
-    lineHeight: 18,
-  },
+    // Autocomplete suggestions
+    suggestionsBox: {
+      backgroundColor: colors.bgMid,
+      borderWidth: 1,
+      borderColor: colors.border,
+      borderRadius: 12,
+      marginTop: 4,
+      overflow: "hidden",
+    },
+    suggestionItem: {
+      paddingHorizontal: 14,
+      paddingVertical: 12,
+    },
+    suggestionDivider: {
+      borderBottomWidth: 1,
+      borderBottomColor: colors.borderFaint,
+    },
+    suggestionPressed: {
+      backgroundColor: colors.redSubtle,
+    },
+    suggestionText: {
+      color: colors.text,
+      fontSize: 13,
+      lineHeight: 18,
+    },
 
-  // Coord pill
-  coordPill: {
-    flexDirection: "row", alignItems: "center", justifyContent: "space-between",
-    backgroundColor: "rgba(220,38,38,0.12)", borderWidth: 1, borderColor: "rgba(220,38,38,0.35)",
-    borderRadius: 10, paddingHorizontal: 14, paddingVertical: 10, marginTop: 8,
-  },
-  coordPillText: { color: "#fff", fontSize: 13, fontWeight: "600" },
-  coordClear:    { color: "rgba(255,255,255,0.4)", fontSize: 16, paddingLeft: 8 },
+    // Coord pill
+    coordPill: {
+      flexDirection: "row", alignItems: "center", justifyContent: "space-between",
+      backgroundColor: colors.redSubtle, borderWidth: 1, borderColor: colors.redBorder,
+      borderRadius: 10, paddingHorizontal: 14, paddingVertical: 10, marginTop: 8,
+    },
+    // Themed (not white) text — sits on a translucent red tint, same reasoning as locModeBtnTextActive.
+    coordPillText: { color: colors.text, fontSize: 13, fontWeight: "600" },
+    coordClear:    { color: colors.textMuted, fontSize: 16, paddingLeft: 8 },
 
-  // Secret toggle
-  secretRow: {
-    flexDirection: "row", alignItems: "center", justifyContent: "space-between",
-    marginTop: 20, backgroundColor: "rgba(255,255,255,0.04)",
-    borderWidth: 1, borderColor: "rgba(255,255,255,0.1)",
-    borderRadius: 14, padding: 16,
-  },
-  secretLabel: { color: "#fff", fontSize: 15, fontWeight: "700" },
-  secretSub:   { color: "rgba(255,255,255,0.4)", fontSize: 12, marginTop: 2 },
-  toggle: {
-    width: 50, height: 28, borderRadius: 14,
-    backgroundColor: "rgba(255,255,255,0.15)", justifyContent: "center", padding: 2,
-  },
-  toggleOn:      { backgroundColor: "#7c3aed" },
-  toggleThumb:   { width: 24, height: 24, borderRadius: 12, backgroundColor: "#fff" },
-  toggleThumbOn: { alignSelf: "flex-end" },
+    // Secret toggle
+    secretRow: {
+      flexDirection: "row", alignItems: "center", justifyContent: "space-between",
+      marginTop: 20, backgroundColor: colors.cardFaint,
+      borderWidth: 1, borderColor: colors.border,
+      borderRadius: 14, padding: 16,
+    },
+    secretLabel: { color: colors.text, fontSize: 15, fontWeight: "700" },
+    secretSub:   { color: colors.textMuted, fontSize: 12, marginTop: 2 },
+    toggle: {
+      width: 50, height: 28, borderRadius: 14,
+      backgroundColor: colors.borderLight, justifyContent: "center", padding: 2,
+    },
+    toggleOn:      { backgroundColor: colors.purple },
+    // White thumb regardless of theme — standard toggle-knob convention.
+    toggleThumb:   { width: 24, height: 24, borderRadius: 12, backgroundColor: "#fff" },
+    toggleThumbOn: { alignSelf: "flex-end" },
 
-  // Create button
-  createBtn: {
-    backgroundColor: "#dc2626", borderRadius: 14, height: 52,
-    alignItems: "center", justifyContent: "center", marginTop: 24,
-  },
-  createBtnText: { color: "#fff", fontSize: 16, fontWeight: "700", letterSpacing: 0.5 },
-});
+    // Create button
+    createBtn: {
+      backgroundColor: colors.red, borderRadius: 14, height: 52,
+      alignItems: "center", justifyContent: "center", marginTop: 24,
+    },
+    createBtnText: { color: "#fff", fontSize: 16, fontWeight: "700", letterSpacing: 0.5 },
+  });
+}
