@@ -167,11 +167,13 @@ function MemberEmoji({
 // Compact map of everyone currently sharing their location. Coordinates
 // arrive via the Realtime UPDATE subscription, so markers move live.
 function LiveMemberMap({
-  members, me, colors,
+  members, me, colors, getLabel, getEmoji,
 }: {
   members: { username: string; latitude?: number; longitude?: number; profileEmoji?: string }[];
   me: string | null | undefined;
   colors: ThemeColors;
+  getLabel: (username: string) => string;
+  getEmoji: (username: string, profileEmoji?: string) => string;
 }) {
   const lm = useMemo(() => buildLmStyles(colors), [colors]);
   const mapRef = useRef<MapView>(null);
@@ -204,11 +206,11 @@ function LiveMemberMap({
           <Marker
             key={m.username}
             coordinate={{ latitude: m.latitude!, longitude: m.longitude! }}
-            title={m.username === me ? `${m.username} (you)` : m.username}
+            title={m.username === me ? `${getLabel(m.username)} (you)` : getLabel(m.username)}
             anchor={{ x: 0.5, y: 0.5 }}
           >
             <View style={[lm.marker, m.username === me && lm.markerMe]}>
-              <Text style={lm.markerEmoji}>{m.profileEmoji || emojiForUser(m.username)}</Text>
+              <Text style={lm.markerEmoji}>{getEmoji(m.username, m.profileEmoji)}</Text>
             </View>
           </Marker>
         ))}
@@ -721,6 +723,33 @@ export default function BubbleDetailScreen() {
   const isHost = bubble?.createdBy === user;
   const concluded = !!(bubble?.endsAt && new Date(bubble.endsAt) < new Date());
 
+  // ── Anonymous mode (secret bubbles, pre-reveal) ───────────────────
+  // Host identity always stays visible; everyone else shows as "Guest N"
+  // (stable alphabetical order) until bubble.revealAt passes. Client-side
+  // display only — real usernames still drive every API call underneath.
+  const anonymous = !!(bubble?.isSecret && bubble?.revealAt && new Date(bubble.revealAt) > new Date());
+  const isAnonymized = useCallback(
+    (username: string) => anonymous && username !== user && username !== bubble?.createdBy,
+    [anonymous, user, bubble?.createdBy]
+  );
+  const anonLabel = useCallback(
+    (username: string): string => {
+      if (!bubble) return username;
+      const idx = [...bubble.members].sort().indexOf(username);
+      return idx >= 0 ? `Guest ${idx + 1}` : "Guest";
+    },
+    [bubble]
+  );
+  const displayName = useCallback(
+    (username: string) => (isAnonymized(username) ? anonLabel(username) : username),
+    [isAnonymized, anonLabel]
+  );
+  const displayEmoji = useCallback(
+    (username: string, profileEmoji?: string) =>
+      isAnonymized(username) ? emojiForUser(anonLabel(username)) : (profileEmoji || emojiForUser(username)),
+    [isAnonymized, anonLabel]
+  );
+
   if (!loading && loadError) {
     return <ErrorScreen message="Couldn't load this hangout." onRetry={load} />;
   }
@@ -807,6 +836,16 @@ export default function BubbleDetailScreen() {
         </View>
       )}
 
+      {/* Anonymous-mode banner */}
+      {!concluded && anonymous && (
+        <View style={s.anonBanner}>
+          <Ionicons name="eye-off-outline" size={14} color="#c4b5fd" />
+          <Text style={s.anonBannerText}>
+            Identities hidden until {fmtTime(bubble!.revealAt!)}
+          </Text>
+        </View>
+      )}
+
       {/* ── Bubble Visual Container ──────────────────────────────── */}
       <View style={vs.container}>
         {visibleMembers.length === 0 ? (
@@ -816,8 +855,8 @@ export default function BubbleDetailScreen() {
             {visibleMembers.map((m) => (
               <MemberEmoji
                 key={m.username}
-                username={m.username}
-                emoji={m.profileEmoji || undefined}
+                username={displayName(m.username)}
+                emoji={displayEmoji(m.username, m.profileEmoji)}
                 isNew={isNewMember(m.username)}
                 isTyping={typingUsers.includes(m.username) && m.username !== user}
                 hasNewMsg={newMsgSenders.has(m.username)}
@@ -875,7 +914,15 @@ export default function BubbleDetailScreen() {
                   <View style={[s.toggleThumb, sharing && s.toggleThumbOn]} />
                 </View>
               </Pressable>
-              {sharingMembers.length > 0 && <LiveMemberMap members={sharingMembers} me={user} colors={colors} />}
+              {sharingMembers.length > 0 && (
+                <LiveMemberMap
+                  members={sharingMembers}
+                  me={user}
+                  colors={colors}
+                  getLabel={displayName}
+                  getEmoji={displayEmoji}
+                />
+              )}
             </View>
           }
           renderItem={({ item: m }) => {
@@ -885,16 +932,17 @@ export default function BubbleDetailScreen() {
               const km = haversineKm(myLocation.latitude, myLocation.longitude, m.latitude!, m.longitude!);
               distLine = etaText(km);
             }
+            const hidden = isAnonymized(m.username);
             return (
               <Pressable
                 style={[s.memberCard, isMe && s.memberCardMe]}
-                onPress={() => !isMe && router.push({ pathname: "/user-profile", params: { username: m.username } })}
+                onPress={() => !isMe && !hidden && router.push({ pathname: "/user-profile", params: { username: m.username } })}
               >
                 <View style={s.memberAvatar}>
-                  <Text style={s.memberAvatarText}>{m.profileEmoji || emojiForUser(m.username)}</Text>
+                  <Text style={s.memberAvatarText}>{displayEmoji(m.username, m.profileEmoji)}</Text>
                 </View>
                 <View style={{ flex: 1 }}>
-                  <Text style={s.memberName}>{m.username}{isMe ? " (you)" : ""}</Text>
+                  <Text style={s.memberName}>{displayName(m.username)}{isMe ? " (you)" : ""}</Text>
                   {m.shareLocation
                     ? distLine
                       ? <Text style={s.memberEta}>{distLine}</Text>
@@ -944,12 +992,12 @@ export default function BubbleDetailScreen() {
                   {!isMe && (
                     <View style={s.msgAvatar}>
                       <Text style={s.msgAvatarEmoji}>
-                        {members.find((m) => m.username === msg.username)?.profileEmoji || emojiForUser(msg.username)}
+                        {displayEmoji(msg.username, members.find((m) => m.username === msg.username)?.profileEmoji)}
                       </Text>
                     </View>
                   )}
                   <View style={[s.msgBubble, isMe && s.msgBubbleMe]}>
-                    {!isMe && <Text style={s.msgUsername}>{msg.username}</Text>}
+                    {!isMe && <Text style={s.msgUsername}>{displayName(msg.username)}</Text>}
                     {!!msg.imageUrl && (
                       <Image source={{ uri: msg.imageUrl }} style={s.msgImage} contentFit="cover" transition={150} />
                     )}
@@ -1364,6 +1412,13 @@ function buildStyles(colors: ThemeColors) {
       borderColor: "rgba(251,191,36,0.25)", paddingHorizontal: 16, paddingVertical: 8,
     },
     concludedBannerText: { color: "#fbbf24", fontSize: 13, fontWeight: "600" },
+    // Fixed purple accent — same precedent as notifications.tsx's type icons.
+    anonBanner: {
+      flexDirection: "row", alignItems: "center", gap: 6,
+      backgroundColor: "rgba(124,58,237,0.12)", borderBottomWidth: 1,
+      borderColor: "rgba(124,58,237,0.25)", paddingHorizontal: 16, paddingVertical: 8,
+    },
+    anonBannerText: { color: "#c4b5fd", fontSize: 13, fontWeight: "600" },
     concludedInput: {
       paddingHorizontal: 16, paddingVertical: 12,
       borderTopWidth: 1, borderColor: colors.borderFaint,
