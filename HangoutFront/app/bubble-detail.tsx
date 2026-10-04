@@ -13,7 +13,7 @@ import MapView, { Marker, PROVIDER_GOOGLE, PROVIDER_DEFAULT } from "react-native
 import {
   getBubbleById, getBubbleMembers, updateMemberLocation,
   getBubbleChannels, switchChannel, getMessages, sendMessage,
-  deleteBubble, leaveBubble, notifyTyping, getTypingUsers,
+  deleteBubble, leaveBubble,
   getBlockedUsers, reportMessage, getDiscussions, createDiscussion,
   uploadChatImage,
 } from "@/services/api";
@@ -27,6 +27,7 @@ import { Ionicons } from "@expo/vector-icons";
 import * as Haptics from "expo-haptics";
 import { ScreenBackground } from "@/components/ScreenBackground";
 import { supabase } from "@/services/supabase";
+import type { RealtimeChannel } from "@supabase/supabase-js";
 
 // ── Emoji helpers ─────────────────────────────────────────────────────
 const FACE_EMOJIS = [
@@ -339,6 +340,7 @@ export default function BubbleDetailScreen() {
   const seenVisualRef      = useRef<Set<string>>(new Set());
   const firstMemberLoadRef = useRef(false);
   const lastTypingNotifRef = useRef(0);
+  const typingChannelRef   = useRef<RealtimeChannel | null>(null);
 
   // ── Data loading ────────────────────────────────────────────────
   const loadBubble = useCallback(async (): Promise<boolean> => {
@@ -511,6 +513,7 @@ export default function BubbleDetailScreen() {
 
           if (row.username !== user) {
             setNewMsgSenders((prev) => { const next = new Set(prev); next.add(row.username); return next; });
+            setTypingUsers((prev) => prev.filter((u) => u !== row.username));
           }
 
           setTimeout(() => msgListRef.current?.scrollToEnd({ animated: true }), 50);
@@ -520,6 +523,35 @@ export default function BubbleDetailScreen() {
 
     return () => { supabase.removeChannel(ch); };
   }, [tab, bubbleId, channelId, user, loadMessages, loadChannels]);
+
+  // Typing indicators — ephemeral Realtime Broadcast (no DB writes). Stays
+  // subscribed on every tab since the dots render on the Members grid.
+  // Each ping keeps a typer visible for 4s; their next message clears it.
+  useEffect(() => {
+    const timers = new Map<string, ReturnType<typeof setTimeout>>();
+    const ch = supabase
+      .channel(`typing-${bubbleId}-${channelId}`, { config: { broadcast: { self: false } } })
+      .on("broadcast", { event: "typing" }, ({ payload }) => {
+        const name = payload?.username;
+        if (typeof name !== "string" || name === user) return;
+        setTypingUsers((prev) => (prev.includes(name) ? prev : [...prev, name]));
+        const existing = timers.get(name);
+        if (existing) clearTimeout(existing);
+        timers.set(name, setTimeout(() => {
+          setTypingUsers((prev) => prev.filter((u) => u !== name));
+          timers.delete(name);
+        }, 4000));
+      })
+      .subscribe();
+    typingChannelRef.current = ch;
+
+    return () => {
+      timers.forEach(clearTimeout);
+      supabase.removeChannel(ch);
+      typingChannelRef.current = null;
+      setTypingUsers([]);
+    };
+  }, [bubbleId, channelId, user]);
 
   // Reset msg tracking when channel changes
   useEffect(() => {
@@ -594,7 +626,7 @@ export default function BubbleDetailScreen() {
       const now = Date.now();
       if (now - lastTypingNotifRef.current > 2000) {
         lastTypingNotifRef.current = now;
-        notifyTyping(bubbleId, user).catch(() => {});
+        typingChannelRef.current?.send({ type: "broadcast", event: "typing", payload: { username: user } });
       }
     }
   };
@@ -1016,6 +1048,19 @@ export default function BubbleDetailScreen() {
               <Text style={s.concludedInputText}>This bubble has ended — chat is read-only</Text>
             </View>
           ) : (
+          <>
+          {typingUsers.some((u) => !blockedUsers.has(u)) && (
+            <Text style={s.typingLine} numberOfLines={1}>
+              {(() => {
+                const names = typingUsers.filter((u) => !blockedUsers.has(u)).map(displayName);
+                return names.length === 1
+                  ? `${names[0]} is typing…`
+                  : names.length === 2
+                  ? `${names[0]} and ${names[1]} are typing…`
+                  : "Several people are typing…";
+              })()}
+            </Text>
+          )}
           <View style={s.inputRow}>
             <Pressable style={s.attachBtn} onPress={handleSendImage} disabled={sending}>
               <Ionicons name="image-outline" size={22} color={colors.textSub} />
@@ -1041,6 +1086,7 @@ export default function BubbleDetailScreen() {
               }
             </Pressable>
           </View>
+          </>
           )}
         </View>
       )}
@@ -1420,6 +1466,7 @@ function buildStyles(colors: ThemeColors) {
       borderColor: "rgba(124,58,237,0.25)", paddingHorizontal: 16, paddingVertical: 8,
     },
     anonBannerText: { color: "#c4b5fd", fontSize: 13, fontWeight: "600" },
+    typingLine: { color: colors.textMuted, fontSize: 12, fontStyle: "italic", paddingHorizontal: 16, paddingBottom: 4 },
     concludedInput: {
       paddingHorizontal: 16, paddingVertical: 12,
       borderTopWidth: 1, borderColor: colors.borderFaint,

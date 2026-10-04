@@ -463,10 +463,6 @@ export async function sendMessage(
   };
 }
 
-// Typing indicators — ephemeral, handled via Realtime Broadcast in future
-export async function notifyTyping(_id: number, _username: string): Promise<void> {}
-export async function getTypingUsers(_id: number): Promise<string[]> { return []; }
-
 // ── Pages ─────────────────────────────────────────────────────────────────────
 
 export async function getPages(username?: string): Promise<any[]> {
