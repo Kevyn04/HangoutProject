@@ -45,6 +45,58 @@ Deno.serve(async (req) => {
     const { type, data } = await req.json();
     const payload = data ?? {};
 
+    // ── Direct messages ──────────────────────────────────────────────────────
+    // Push only — DMs have their own inbox, so no notifications row (and so
+    // not counted by the rate limit below; DM inserts are already capped at
+    // 30/min by the enforce_rate_limit trigger). Atomically claiming
+    // push_sent means each message can notify at most once, and only within
+    // 2 minutes of being sent, by its real sender.
+    if (type === 'dm') {
+      const messageId = Number(payload.messageId);
+      if (!messageId) return json({ error: 'Bad request' }, 400);
+
+      const { data: dm } = await supabase
+        .from('direct_messages')
+        .update({ push_sent: true })
+        .eq('id', messageId)
+        .eq('sender_username', actor)
+        .eq('push_sent', false)
+        .gte('created_at', new Date(Date.now() - 120_000).toISOString())
+        .select('recipient_username, content')
+        .maybeSingle();
+      if (!dm) return json({ success: true, skipped: 'not eligible' });
+
+      // dm_insert already blocks this, but a block could land in between.
+      const { data: block } = await supabase
+        .from('blocked_users').select('id')
+        .eq('blocker', dm.recipient_username).eq('blocked', actor)
+        .maybeSingle();
+      if (block) return json({ success: true, skipped: 'blocked' });
+
+      const { data: profile } = await supabase
+        .from('profiles').select('push_token').eq('username', dm.recipient_username).single();
+      if (profile?.push_token) {
+        const preview = dm.content.length > 140 ? `${dm.content.slice(0, 137)}…` : dm.content;
+        await fetch('https://exp.host/--/api/v2/push/send', {
+          method: 'POST',
+          headers: {
+            'Content-Type': 'application/json',
+            Accept: 'application/json',
+            'Accept-Encoding': 'gzip, deflate',
+          },
+          body: JSON.stringify({
+            to: profile.push_token,
+            title: actor,
+            body: preview,
+            data: { type: 'dm', sender: actor },
+            sound: 'default',
+            priority: 'high',
+          }),
+        });
+      }
+      return json({ success: true });
+    }
+
     // ── Rate limit per actor ─────────────────────────────────────────────────
     const since = new Date(Date.now() - 60_000).toISOString();
     const { count } = await supabase

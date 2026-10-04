@@ -4,6 +4,8 @@ import {
   KeyboardAvoidingView, Platform, ActivityIndicator,
 } from "react-native";
 import { useLocalSearchParams, useRouter } from "expo-router";
+import { useFocusEffect } from "@react-navigation/native";
+import { setActiveDmPartner } from "@/hooks/use-push-notifications";
 import { Ionicons } from "@expo/vector-icons";
 import { useAuth } from "@/services/auth-context";
 import { useTheme } from "@/services/theme-context";
@@ -53,6 +55,12 @@ export default function DmChatScreen() {
       setLoading(false);
     }
   }, [user, partner]);
+
+  // Suppress push banners for this conversation while it's on screen.
+  useFocusEffect(useCallback(() => {
+    setActiveDmPartner(partner ?? null);
+    return () => setActiveDmPartner(null);
+  }, [partner]));
 
   useEffect(() => {
     if (!user || !partner) return;

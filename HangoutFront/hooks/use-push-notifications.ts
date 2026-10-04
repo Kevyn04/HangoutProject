@@ -4,14 +4,25 @@ import * as Notifications from "expo-notifications";
 import { Platform } from "react-native";
 import { registerPushToken } from "@/services/api";
 
+// The DM partner whose chat is open right now (set by dm-chat.tsx), so a
+// push for a message you're already looking at doesn't banner/buzz.
+let activeDmPartner: string | null = null;
+export function setActiveDmPartner(partner: string | null) {
+  activeDmPartner = partner;
+}
+
 Notifications.setNotificationHandler({
-  handleNotification: async () => ({
-    shouldShowAlert: true,
-    shouldPlaySound: true,
-    shouldSetBadge: false,
-    shouldShowBanner: true,
-    shouldShowList: true,
-  }),
+  handleNotification: async (notification) => {
+    const data = (notification.request.content.data ?? {}) as Record<string, any>;
+    const show = !(data.type === "dm" && data.sender && data.sender === activeDmPartner);
+    return {
+      shouldShowAlert: show,
+      shouldPlaySound: show,
+      shouldSetBadge: false,
+      shouldShowBanner: show,
+      shouldShowList: show,
+    };
+  },
 });
 
 export function usePushNotifications(username: string | null) {
@@ -63,7 +74,9 @@ export function useNotificationTapRouting(ready: boolean) {
     Notifications.clearLastNotificationResponse();
 
     const data = (response.notification.request.content.data ?? {}) as Record<string, any>;
-    if (data.type === "invite") {
+    if (data.type === "dm" && data.sender) {
+      router.push({ pathname: "/dm-chat", params: { partner: String(data.sender) } });
+    } else if (data.type === "invite") {
       // Invites are accepted/declined from the inbox, not the target screen.
       router.push("/notifications");
     } else if (data.bubbleId) {

@@ -1698,6 +1698,11 @@ export async function sendDM(senderUsername: string, recipientUsername: string, 
     .single();
 
   if (error) throw new Error(error.message);
+
+  // Fire-and-forget push. The server derives recipient + text from the row;
+  // title/body here are ignored.
+  sendPushNotification(recipientUsername, 'dm', '', '', { messageId: data.id });
+
   return {
     id: data.id,
     senderUsername: data.sender_username,
