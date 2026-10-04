@@ -10,6 +10,7 @@ import type { ThemeColors } from "@/constants/theme";
 import { useToast } from "@/context/ToastContext";
 import { getDiscussionReplies, addDiscussionReply } from "@/services/api";
 import { ScreenBackground } from "@/components/ScreenBackground";
+import { useBlockedUsers } from "@/hooks/use-blocked-users";
 
 type Reply = { id: number; username: string; content: string; createdAt: string };
 
@@ -34,6 +35,11 @@ export default function DiscussionDetailScreen() {
   const [input, setInput] = useState("");
   const [sending, setSending] = useState(false);
   const listRef = useRef<FlatList>(null);
+  const blocked = useBlockedUsers(user);
+  const visibleReplies = useMemo(
+    () => replies.filter((r) => r.username === user || !blocked.has(r.username)),
+    [replies, blocked, user],
+  );
 
   useEffect(() => {
     getDiscussionReplies(did)
@@ -63,7 +69,7 @@ export default function DiscussionDetailScreen() {
       <KeyboardAvoidingView style={{ flex: 1 }} behavior={Platform.OS === "ios" ? "padding" : undefined} keyboardVerticalOffset={90}>
         <FlatList
           ref={listRef}
-          data={replies}
+          data={visibleReplies}
           keyExtractor={(r) => String(r.id)}
           contentContainerStyle={s.list}
           ListHeaderComponent={

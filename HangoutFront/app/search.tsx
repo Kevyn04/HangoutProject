@@ -7,6 +7,7 @@ import { useRouter } from "expo-router";
 import { Ionicons } from "@expo/vector-icons";
 import * as Haptics from "expo-haptics";
 import { searchUsers, searchEvents, searchBubbles } from "@/services/api";
+import { useBlockedUsers } from "@/hooks/use-blocked-users";
 import { ScreenBackground } from "@/components/ScreenBackground";
 import { useAuth } from "@/services/auth-context";
 import { useTheme } from "@/services/theme-context";
@@ -33,6 +34,9 @@ export default function SearchScreen() {
   const [events, setEvents]     = useState<EventResult[]>([]);
   const [bubbles, setBubbles]   = useState<BubbleResult[]>([]);
   const [searched, setSearched] = useState(false);
+  // Blocked users stay findable in the Users tab (their profile is where you
+  // unblock), but content they created is hidden.
+  const blocked = useBlockedUsers(user);
 
   const debounceRef = useRef<ReturnType<typeof setTimeout> | null>(null);
 
@@ -50,12 +54,14 @@ export default function SearchScreen() {
         searchEvents(q),
         searchBubbles(q),
       ]);
-      setUsers(u); setEvents(e); setBubbles(b);
+      setUsers(u);
+      setEvents(e.filter((ev: EventResult) => !blocked.has(ev.createdBy)));
+      setBubbles(b.filter((bb: BubbleResult) => !blocked.has(bb.createdBy)));
     } catch {
       setSearchError(true);
     }
     setLoading(false);
-  }, [user]);
+  }, [user, blocked]);
 
   const handleChange = (text: string) => {
     setQuery(text);

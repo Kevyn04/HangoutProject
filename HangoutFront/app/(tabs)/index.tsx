@@ -15,7 +15,7 @@ import {
   ActivityItem, getFollowingFeed, getDiscoverFeed, getSuggestedFeed,
   getSuggestedUsers, toggleUserFollow, getUnreadNotificationCount, getUnreadInviteCount,
   getUnreadDMCount, getActiveStories, postStory, StoryGroup,
-  updateMyCoarseLocation,
+  updateMyCoarseLocation, getBlockedUsers,
 } from "@/services/api";
 import { SkeletonBox } from "@/components/SkeletonBox";
 import { EmptyState } from "@/components/EmptyState";
@@ -206,8 +206,13 @@ export default function FeedScreen() {
     if (!silent) setLoading(true);
     setLoadError(false);
     try {
-      const [discover] = await Promise.all([getDiscoverFeed(user ?? undefined)]);
-      setDiscoverFeed(discover);
+      const [discover, blockedList] = await Promise.all([
+        getDiscoverFeed(user ?? undefined),
+        user ? getBlockedUsers(user).catch(() => [] as string[]) : Promise.resolve([] as string[]),
+      ]);
+      const blocked = new Set(blockedList);
+      const notBlocked = (item: { username: string }) => !blocked.has(item.username);
+      setDiscoverFeed(discover.filter(notBlocked));
       if (user) {
         const coords = await getQuietCoords();
         if (coords) updateMyCoarseLocation(user, coords.latitude, coords.longitude);
@@ -221,9 +226,9 @@ export default function FeedScreen() {
           getActiveStories(user).catch(() => [] as StoryGroup[]),
           AsyncStorage.getItem("@hangout/seen_stories").catch(() => null),
         ]);
-        setFollowingFeed(feed);
-        setSuggestedFeed(suggested);
-        setSuggestions(sugg);
+        setFollowingFeed(feed.filter(notBlocked));
+        setSuggestedFeed(suggested.filter(notBlocked));
+        setSuggestions(sugg.filter(notBlocked));
         setBellCount(notifCount + inviteCount);
         setDmCount(dmUnread);
         setStoryGroups(stories);

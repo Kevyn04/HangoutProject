@@ -719,6 +719,7 @@ export default function BubbleDetailScreen() {
     (m) => m.shareLocation && m.latitude != null && m.longitude != null
   );
   const visibleMessages = messages.filter((m) => m.username === user || !blockedUsers.has(m.username));
+  const visibleDiscussions = discussions.filter((d) => d.createdBy === user || !blockedUsers.has(d.createdBy));
   const membersInChannel = visibleMembers.filter((m) => (m.channelId ?? 1) === channelId);
   const isHost = bubble?.createdBy === user;
   const concluded = !!(bubble?.endsAt && new Date(bubble.endsAt) < new Date());
@@ -1048,7 +1049,7 @@ export default function BubbleDetailScreen() {
       {tab === "discussions" && (
         <View style={{ flex: 1 }}>
           <View style={s.discHeader}>
-            <Text style={s.discHeaderTitle}>{discussions.length} Discussion{discussions.length !== 1 ? "s" : ""}</Text>
+            <Text style={s.discHeaderTitle}>{visibleDiscussions.length} Discussion{visibleDiscussions.length !== 1 ? "s" : ""}</Text>
             <Pressable style={s.discNewBtn} onPress={() => setShowNewDisc(true)}>
               <Text style={s.discNewBtnText}>+ New Post</Text>
             </Pressable>
@@ -1057,7 +1058,7 @@ export default function BubbleDetailScreen() {
             <ActivityIndicator color={colors.text} style={{ marginTop: 20 }} />
           ) : (
             <FlatList
-              data={discussions}
+              data={visibleDiscussions}
               keyExtractor={(d) => String(d.id)}
               contentContainerStyle={{ padding: 16, gap: 10 }}
               ListEmptyComponent={<Text style={s.discEmpty}>No discussions yet. Start one!</Text>}

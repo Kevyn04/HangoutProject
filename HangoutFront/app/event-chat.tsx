@@ -14,6 +14,7 @@ import { useToast } from "@/context/ToastContext";
 import { getEventMessages, sendEventMessage, uploadChatImage } from "@/services/api";
 import { supabase } from "@/services/supabase";
 import { ScreenBackground } from "@/components/ScreenBackground";
+import { useBlockedUsers } from "@/hooks/use-blocked-users";
 
 type Msg = { id: number; username: string; message: string; imageUrl?: string | null; createdAt: string };
 
@@ -34,6 +35,11 @@ export default function EventChatScreen() {
   const [input, setInput] = useState("");
   const [sending, setSending] = useState(false);
   const listRef = useRef<FlatList>(null);
+  const blocked = useBlockedUsers(user);
+  const visibleMessages = useMemo(
+    () => messages.filter((m) => m.username === user || !blocked.has(m.username)),
+    [messages, blocked, user],
+  );
 
   const load = useCallback(async () => {
     try {
@@ -103,7 +109,7 @@ export default function EventChatScreen() {
       <KeyboardAvoidingView style={{ flex: 1 }} behavior={Platform.OS === "ios" ? "padding" : undefined} keyboardVerticalOffset={90}>
         <FlatList
           ref={listRef}
-          data={messages}
+          data={visibleMessages}
           keyExtractor={(m) => String(m.id)}
           contentContainerStyle={s.list}
           ListEmptyComponent={<Text style={s.empty}>No messages yet. Say hi!</Text>}

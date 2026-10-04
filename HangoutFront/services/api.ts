@@ -1247,6 +1247,13 @@ export async function getIsBlocked(blocker: string, blocked: string): Promise<bo
   return !!data;
 }
 
+// False when either side has blocked the other (enforced by dm_insert RLS).
+export async function canDM(recipient: string): Promise<boolean> {
+  const { data, error } = await supabase.rpc('can_dm', { recipient });
+  if (error) return true; // fail open in the UI — RLS still enforces it
+  return data !== false;
+}
+
 export async function getBlockedUsers(username: string): Promise<string[]> {
   const { data, error } = await supabase
     .from('blocked_users').select('blocked').eq('blocker', username);
@@ -1629,9 +1636,11 @@ export async function getDMConversations(myUsername: string): Promise<DmConversa
 
   if (error) throw new Error(error.message);
 
+  const blocked = new Set(await getBlockedUsers(myUsername).catch(() => [] as string[]));
   const convMap = new Map<string, DmConversation>();
   for (const row of data ?? []) {
     const partner = row.sender_username === myUsername ? row.recipient_username : row.sender_username;
+    if (blocked.has(partner)) continue;
     if (!convMap.has(partner)) {
       convMap.set(partner, {
         partner,
@@ -1696,10 +1705,14 @@ export async function markDMsRead(myUsername: string, partnerUsername: string): 
 }
 
 export async function getUnreadDMCount(myUsername: string): Promise<number> {
-  const { count } = await supabase
+  const blocked = await getBlockedUsers(myUsername).catch(() => [] as string[]);
+  let query = supabase
     .from('direct_messages')
     .select('*', { count: 'exact', head: true })
     .eq('recipient_username', myUsername)
     .eq('read', false);
+  // Usernames are DB-constrained to [a-z0-9_], so they're safe in an in-list.
+  if (blocked.length) query = query.not('sender_username', 'in', `(${blocked.join(',')})`);
+  const { count } = await query;
   return count ?? 0;
 }

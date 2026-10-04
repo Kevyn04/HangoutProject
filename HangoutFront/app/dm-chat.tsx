@@ -9,7 +9,7 @@ import { useAuth } from "@/services/auth-context";
 import { useTheme } from "@/services/theme-context";
 import type { ThemeColors } from "@/constants/theme";
 import { useToast } from "@/context/ToastContext";
-import { getDMMessages, sendDM, markDMsRead, DmMessage } from "@/services/api";
+import { getDMMessages, sendDM, markDMsRead, canDM, getIsBlocked, DmMessage } from "@/services/api";
 import { supabase } from "@/services/supabase";
 import { ScreenBackground } from "@/components/ScreenBackground";
 import { UserAvatar } from "@/components/UserAvatar";
@@ -31,6 +31,8 @@ export default function DmChatScreen() {
   const [input, setInput] = useState("");
   const [loading, setLoading] = useState(true);
   const [sending, setSending] = useState(false);
+  // null = still checking; "blocked" = I blocked them; "unavailable" = they blocked me
+  const [blockState, setBlockState] = useState<null | "ok" | "blocked" | "unavailable">(null);
   const listRef = useRef<FlatList>(null);
 
   const scrollToBottom = (animated = true) =>
@@ -48,6 +50,13 @@ export default function DmChatScreen() {
     } finally {
       setLoading(false);
     }
+  }, [user, partner]);
+
+  useEffect(() => {
+    if (!user || !partner) return;
+    Promise.all([getIsBlocked(user, partner), canDM(partner)])
+      .then(([iBlocked, allowed]) => setBlockState(iBlocked ? "blocked" : allowed ? "ok" : "unavailable"))
+      .catch(() => setBlockState("ok"));
   }, [user, partner]);
 
   useEffect(() => {
@@ -146,6 +155,16 @@ export default function DmChatScreen() {
           />
         )}
 
+        {blockState === "blocked" || blockState === "unavailable" ? (
+          <View style={s.blockedRow}>
+            <Ionicons name="ban-outline" size={16} color={colors.textMuted} />
+            <Text style={s.blockedText}>
+              {blockState === "blocked"
+                ? "You blocked this user. Unblock them from their profile to message."
+                : "You can't message this user."}
+            </Text>
+          </View>
+        ) : (
         <View style={s.inputRow}>
           <TextInput
             style={s.input}
@@ -169,6 +188,7 @@ export default function DmChatScreen() {
             }
           </Pressable>
         </View>
+        )}
       </KeyboardAvoidingView>
     </ScreenBackground>
   );
@@ -218,5 +238,11 @@ function buildStyles(colors: ThemeColors) {
       backgroundColor: colors.red, alignItems: "center", justifyContent: "center",
     },
     sendBtnDisabled: { opacity: 0.4 },
+    blockedRow: {
+      flexDirection: "row", alignItems: "center", justifyContent: "center", gap: 8,
+      paddingHorizontal: 20, paddingVertical: 18,
+      borderTopWidth: 1, borderTopColor: colors.border,
+    },
+    blockedText: { color: colors.textMuted, fontSize: 13, textAlign: "center", flexShrink: 1 },
   });
 }
