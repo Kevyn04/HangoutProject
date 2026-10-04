@@ -21,6 +21,7 @@ import { SkeletonBox } from "@/components/SkeletonBox";
 import { EmptyState } from "@/components/EmptyState";
 import { ScreenBackground } from "@/components/ScreenBackground";
 import { StoryBar } from "@/components/StoryBar";
+import { StoryComposer } from "@/components/StoryComposer";
 import { useToast } from "@/context/ToastContext";
 
 type Suggestion = { username: string; mutualBubbles: number; distanceKm?: number };
@@ -191,6 +192,7 @@ export default function FeedScreen() {
   const [storyGroups, setStoryGroups]       = useState<StoryGroup[]>([]);
   const [seenStoryIds, setSeenStoryIds]     = useState<Set<number>>(new Set());
   const [postingStory, setPostingStory]     = useState(false);
+  const [pendingStoryUri, setPendingStoryUri] = useState<string | null>(null);
   const [followingFeed, setFollowingFeed]   = useState<ActivityItem[]>([]);
   const [suggestedFeed, setSuggestedFeed]   = useState<ActivityItem[]>([]);
   const [discoverFeed, setDiscoverFeed]     = useState<ActivityItem[]>([]);
@@ -274,9 +276,15 @@ export default function FeedScreen() {
       quality: 0.9,
     });
     if (result.canceled || !result.assets[0]) return;
+    setPendingStoryUri(result.assets[0].uri);
+  };
+
+  const handlePostStory = async (caption: string) => {
+    if (!user || !pendingStoryUri) return;
     setPostingStory(true);
     try {
-      await postStory(user, result.assets[0].uri);
+      await postStory(user, pendingStoryUri, caption);
+      setPendingStoryUri(null);
       showToast("Story posted!", "success");
       const groups = await getActiveStories(user);
       setStoryGroups(groups);
@@ -470,6 +478,12 @@ export default function FeedScreen() {
 
         <View style={{ height: 20 }} />
       </ScrollView>
+      <StoryComposer
+        uri={pendingStoryUri}
+        posting={postingStory}
+        onCancel={() => setPendingStoryUri(null)}
+        onPost={handlePostStory}
+      />
     </ScreenBackground>
   );
 }
