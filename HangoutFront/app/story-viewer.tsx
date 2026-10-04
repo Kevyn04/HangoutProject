@@ -8,6 +8,7 @@ import { Ionicons } from "@expo/vector-icons";
 import { useLocalSearchParams, useRouter } from "expo-router";
 import AsyncStorage from "@react-native-async-storage/async-storage";
 import { deleteStory, getActiveStories, Story } from "@/services/api";
+import { ReportSheet, ReportTarget } from "@/components/ReportSheet";
 import { useAuth } from "@/services/auth-context";
 import { useTheme } from "@/services/theme-context";
 import type { ThemeColors } from "@/constants/theme";
@@ -81,11 +82,15 @@ export default function StoryViewerScreen() {
 
   const goPrev = () => setIndex((i) => Math.max(0, i - 1));
 
-  // Per-story timer + seen tracking
+  const [reportTarget, setReportTarget] = useState<ReportTarget | null>(null);
+
+  // Per-story timer + seen tracking. Paused while the report sheet is open
+  // so the story doesn't advance (or close the viewer) underneath it.
   useEffect(() => {
     const story = stories[index];
     if (!story) return;
     markSeen(story.id);
+    if (reportTarget) { progress.stopAnimation(); return; }
 
     progress.setValue(0);
     const anim = Animated.timing(progress, {
@@ -98,7 +103,7 @@ export default function StoryViewerScreen() {
       if (finished) goNext();
     });
     return () => anim.stop();
-  }, [index, stories, progress, goNext]);
+  }, [index, stories, progress, goNext, reportTarget]);
 
   const handleDelete = () => {
     const story = stories[index];
@@ -166,9 +171,18 @@ export default function StoryViewerScreen() {
           <Text style={s.username}>@{story.username}</Text>
           <Text style={s.time}>{timeAgo(story.createdAt)}</Text>
         </View>
-        {story.username === user && (
+        {story.username === user ? (
           <Pressable style={s.headerBtn} onPress={handleDelete} hitSlop={8}>
             <Ionicons name="trash-outline" size={20} color="#fff" />
+          </Pressable>
+        ) : !!user && (
+          <Pressable
+            style={s.headerBtn}
+            onPress={() => setReportTarget({ kind: "story", contentId: story.id, author: story.username })}
+            hitSlop={8}
+            accessibilityLabel="Report story"
+          >
+            <Ionicons name="flag-outline" size={20} color="#fff" />
           </Pressable>
         )}
         <Pressable style={s.headerBtn} onPress={() => router.back()} hitSlop={8}>
@@ -182,6 +196,7 @@ export default function StoryViewerScreen() {
           <Text style={s.caption}>{story.caption}</Text>
         </View>
       )}
+      <ReportSheet target={reportTarget} onClose={() => setReportTarget(null)} />
     </View>
   );
 }

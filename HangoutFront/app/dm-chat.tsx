@@ -13,6 +13,7 @@ import { getDMMessages, sendDM, markDMsRead, canDM, getIsBlocked, DmMessage } fr
 import { supabase } from "@/services/supabase";
 import { ScreenBackground } from "@/components/ScreenBackground";
 import { UserAvatar } from "@/components/UserAvatar";
+import { ReportSheet, ReportTarget } from "@/components/ReportSheet";
 
 function fmtTime(iso: string) {
   try { return new Date(iso).toLocaleTimeString([], { hour: "2-digit", minute: "2-digit" }); }
@@ -34,6 +35,7 @@ export default function DmChatScreen() {
   // null = still checking; "blocked" = I blocked them; "unavailable" = they blocked me
   const [blockState, setBlockState] = useState<null | "ok" | "blocked" | "unavailable">(null);
   const listRef = useRef<FlatList>(null);
+  const [reportTarget, setReportTarget] = useState<ReportTarget | null>(null);
 
   const scrollToBottom = (animated = true) =>
     setTimeout(() => listRef.current?.scrollToEnd({ animated }), 50);
@@ -146,10 +148,14 @@ export default function DmChatScreen() {
             renderItem={({ item }) => {
               const isMe = item.senderUsername === user;
               return (
-                <View style={[s.bubble, isMe ? s.bubbleMe : s.bubbleOther]}>
+                <Pressable
+                  style={[s.bubble, isMe ? s.bubbleMe : s.bubbleOther]}
+                  onLongPress={isMe ? undefined : () => setReportTarget({ kind: "dm_message", contentId: item.id, author: item.senderUsername })}
+                  delayLongPress={400}
+                >
                   <Text style={[s.msgText, isMe && s.msgTextMe]}>{item.content}</Text>
                   <Text style={[s.time, isMe && s.timeMe]}>{fmtTime(item.createdAt)}</Text>
-                </View>
+                </Pressable>
               );
             }}
           />
@@ -190,6 +196,7 @@ export default function DmChatScreen() {
         </View>
         )}
       </KeyboardAvoidingView>
+      <ReportSheet target={reportTarget} onClose={() => setReportTarget(null)} />
     </ScreenBackground>
   );
 }

@@ -11,6 +11,7 @@ import { useToast } from "@/context/ToastContext";
 import { getDiscussionReplies, addDiscussionReply } from "@/services/api";
 import { ScreenBackground } from "@/components/ScreenBackground";
 import { useBlockedUsers } from "@/hooks/use-blocked-users";
+import { ReportSheet, ReportTarget } from "@/components/ReportSheet";
 
 type Reply = { id: number; username: string; content: string; createdAt: string };
 
@@ -36,6 +37,7 @@ export default function DiscussionDetailScreen() {
   const [sending, setSending] = useState(false);
   const listRef = useRef<FlatList>(null);
   const blocked = useBlockedUsers(user);
+  const [reportTarget, setReportTarget] = useState<ReportTarget | null>(null);
   const visibleReplies = useMemo(
     () => replies.filter((r) => r.username === user || !blocked.has(r.username)),
     [replies, blocked, user],
@@ -76,20 +78,31 @@ export default function DiscussionDetailScreen() {
             <View style={s.postCard}>
               <Text style={s.postTitle}>{title}</Text>
               {!!body && <Text style={s.postBody}>{body}</Text>}
-              <Text style={s.postMeta}>by {createdBy}</Text>
+              <View style={s.postMetaRow}>
+                <Text style={s.postMeta}>by {createdBy}</Text>
+                {!!user && createdBy !== user && (
+                  <Pressable hitSlop={12} onPress={() => setReportTarget({ kind: "discussion", contentId: did, author: createdBy })}>
+                    <Text style={s.reportLink}>Report</Text>
+                  </Pressable>
+                )}
+              </View>
               <View style={s.divider} />
-              <Text style={s.repliesLabel}>{replies.length} {replies.length === 1 ? "Reply" : "Replies"}</Text>
+              <Text style={s.repliesLabel}>{visibleReplies.length} {visibleReplies.length === 1 ? "Reply" : "Replies"}</Text>
             </View>
           }
           ListEmptyComponent={loading ? <ActivityIndicator color={colors.text} style={{ marginTop: 20 }} /> : <Text style={s.empty}>No replies yet. Be first!</Text>}
           renderItem={({ item }) => (
-            <View style={s.replyCard}>
+            <Pressable
+              style={s.replyCard}
+              onLongPress={item.username === user ? undefined : () => setReportTarget({ kind: "discussion_reply", contentId: item.id, author: item.username })}
+              delayLongPress={400}
+            >
               <View style={s.replyHeader}>
                 <Text style={s.replyUser}>{item.username}</Text>
                 <Text style={s.replyTime}>{fmtTime(item.createdAt)}</Text>
               </View>
               <Text style={s.replyContent}>{item.content}</Text>
-            </View>
+            </Pressable>
           )}
         />
 
@@ -107,6 +120,7 @@ export default function DiscussionDetailScreen() {
           </Pressable>
         </View>
       </KeyboardAvoidingView>
+      <ReportSheet target={reportTarget} onClose={() => setReportTarget(null)} />
     </ScreenBackground>
   );
 }
@@ -123,6 +137,8 @@ function buildStyles(colors: ThemeColors) {
     postTitle: { color: colors.text, fontSize: 20, fontWeight: "800", marginBottom: 8 },
     postBody: { color: colors.textSub, fontSize: 15, lineHeight: 22, marginBottom: 10 },
     postMeta: { color: colors.textMuted, fontSize: 12, fontStyle: "italic" },
+    postMetaRow: { flexDirection: "row", alignItems: "center", justifyContent: "space-between" },
+    reportLink: { color: colors.textMuted, fontSize: 12, fontWeight: "600" },
     divider: { height: 1, backgroundColor: colors.borderFaint, marginVertical: 12 },
     repliesLabel: { color: colors.textSub, fontSize: 13, fontWeight: "700" },
 

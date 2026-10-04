@@ -1232,6 +1232,22 @@ export async function reportMessage(
   if (error) throw new Error(error.message);
 }
 
+export type ReportKind =
+  | 'dm_message' | 'event_message' | 'discussion' | 'discussion_reply' | 'page_post' | 'story';
+
+// Generic content report: `type` names the source table, reported_message_id
+// holds that row's id, and reported_username the author, so admins can find
+// the content and the person from the dashboard.
+export async function reportContent(
+  reporter: string, kind: ReportKind, contentId: number, author: string, reason: string
+): Promise<void> {
+  const { error } = await supabase.from('reports').insert({
+    reporter_username: reporter, reported_username: author,
+    reported_message_id: contentId, type: kind, reason,
+  });
+  if (error) throw new Error(error.message);
+}
+
 export async function blockUser(blocker: string, blocked: string): Promise<void> {
   await supabase.from('blocked_users').insert({ blocker, blocked });
 }

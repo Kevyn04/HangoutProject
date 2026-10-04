@@ -21,6 +21,7 @@ import { EmptyState } from "@/components/EmptyState";
 import { useToast } from "@/context/ToastContext";
 import * as Haptics from "expo-haptics";
 import { ScreenBackground } from "@/components/ScreenBackground";
+import { ReportSheet, ReportTarget } from "@/components/ReportSheet";
 
 const CATEGORY_COLORS: Record<string, string> = {
   Nightlife: "#7c3aed", Community: "#0ea5e9", Art: "#ea580c",
@@ -54,6 +55,7 @@ export default function PageDetailScreen() {
   const [events, setEvents] = useState<any[]>([]);
   const [bubbles, setBubbles] = useState<any[]>([]);
   const [posts, setPosts] = useState<PagePost[]>([]);
+  const [reportTarget, setReportTarget] = useState<ReportTarget | null>(null);
   const [moderators, setModerators] = useState<string[]>([]);
   const [analytics, setAnalytics] = useState<PageAnalytics | null>(null);
   const [loading, setLoading] = useState(true);
@@ -347,6 +349,15 @@ export default function PageDetailScreen() {
                             <Ionicons name="trash-outline" size={14} color={colors.textMuted} />
                           </Pressable>
                         )}
+                        {!!user && user !== p.username && (
+                          <Pressable
+                            onPress={() => setReportTarget({ kind: "page_post", contentId: p.id, author: p.username })}
+                            hitSlop={8}
+                            accessibilityLabel="Report post"
+                          >
+                            <Ionicons name="flag-outline" size={14} color={colors.textMuted} />
+                          </Pressable>
+                        )}
                       </View>
                     </View>
                     <Text style={s.postContent}>{p.content}</Text>
@@ -453,6 +464,7 @@ export default function PageDetailScreen() {
           )}
         </View>
       </Modal>
+      <ReportSheet target={reportTarget} onClose={() => setReportTarget(null)} />
     </ScreenBackground>
   );
 }

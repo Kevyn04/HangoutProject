@@ -15,6 +15,7 @@ import { getEventMessages, sendEventMessage, uploadChatImage } from "@/services/
 import { supabase } from "@/services/supabase";
 import { ScreenBackground } from "@/components/ScreenBackground";
 import { useBlockedUsers } from "@/hooks/use-blocked-users";
+import { ReportSheet, ReportTarget } from "@/components/ReportSheet";
 
 type Msg = { id: number; username: string; message: string; imageUrl?: string | null; createdAt: string };
 
@@ -36,6 +37,7 @@ export default function EventChatScreen() {
   const [sending, setSending] = useState(false);
   const listRef = useRef<FlatList>(null);
   const blocked = useBlockedUsers(user);
+  const [reportTarget, setReportTarget] = useState<ReportTarget | null>(null);
   const visibleMessages = useMemo(
     () => messages.filter((m) => m.username === user || !blocked.has(m.username)),
     [messages, blocked, user],
@@ -116,14 +118,18 @@ export default function EventChatScreen() {
           renderItem={({ item }) => {
             const isMe = item.username === user;
             return (
-              <View style={[s.bubble, isMe ? s.bubbleMe : s.bubbleOther]}>
+              <Pressable
+                style={[s.bubble, isMe ? s.bubbleMe : s.bubbleOther]}
+                onLongPress={isMe ? undefined : () => setReportTarget({ kind: "event_message", contentId: item.id, author: item.username })}
+                delayLongPress={400}
+              >
                 {!isMe && <Text style={s.sender}>{item.username}</Text>}
                 {!!item.imageUrl && (
                   <Image source={{ uri: item.imageUrl }} style={s.msgImage} contentFit="cover" transition={150} />
                 )}
                 {!!item.message && <Text style={[s.msgText, !isMe && s.msgTextOther]}>{item.message}</Text>}
                 <Text style={[s.time, !isMe && s.timeOther]}>{fmtTime(item.createdAt)}</Text>
-              </View>
+              </Pressable>
             );
           }}
         />
@@ -147,6 +153,7 @@ export default function EventChatScreen() {
           </Pressable>
         </View>
       </KeyboardAvoidingView>
+      <ReportSheet target={reportTarget} onClose={() => setReportTarget(null)} />
     </ScreenBackground>
   );
 }
