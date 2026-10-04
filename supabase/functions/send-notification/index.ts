@@ -146,7 +146,8 @@ Deno.serve(async (req) => {
           to: profile.push_token,
           title,
           body,
-          data: payload,
+          // type lets the app route the tap (invites open the inbox).
+          data: { ...payload, type },
           sound: 'default',
           priority: 'high',
         }),

@@ -7,7 +7,7 @@ import { SafeAreaProvider } from 'react-native-safe-area-context';
 import { useEffect, useState } from 'react';
 import { AuthProvider, useAuth } from '@/services/auth-context';
 import { ThemeContextProvider, useTheme } from '@/services/theme-context';
-import { usePushNotifications } from '@/hooks/use-push-notifications';
+import { usePushNotifications, useNotificationTapRouting } from '@/hooks/use-push-notifications';
 import { ToastProvider } from '@/context/ToastContext';
 import LoadingScreen from '@/components/LoadingScreen';
 import { OnboardingOverlay } from '@/components/OnboardingOverlay';
@@ -19,8 +19,9 @@ export const unstable_settings = {
 };
 
 function NotificationRegistrar() {
-  const { user } = useAuth();
+  const { user, loading, needsUsername } = useAuth();
   usePushNotifications(user);
+  useNotificationTapRouting(!loading && !!user && !needsUsername);
   return null;
 }
 
