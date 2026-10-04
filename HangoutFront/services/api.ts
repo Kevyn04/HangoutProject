@@ -429,11 +429,13 @@ export async function getMessages(id: number, channel: number): Promise<any[]> {
     .select('id, bubble_id, channel_id, username, message, image_url, created_at')
     .eq('bubble_id', id)
     .eq('channel_id', channel)
-    .order('created_at', { ascending: true })
+    .order('created_at', { ascending: false })
     .limit(200);
 
   if (error) throw new Error(error.message);
-  return (data ?? []).map((m) => ({
+  // Fetched newest-first so the limit keeps the latest 200; flip back to
+  // chronological order for display.
+  return (data ?? []).reverse().map((m) => ({
     id: m.id,
     bubbleId: m.bubble_id,
     channelId: m.channel_id,
