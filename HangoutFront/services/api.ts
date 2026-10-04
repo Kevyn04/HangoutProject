@@ -580,6 +580,7 @@ export async function getPageContent(pageId: number): Promise<{ events: any[]; b
       .from('bubbles')
       .select('*, bubble_member_detail(username)')
       .eq('created_by', page.created_by)
+      .or(futureBubblesFilter())
       .order('created_at', { ascending: false }),
   ]);
 

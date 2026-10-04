@@ -641,7 +641,7 @@ export default function BubbleDetailScreen() {
   const handleShare = async () => {
     try {
       await Share.share({
-        message: `Join my bubble "${bubble?.name}" on The Hangout!\nthehangout://bubble-detail?id=${bubbleId}`,
+        message: `Join my bubble "${bubble?.name}" on Hangout!\nthehangout://bubble-detail?id=${bubbleId}`,
         title: `Join ${bubble?.name}`,
       });
     } catch {}
